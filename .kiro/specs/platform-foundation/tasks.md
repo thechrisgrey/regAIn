@@ -21,28 +21,28 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
   - Set up Python virtual environment for CDK
   - _Requirements: 1.1, 1.2, 2.1, 2.2, 2.3, 2.4, 2.5_
 
-- [ ] 2. Create shared Python utilities for Lambda functions
-  - [ ] 2.1 Implement DynamoDB data access layer (backend/lambda/shared/dynamodb.py)
+- [x] 2. Create shared Python utilities for Lambda functions
+  - [x] 2.1 Implement DynamoDB data access layer (backend/lambda/shared/dynamodb.py)
     - Create DynamoDBClient class with get_item, put_item, query, update_item methods
     - Read table names from environment variables
     - Add type hints and docstrings
     - _Requirements: 3.1, 3.2_
   
-  - [ ] 2.2 Implement response helpers (backend/lambda/shared/responses.py)
+  - [x] 2.2 Implement response helpers (backend/lambda/shared/responses.py)
     - Create success_response and error_response functions
     - Include CORS headers
     - _Requirements: 3.3_
   
-  - [ ] 2.3 Implement environment configuration (backend/lambda/shared/config.py)
+  - [x] 2.3 Implement environment configuration (backend/lambda/shared/config.py)
     - Create Config class with environment variable accessors
     - _Requirements: 3.4_
   
-  - [ ] 2.4 Implement data models (backend/lambda/shared/models.py)
+  - [x] 2.4 Implement data models (backend/lambda/shared/models.py)
     - Create UserProfile, Campaign, Mission, Evidence dataclasses
     - Add to_dynamodb_item and from_dynamodb_item methods
     - _Requirements: 3.1_
   
-  - [ ]* 2.5 Write property test for environment-based table configuration
+  - [x] 2.5 Write property test for environment-based table configuration
     - **Property 3: Environment-Based Table Configuration**
     - **Validates: Requirements 3.2**
 

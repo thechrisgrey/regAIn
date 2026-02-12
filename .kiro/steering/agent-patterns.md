@@ -1,6 +1,6 @@
 ---
-inclusion: glob
-globs: ["backend/agents/**", "agents/**"]
+inclusion: fileMatch
+fileMatchPattern: "backend/agents/**"
 name: agent-development-patterns
 description: Patterns for building REGAIN agents with Strands SDK and AgentCore
 ---

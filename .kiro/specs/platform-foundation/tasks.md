@@ -14,7 +14,7 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
 
 ## Tasks
 
-- [ ] 1. Initialize CDK project and directory structure
+- [x] 1. Initialize CDK project and directory structure
   - Create infra/app.py as CDK entry point
   - Create infra/requirements.txt with aws-cdk-lib and constructs
   - Create complete directory structure per project conventions
@@ -53,6 +53,7 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Create User Pool Client with SRP auth flow (no client secret)
     - Add CloudFormation outputs for User Pool ID and Client ID
     - Apply resource tags (Project=REGAIN, Environment=dev)
+    - Update infra/app.py to instantiate AuthStack
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 8.1, 8.4, 8.5, 8.6_
   
   - [ ]* 3.2 Write unit test for AuthStack configuration
@@ -75,6 +76,7 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Use on-demand billing for all tables
     - Add CloudFormation outputs for all table names and ARNs
     - Apply resource tags
+    - Update infra/app.py to instantiate DataStack
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 8.2, 8.4, 8.5, 8.6, 9.1, 9.4_
   
   - [ ]* 4.2 Write property test for on-demand billing mode
@@ -147,6 +149,7 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Create API Gateway resources and methods for all endpoints
     - Enable CORS on all endpoints
     - Apply resource tags
+    - Update infra/app.py to instantiate ApiStack with cross-stack references (AuthStack, DataStack)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 8.3, 8.4, 8.5, 8.6, 9.2_
   
   - [ ]* 7.2 Write property test for API authorization enforcement
@@ -165,11 +168,12 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - **Property 9: Least-Privilege IAM Permissions**
     - **Validates: Requirements 6.11**
 
-- [ ] 8. Update CDK app to instantiate all stacks
-  - [ ] 8.1 Wire stacks together in infra/app.py
-    - Instantiate AuthStack, DataStack, and ApiStack
-    - Pass cross-stack references (User Pool to ApiStack, tables to ApiStack)
-    - Configure environment (region: us-east-1, account: 563170906428)
+- [ ] 8. Verify and finalize CDK app wiring
+  - [ ] 8.1 Verify all stacks are correctly wired in infra/app.py
+    - Confirm AuthStack, DataStack, and ApiStack are instantiated
+    - Confirm cross-stack references are correct (User Pool to ApiStack, tables to ApiStack)
+    - Confirm environment is configured (region: us-east-1, account: 563170906428)
+    - Clean up any inconsistencies from incremental additions
     - _Requirements: 1.1, 1.4_
   
   - [ ]* 8.2 Write property test for CDK synthesis validity
@@ -190,7 +194,7 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
 
 - [ ] 10. Initialize frontend React application
   - [ ] 10.1 Create React + TypeScript project with Vite
-    - Run `npm create vite@latest frontend -- --template react-ts`
+    - Scaffold Vite into a temp directory, then move contents into existing frontend/ to avoid nesting
     - Configure Tailwind CSS (install dependencies, create tailwind.config.js)
     - Set up project structure (components, pages, hooks, services, types directories)
     - _Requirements: 7.1, 7.2, 2.4_
@@ -309,9 +313,9 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - **Validates: Requirements 10.4**
 
 - [ ] 17. Create integration wiring and final validation
-  - [ ] 17.1 Create CDK deployment script
-    - Add deployment instructions to infra/README.md (if needed for deployment)
-    - Document environment variables needed for frontend
+  - [ ] 17.1 Verify deployment readiness
+    - Skip README creation per anti-pattern convention (no per-module docs unless explicitly requested)
+    - Verify environment variables needed for frontend are documented in .env.example
     - _Requirements: 1.1_
   
   - [ ] 17.2 Verify all cross-stack references

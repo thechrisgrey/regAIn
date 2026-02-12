@@ -1,0 +1,35 @@
+{
+  "mcpServers": {
+    "aws-docs": {
+      "command": "uvx",
+      "args": ["awslabs.aws-documentation-mcp-server@latest"],
+      "env": { "FASTMCP_LOG_LEVEL": "ERROR" },
+      "disabled": false,
+      "autoApprove": []
+    },
+    "strands-agents": {
+      "command": "uvx",
+      "args": ["strands-agents-mcp-server"],
+      "disabled": false,
+      "autoApprove": []
+    },
+    "dynamodb": {
+      "command": "uvx",
+      "args": ["awslabs.dynamodb-mcp-server"],
+      "disabled": false,
+      "autoApprove": []
+    },
+    "serverless": {
+      "command": "uvx",
+      "args": ["awslabs.aws-serverless-mcp"],
+      "disabled": false,
+      "autoApprove": []
+    },
+    "fetch": {
+      "command": "uvx",
+      "args": ["mcp-fetch"],
+      "disabled": false,
+      "autoApprove": []
+    }
+  }
+}

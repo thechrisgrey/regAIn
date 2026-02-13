@@ -47,8 +47,8 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - **Validates: Requirements 3.2**
 
 
-- [ ] 3. Implement Authentication Stack (infra/stacks/auth_stack.py)
-  - [ ] 3.1 Create AuthStack class with Cognito User Pool
+- [x] 3. Implement Authentication Stack (infra/stacks/auth_stack.py)
+  - [x] 3.1 Create AuthStack class with Cognito User Pool
     - Configure email sign-in and verification
     - Create User Pool Client with SRP auth flow (no client secret)
     - Add CloudFormation outputs for User Pool ID and Client ID
@@ -56,18 +56,18 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Update infra/app.py to instantiate AuthStack
     - _Requirements: 4.1, 4.2, 4.3, 4.4, 4.5, 8.1, 8.4, 8.5, 8.6_
   
-  - [ ]* 3.2 Write unit test for AuthStack configuration
+  - [x] 3.2 Write unit test for AuthStack configuration
     - Verify User Pool has email sign-in enabled
     - Verify User Pool Client has correct auth flow
     - Verify CloudFormation outputs exist
     - _Requirements: 4.1, 4.2, 4.3, 4.4_
   
-  - [ ]* 3.3 Write property test for resource tagging
+  - [x] 3.3 Write property test for resource tagging
     - **Property 2: Resource Tagging Consistency**
     - **Validates: Requirements 1.4, 8.5, 8.6**
 
-- [ ] 4. Implement Data Stack (infra/stacks/data_stack.py)
-  - [ ] 4.1 Create DataStack class with all DynamoDB tables
+- [x] 4. Implement Data Stack (infra/stacks/data_stack.py)
+  - [x] 4.1 Create DataStack class with all DynamoDB tables
     - Create UserProfiles table (PK: userId)
     - Create Campaigns table (PK: userId, SK: campaignId) with status GSI
     - Create MissionHistory table (PK: userId, SK: missionId) with status and date GSIs

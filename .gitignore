@@ -3,3 +3,5 @@ __pycache__/
 .hypothesis/
 *.egg-info/
 .pytest_cache/
+cdk.out/
+infra/.venv/

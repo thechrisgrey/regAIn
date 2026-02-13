@@ -79,15 +79,15 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Update infra/app.py to instantiate DataStack
     - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5, 5.6, 5.7, 5.8, 5.9, 5.10, 5.11, 5.12, 8.2, 8.4, 8.5, 8.6, 9.1, 9.4_
   
-  - [ ]* 4.2 Write property test for on-demand billing mode
+  - [x] 4.2 Write property test for on-demand billing mode
     - **Property 4: On-Demand Billing Mode**
     - **Validates: Requirements 5.10, 9.1, 9.4**
   
-  - [ ]* 4.3 Write property test for table output completeness
+  - [x] 4.3 Write property test for table output completeness
     - **Property 5: Table Output Completeness**
     - **Validates: Requirements 5.11, 5.12**
 
-- [ ] 5. Checkpoint - Verify CDK synthesis
+- [x] 5. Checkpoint - Verify CDK synthesis
   - Run `cdk synth` to generate CloudFormation templates
   - Verify all stacks synthesize without errors
   - Review generated templates for correctness

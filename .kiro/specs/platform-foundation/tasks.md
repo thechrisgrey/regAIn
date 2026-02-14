@@ -94,8 +94,8 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
   - Ensure all tests pass, ask the user if questions arise.
 
 
-- [ ] 6. Implement Lambda handlers and service modules
-  - [ ] 6.1 Create onboarding Lambda (backend/lambda/onboarding/)
+- [x] 6. Implement Lambda handlers and service modules
+  - [x] 6.1 Create onboarding Lambda (backend/lambda/onboarding/)
     - Create handler.py with lambda_handler function (thin handler pattern)
     - Create service.py with OnboardingService class containing business logic
     - Implement create_profile method to write to UserProfiles and Campaigns tables
@@ -103,45 +103,45 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Create requirements.txt with boto3
     - _Requirements: 6.2, 6.12, 6.13_
   
-  - [ ] 6.2 Create missions Lambda (backend/lambda/missions/)
+  - [x] 6.2 Create missions Lambda (backend/lambda/missions/)
     - Create handler.py with lambda_handler for GET /missions and POST /missions/{missionId}/complete
     - Create service.py with MissionsService class
     - Implement list_missions and complete_mission methods
     - Add input validation
     - _Requirements: 6.3, 6.4, 6.12, 6.13_
   
-  - [ ] 6.3 Create evidence Lambda (backend/lambda/evidence/)
+  - [x] 6.3 Create evidence Lambda (backend/lambda/evidence/)
     - Create handler.py with lambda_handler for GET /evidence
     - Create service.py with EvidenceService class
     - Implement list_evidence method with optional skill_tag filtering
     - _Requirements: 6.5, 6.12, 6.13_
   
-  - [ ] 6.4 Create coaching Lambda (backend/lambda/coaching/)
+  - [x] 6.4 Create coaching Lambda (backend/lambda/coaching/)
     - Create handler.py with lambda_handler for POST /coaching/checkin
     - Create service.py with CoachingService class (placeholder for future agent integration)
     - Implement basic checkin method
     - _Requirements: 6.6, 6.12, 6.13_
   
-  - [ ] 6.5 Create dashboard Lambda (backend/lambda/dashboard/)
+  - [x] 6.5 Create dashboard Lambda (backend/lambda/dashboard/)
     - Create handler.py with lambda_handler for GET /dashboard
     - Create service.py with DashboardService class
     - Implement get_dashboard method to aggregate campaign stats
     - _Requirements: 6.7, 6.12, 6.13_
   
-  - [ ]* 6.6 Write unit tests for Lambda handlers
+  - [x] 6.6 Write unit tests for Lambda handlers
     - Test that each handler validates input
     - Test that each handler calls service module correctly
     - Test error handling for invalid input
     - **Property 14: Handler Test Verification**
     - **Validates: Requirements 10.2**
   
-  - [ ]* 6.7 Write property test for thin handler pattern
+  - [x] 6.7 Write property test for thin handler pattern
     - **Property 10: Thin Handler Pattern**
     - **Validates: Requirements 6.12**
 
 
-- [ ] 7. Implement API Stack (infra/stacks/api_stack.py)
-  - [ ] 7.1 Create ApiStack class with API Gateway and Lambda integrations
+- [x] 7. Implement API Stack (infra/stacks/api_stack.py)
+  - [x] 7.1 Create ApiStack class with API Gateway and Lambda integrations
     - Create REST API with Cognito authorizer using User Pool from AuthStack
     - Create Lambda functions for all handlers (onboarding, missions, evidence, coaching, dashboard)
     - Configure Lambda environment variables with table names from DataStack
@@ -152,39 +152,39 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Update infra/app.py to instantiate ApiStack with cross-stack references (AuthStack, DataStack)
     - _Requirements: 6.1, 6.2, 6.3, 6.4, 6.5, 6.6, 6.7, 6.8, 6.9, 6.10, 6.11, 8.3, 8.4, 8.5, 8.6, 9.2_
   
-  - [ ]* 7.2 Write property test for API authorization enforcement
+  - [x] 7.2 Write property test for API authorization enforcement
     - **Property 6: API Authorization Enforcement**
     - **Validates: Requirements 6.8**
   
-  - [ ]* 7.3 Write property test for Lambda runtime consistency
+  - [x] 7.3 Write property test for Lambda runtime consistency
     - **Property 7: Lambda Runtime Consistency**
     - **Validates: Requirements 6.9, 9.2**
   
-  - [ ]* 7.4 Write property test for Lambda environment configuration
+  - [x] 7.4 Write property test for Lambda environment configuration
     - **Property 8: Lambda Environment Configuration**
     - **Validates: Requirements 6.10**
   
-  - [ ]* 7.5 Write property test for least-privilege IAM permissions
+  - [x] 7.5 Write property test for least-privilege IAM permissions
     - **Property 9: Least-Privilege IAM Permissions**
     - **Validates: Requirements 6.11**
 
-- [ ] 8. Verify and finalize CDK app wiring
-  - [ ] 8.1 Verify all stacks are correctly wired in infra/app.py
+- [x] 8. Verify and finalize CDK app wiring
+  - [x] 8.1 Verify all stacks are correctly wired in infra/app.py
     - Confirm AuthStack, DataStack, and ApiStack are instantiated
     - Confirm cross-stack references are correct (User Pool to ApiStack, tables to ApiStack)
     - Confirm environment is configured (region: us-east-1, account: 563170906428)
     - Clean up any inconsistencies from incremental additions
     - _Requirements: 1.1, 1.4_
   
-  - [ ]* 8.2 Write property test for CDK synthesis validity
+  - [x] 8.2 Write property test for CDK synthesis validity
     - **Property 1: CDK Synthesis Validity**
     - **Validates: Requirements 1.3**
   
-  - [ ]* 8.3 Write property test for resource naming convention
+  - [x] 8.3 Write property test for resource naming convention
     - **Property 13: Resource Naming Convention**
     - **Validates: Requirements 8.4**
 
-- [ ] 9. Checkpoint - Verify complete infrastructure
+- [x] 9. Checkpoint - Verify complete infrastructure
   - Run `cdk synth` to generate all CloudFormation templates
   - Review Lambda function configurations
   - Verify IAM permissions are least-privilege
@@ -193,13 +193,13 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
 
 
 - [ ] 10. Initialize frontend React application
-  - [ ] 10.1 Create React + TypeScript project with Vite
+  - [x] 10.1 Create React + TypeScript project with Vite
     - Scaffold Vite into a temp directory, then move contents into existing frontend/ to avoid nesting
     - Configure Tailwind CSS (install dependencies, create tailwind.config.js)
     - Set up project structure (components, pages, hooks, services, types directories)
     - _Requirements: 7.1, 7.2, 2.4_
   
-  - [ ] 10.2 Install and configure dependencies
+  - [x] 10.2 Install and configure dependencies
     - Install React Router v6
     - Install AWS Amplify Auth library
     - Configure Amplify with Cognito User Pool ID and Client ID
@@ -207,73 +207,73 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - _Requirements: 7.3, 7.4_
 
 - [ ] 11. Implement authentication layer
-  - [ ] 11.1 Create authentication context (src/hooks/useAuth.tsx)
+  - [x] 11.1 Create authentication context (src/hooks/useAuth.tsx)
     - Implement AuthProvider with Amplify Auth integration
     - Implement useAuth hook with signIn, signOut, getToken methods
     - Handle authentication state management
     - _Requirements: 7.4_
   
-  - [ ] 11.2 Create Login component (src/components/Login.tsx)
+  - [x] 11.2 Create Login component (src/components/Login.tsx)
     - Implement email/password login form
     - Handle authentication errors
     - Redirect to dashboard on successful login
     - _Requirements: 7.4_
   
-  - [ ] 11.3 Create ProtectedRoute component (src/components/ProtectedRoute.tsx)
+  - [x] 11.3 Create ProtectedRoute component (src/components/ProtectedRoute.tsx)
     - Check authentication status
     - Redirect to login if not authenticated
     - Show loading state while checking auth
     - _Requirements: 7.5_
   
-  - [ ]* 11.4 Write property test for protected route authentication
+  - [x] 11.4 Write property test for protected route authentication
     - **Property 11: Protected Route Authentication**
     - **Validates: Requirements 7.5**
 
 - [ ] 12. Implement API client layer
-  - [ ] 12.1 Create API service (src/services/api.ts)
+  - [x] 12.1 Create API service (src/services/api.ts)
     - Implement apiRequest helper function with authentication headers
     - Create typed API functions for all endpoints (onboarding, missions, evidence, dashboard)
     - Handle API errors with custom ApiError class
     - _Requirements: 7.7, 7.8_
   
-  - [ ] 12.2 Create TypeScript types (src/types/index.ts)
+  - [x] 12.2 Create TypeScript types (src/types/index.ts)
     - Define UserProfile, Campaign, Mission, Evidence interfaces
     - Define API request/response types
     - _Requirements: 7.7_
   
-  - [ ]* 12.3 Write property test for API request authentication
+  - [x] 12.3 Write property test for API request authentication
     - **Property 12: API Request Authentication**
     - **Validates: Requirements 7.8**
 
 
 - [ ] 13. Implement custom hooks for API interactions
-  - [ ] 13.1 Create useOnboarding hook (src/hooks/useOnboarding.ts)
+  - [x] 13.1 Create useOnboarding hook (src/hooks/useOnboarding.ts)
     - Implement hook for calling POST /onboarding endpoint
     - Handle loading and error states
     - _Requirements: 7.3_
   
-  - [ ] 13.2 Create useMissions hook (src/hooks/useMissions.ts)
+  - [x] 13.2 Create useMissions hook (src/hooks/useMissions.ts)
     - Implement hook for GET /missions and POST /missions/{missionId}/complete
     - Handle loading and error states
     - _Requirements: 7.3_
   
-  - [ ] 13.3 Create useEvidence hook (src/hooks/useEvidence.ts)
+  - [x] 13.3 Create useEvidence hook (src/hooks/useEvidence.ts)
     - Implement hook for GET /evidence with optional filtering
     - Handle loading and error states
     - _Requirements: 7.3_
   
-  - [ ] 13.4 Create useDashboard hook (src/hooks/useDashboard.ts)
+  - [x] 13.4 Create useDashboard hook (src/hooks/useDashboard.ts)
     - Implement hook for GET /dashboard
     - Handle loading and error states
     - _Requirements: 7.3_
 
 - [ ] 14. Create page components (placeholder implementations)
-  - [ ] 14.1 Create Layout component (src/components/Layout.tsx)
+  - [x] 14.1 Create Layout component (src/components/Layout.tsx)
     - Implement navigation sidebar with links to all routes
     - Use React Router Outlet for nested routes
     - _Requirements: 7.6_
   
-  - [ ] 14.2 Create page components (src/pages/)
+  - [x] 14.2 Create page components (src/pages/)
     - Create Onboarding.tsx (placeholder with "Onboarding" heading)
     - Create Dashboard.tsx (placeholder with "Dashboard" heading)
     - Create Missions.tsx (placeholder with "Missions" heading)
@@ -281,13 +281,13 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
     - Create Profile.tsx (placeholder with "Profile" heading)
     - _Requirements: 7.3, 7.9_
   
-  - [ ] 14.3 Configure router in App.tsx
+  - [x] 14.3 Configure router in App.tsx
     - Set up React Router with all routes
     - Wrap protected routes with ProtectedRoute component
     - Wrap app with AuthProvider
     - _Requirements: 7.3, 7.5_
 
-- [ ] 15. Checkpoint - Verify frontend shell
+- [x] 15. Checkpoint - Verify frontend shell
   - Run `npm run dev` to start development server
   - Test authentication flow (login/logout)
   - Verify protected routes redirect when not authenticated
@@ -296,41 +296,41 @@ Each task builds on previous work, with checkpoints to validate progress. Testin
 
 
 - [ ] 16. Set up testing infrastructure
-  - [ ] 16.1 Configure pytest for backend tests
+  - [x] 16.1 Configure pytest for backend tests
     - Create tests/unit/ directory structure mirroring backend/lambda/
     - Create conftest.py with shared fixtures for mocking AWS services
     - Install pytest, moto, hypothesis in test requirements
     - _Requirements: 10.1, 10.4_
   
-  - [ ] 16.2 Create test fixtures (tests/unit/conftest.py)
+  - [x] 16.2 Create test fixtures (tests/unit/conftest.py)
     - Create fixture for mocking DynamoDB tables
     - Create fixture for mocking Cognito
     - Create fixture for Lambda event/context objects
     - _Requirements: 10.4_
   
-  - [ ]* 16.3 Write property test for AWS SDK mocking
+  - [x] 16.3 Write property test for AWS SDK mocking
     - **Property 15: AWS SDK Mocking**
     - **Validates: Requirements 10.4**
 
-- [ ] 17. Create integration wiring and final validation
-  - [ ] 17.1 Verify deployment readiness
+- [x] 17. Create integration wiring and final validation
+  - [x] 17.1 Verify deployment readiness
     - Skip README creation per anti-pattern convention (no per-module docs unless explicitly requested)
     - Verify environment variables needed for frontend are documented in .env.example
     - _Requirements: 1.1_
   
-  - [ ] 17.2 Verify all cross-stack references
+  - [x] 17.2 Verify all cross-stack references
     - Ensure ApiStack correctly imports User Pool from AuthStack
     - Ensure ApiStack correctly imports table names/ARNs from DataStack
     - Verify Lambda environment variables are set correctly
     - _Requirements: 6.10, 6.11_
   
-  - [ ] 17.3 Verify frontend configuration
+  - [x] 17.3 Verify frontend configuration
     - Ensure .env file has correct API Gateway URL placeholder
     - Ensure Amplify configuration has correct Cognito User Pool ID and Client ID placeholders
     - Document how to populate these values after deployment
     - _Requirements: 7.4_
 
-- [ ] 18. Final checkpoint - Complete foundation validation
+- [x] 18. Final checkpoint - Complete foundation validation
   - Run `cdk synth` and verify all templates are valid
   - Run all unit tests: `pytest tests/unit/`
   - Run all property tests with statistics: `pytest tests/unit/ --hypothesis-show-statistics`

@@ -1,0 +1,44 @@
+"""Evidence Lambda handler.
+
+Thin handler for GET /evidence with optional skill_tag filtering.
+"""
+
+import logging
+from typing import Any, Dict
+
+from backend.lambda.shared.responses import error_response, success_response
+from backend.lambda.evidence.service import EvidenceService
+
+logger = logging.getLogger(__name__)
+
+
+def _get_user_id(event: Dict[str, Any]) -> str | None:
+    """Extract userId from Cognito authorizer claims."""
+    try:
+        return event["requestContext"]["authorizer"]["claims"]["sub"]
+    except (KeyError, TypeError):
+        return None
+
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Handle GET /evidence requests.
+
+    Args:
+        event: API Gateway event.
+        context: Lambda context.
+
+    Returns:
+        API Gateway-compatible response.
+    """
+    user_id = _get_user_id(event)
+    if not user_id:
+        return error_response("Unauthorized", 401)
+
+    try:
+        params = event.get("queryStringParameters") or {}
+        service = EvidenceService()
+        evidence = service.list_evidence(user_id, skill_tag=params.get("skill_tag"))
+        return success_response({"evidence": evidence})
+    except Exception:
+        logger.exception("Evidence handler failed")
+        return error_response("Internal server error", 500)

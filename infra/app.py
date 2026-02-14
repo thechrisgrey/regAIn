@@ -3,6 +3,7 @@
 import aws_cdk as cdk
 from stacks.auth_stack import AuthStack
 from stacks.data_stack import DataStack
+from stacks.api_stack import ApiStack
 
 app = cdk.App()
 
@@ -13,9 +14,13 @@ env = cdk.Environment(
 
 auth_stack = AuthStack(app, "RegainAuthStack", env=env)
 data_stack = DataStack(app, "RegainDataStack", env=env)
-
-# Remaining stacks will be instantiated here as they are implemented.
-# See Task 8 for full wiring of ApiStack.
+api_stack = ApiStack(
+    app,
+    "RegainApiStack",
+    user_pool=auth_stack.user_pool,
+    tables=data_stack.tables,
+    env=env,
+)
 
 cdk.Tags.of(app).add("Project", "REGAIN")
 cdk.Tags.of(app).add("Environment", "dev")

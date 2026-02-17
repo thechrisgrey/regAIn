@@ -6,6 +6,7 @@ the shared DynamoDBClient for all data operations and return structured
 dicts — never free text.
 """
 
+import dataclasses
 import importlib
 import logging
 import uuid
@@ -19,6 +20,12 @@ from boto3.dynamodb.conditions import Attr as boto3_attr, Key
 
 _dynamodb_mod = importlib.import_module("backend.lambda.shared.dynamodb")
 DynamoDBClient = _dynamodb_mod.DynamoDBClient
+
+from backend.engine.generator import (
+    generate_daily_mission as engine_generate_mission,
+    complete_mission as engine_complete_mission,
+)
+from backend.engine.models import GenerationResult, CompletionResult
 
 logger = logging.getLogger(__name__)
 
@@ -298,50 +305,39 @@ def get_current_mission(user_id: str) -> dict[str, Any]:
 def generate_mission(
     user_id: str,
     campaign_id: str,
-    title: str,
-    description: str,
-    skill_tag: str,
 ) -> dict[str, Any]:
-    """Generate and store a new mission for a user's reskilling campaign.
+    """Generate a personalized daily mission for a user's reskilling campaign.
 
-    Use this tool to create a concrete, evidence-producing skill-building
-    task for the user. Each mission targets a specific skill and starts in
-    pending status. The user will see this mission during their next
-    check-in. Missions should be actionable, completable within a day, and
-    tied to the user's campaign phase and skill gaps.
+    Runs the full Mission Engine pipeline: skill gap analysis, template
+    instantiation, difficulty filtering, priority scoring, and ranking.
+    Returns the top-scored mission as the primary recommendation plus two
+    alternates. The engine handles all intelligence — just provide the user
+    and campaign identifiers.
 
     Args:
-        user_id: The unique identifier of the user to assign the mission to.
-        campaign_id: The campaign this mission belongs to.
-        title: A short, descriptive title for the mission.
-        description: Detailed instructions explaining what the user should do.
-        skill_tag: The skill this mission targets (must relate to the user's
-            profile or market demand).
+        user_id: The unique identifier of the user to generate a mission for.
+        campaign_id: The active campaign this mission belongs to.
 
     Returns:
-        A dict containing the created mission fields including the
-        generated missionId with status set to "pending", or an error
-        dict if creation fails.
+        A dict with "primary" (the recommended mission with all fields),
+        "alternates" (list of 2 backup missions), and "skill_gap_report"
+        (current gap analysis). Returns an error dict if generation fails.
     """
-    mission_id = f"mission-{uuid.uuid4()}"
-    item = {
-        "userId": user_id,
-        "missionId": mission_id,
-        "campaignId": campaign_id,
-        "title": title,
-        "description": description,
-        "status": "pending",
-        "skillTag": skill_tag,
-        "createdAt": datetime.now(timezone.utc).isoformat(),
-    }
     try:
-        db.put_item("mission_history", item)
-        return item
-    except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        result = engine_generate_mission(
+            user_id=user_id,
+            campaign_id=campaign_id,
+            db=db,
+        )
+
+        # Engine returns a dict with "error" key on failure.
+        if isinstance(result, dict):
+            return result
+
+        return dataclasses.asdict(result)
     except Exception as exc:
         logger.exception("Failed to generate mission for %s", user_id)
-        return {"error": "write_failed", "message": str(exc)}
+        return {"error": "generation_failed", "message": str(exc)}
 
 
 @tool
@@ -416,13 +412,13 @@ def complete_mission(
     skill_tag: str,
     artifact_url: str = "",
 ) -> dict[str, Any]:
-    """Mark a mission as completed and log the resulting evidence.
+    """Mark a mission as completed, log evidence, and update campaign progress.
 
-    Use this tool when a user reports finishing a mission. Updates the
-    mission status to "completed" with a completion timestamp, then
-    automatically creates an evidence record in the Evidence Vault.
-    Returns the evidence details so you can confirm what was captured
-    and share the cumulative skill count with the user.
+    Logs the user's evidence first (reflection, skill tag, optional artifact),
+    then delegates to the Mission Engine for state transition, difficulty
+    adjustment, and phase gate evaluation. Returns completion details
+    including any difficulty changes and phase transition info so you can
+    share progress with the user.
 
     Args:
         user_id: The unique identifier of the user completing the mission.
@@ -432,19 +428,13 @@ def complete_mission(
         artifact_url: Optional URL to a supporting artifact.
 
     Returns:
-        A dict with evidence_id and skill_evidence_count from the
-        logged evidence, or an error dict if the operation fails.
+        A dict with mission_id, difficulty_change (if any),
+        gate_result (phase gate evaluation with progress), and
+        behavioral_update. Also includes evidence_id from the logged
+        evidence. Returns an error dict if the operation fails.
     """
     try:
-        db.update_item(
-            "mission_history",
-            key={"userId": user_id, "missionId": mission_id},
-            updates={
-                "status": "completed",
-                "completedDate": datetime.now(timezone.utc).isoformat(),
-            },
-        )
-
+        # Log evidence first — the engine needs evidence_ids.
         evidence_result = log_evidence(
             user_id=user_id,
             mission_id=mission_id,
@@ -452,12 +442,33 @@ def complete_mission(
             reflection=reflection,
             artifact_url=artifact_url,
         )
-        return evidence_result
-    except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+
+        if "error" in evidence_result:
+            return evidence_result
+
+        evidence_id = evidence_result["evidence_id"]
+
+        # Delegate completion logic to the Mission Engine.
+        result = engine_complete_mission(
+            user_id=user_id,
+            mission_id=mission_id,
+            evidence_ids=[evidence_id],
+            db=db,
+        )
+
+        # Engine returns a dict with "error" key on failure.
+        if isinstance(result, dict):
+            return result
+
+        completion_dict = dataclasses.asdict(result)
+        completion_dict["evidence_id"] = evidence_id
+        completion_dict["skill_evidence_count"] = evidence_result.get(
+            "skill_evidence_count", 0
+        )
+        return completion_dict
     except Exception as exc:
         logger.exception("Failed to complete mission %s for %s", mission_id, user_id)
-        return {"error": "write_failed", "message": str(exc)}
+        return {"error": "completion_failed", "message": str(exc)}
 
 
 @tool

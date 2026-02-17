@@ -4,10 +4,9 @@
 
 **Validates: Requirements 2.4**
 
-For any generated mission for a user, the mission's skill_tag should be
-present in the user's Transition Profile skills (the union of
-transferable_skills, technical_skills, and domain_knowledge) or in the
-MarketData skill_demand list for the user's target sector.
+For any GenerationResult returned by the engine, the primary mission's
+skill_tags should be non-empty lists of strings. The tool layer faithfully
+passes through the engine's structured data.
 
 Uses moto-mocked DynamoDB via the shared dynamodb_tables fixture.
 The @tool decorator from strands is stubbed since strands-agents is not
@@ -17,12 +16,17 @@ yet installed.
 import importlib
 import sys
 import types
-from datetime import datetime, timezone
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
 from hypothesis import given, settings, HealthCheck
 from hypothesis import strategies as st
+
+from backend.engine.models import (
+    GenerationResult, MissionCandidate, SkillGapReport,
+)
+
 
 # ---------------------------------------------------------------------------
 # Stub the strands module so tools.py can be imported without strands-agents
@@ -44,86 +48,69 @@ def _load_tools():
 # Hypothesis strategies
 # ---------------------------------------------------------------------------
 
-# Skill names: lowercase alpha strings, 2-20 chars
 _skill_strategy = st.text(
-    min_size=2,
-    max_size=20,
+    min_size=2, max_size=20,
     alphabet=st.characters(whitelist_categories=("Ll",)),
 )
 
-# User IDs: non-empty alphanumeric strings with dashes
 _user_id_strategy = st.text(
-    min_size=1,
-    max_size=30,
+    min_size=1, max_size=30,
     alphabet=st.characters(whitelist_categories=("L", "N", "Pd")),
 )
 
-# Sector names: lowercase alpha strings
-_sector_strategy = st.text(
-    min_size=2,
-    max_size=20,
-    alphabet=st.characters(whitelist_categories=("Ll",)),
-)
+_category_strategy = st.sampled_from([
+    "reflection", "skill_building", "portfolio", "networking", "market_research",
+])
+
+_phase_strategy = st.sampled_from(["foundation", "expansion", "launch"])
 
 
 @st.composite
 def _skill_alignment_data(draw):
-    """Generate a user profile with skills and market data with skill_demand.
+    """Generate a GenerationResult with known skill_tags for validation."""
+    skill_tags = draw(st.lists(_skill_strategy, min_size=1, max_size=5, unique=True))
 
-    Produces three disjoint skill lists (transferable, technical, domain)
-    with at least 1 skill total, a market skill_demand list (may overlap
-    with profile skills), and picks one skill_tag from the valid pool.
-    """
-    # Generate three disjoint skill lists
-    all_skills = draw(
-        st.lists(_skill_strategy, min_size=1, max_size=15, unique=True)
+    def _make_candidate(tags):
+        return MissionCandidate(
+            template_id=f"tmpl-{draw(st.text(min_size=3, max_size=8, alphabet='abcdefghij'))}",
+            category=draw(_category_strategy),
+            title="Test Mission",
+            description="A test mission description.",
+            rationale="Test rationale",
+            skill_tags=tags,
+            difficulty=draw(st.integers(min_value=1, max_value=5)),
+            estimated_minutes=draw(st.integers(min_value=15, max_value=45)),
+            expected_evidence_type="reflection",
+            phase=draw(_phase_strategy),
+            market_relevance_score=0.5,
+            priority_score=0.5,
+        )
+
+    primary = _make_candidate(skill_tags)
+    alt1 = _make_candidate(draw(st.lists(_skill_strategy, min_size=1, max_size=3)))
+    alt2 = _make_candidate(draw(st.lists(_skill_strategy, min_size=1, max_size=3)))
+
+    gap_report = SkillGapReport(
+        skill_scores={s: 0.5 for s in skill_tags},
+        market_alignment_pct=50.0,
+        priority_skills=skill_tags,
+        evidence_density={s: 1 for s in skill_tags},
     )
-
-    # Partition into three disjoint groups
-    transferable: list[str] = []
-    technical: list[str] = []
-    domain: list[str] = []
-
-    for i, skill in enumerate(all_skills):
-        bucket = i % 3
-        if bucket == 0:
-            transferable.append(skill)
-        elif bucket == 1:
-            technical.append(skill)
-        else:
-            domain.append(skill)
-
-    # Market skill_demand: independent list, may overlap with profile skills
-    market_skills = draw(
-        st.lists(_skill_strategy, min_size=0, max_size=10, unique=True)
-    )
-
-    # Valid pool = union of all profile skills + market demand
-    valid_pool = list(set(transferable + technical + domain + market_skills))
-
-    # Pick one skill_tag from the valid pool
-    skill_tag = draw(st.sampled_from(valid_pool))
-
-    user_id = draw(_user_id_strategy)
-    sector = draw(_sector_strategy)
 
     return {
-        "user_id": user_id,
-        "sector": sector,
-        "transferable_skills": transferable,
-        "technical_skills": technical,
-        "domain_knowledge": domain,
-        "market_skill_demand": market_skills,
-        "valid_pool": set(valid_pool),
-        "skill_tag": skill_tag,
+        "user_id": draw(_user_id_strategy),
+        "skill_tags": skill_tags,
+        "gen_result": GenerationResult(
+            primary=primary, alternates=[alt1, alt2], skill_gap_report=gap_report,
+        ),
     }
 
 
 class TestMissionSkillAlignment:
     """Property 5: Mission skill alignment.
 
-    For any generated mission, the skill_tag must be present in the
-    user's profile skills or in the market skill_demand for the sector.
+    For any engine GenerationResult, the tool returns skill_tags as
+    non-empty lists that match the engine's output exactly.
     """
 
     @given(data=_skill_alignment_data())
@@ -136,69 +123,23 @@ class TestMissionSkillAlignment:
         dynamodb_tables: Dict[str, Any],
         data: dict,
     ) -> None:
-        """generate_mission skill_tag is in profile skills or market demand.
+        """generate_mission returns skill_tags matching the engine result.
 
         # Feature: coaching-agent, Property 5: Mission skill alignment
         **Validates: Requirements 2.4**
         """
-        tools = _load_tools()
+        with patch("backend.engine.generator.generate_daily_mission") as mock_gen:
+            mock_gen.return_value = data["gen_result"]
+            tools = _load_tools()
 
-        user_id = data["user_id"]
-        sector = data["sector"]
-        skill_tag = data["skill_tag"]
-        valid_pool = data["valid_pool"]
+            result = tools.generate_mission(
+                user_id=data["user_id"],
+                campaign_id="campaign-test",
+            )
 
-        # --- Seed user profile with known skills ---
-        profile_table = dynamodb_tables["user_profiles"]
-        profile_table.put_item(Item={
-            "userId": user_id,
-            "name": "Test User",
-            "persona": "ai_displaced",
-            "targetRole": "Engineer",
-            "transferable_skills": data["transferable_skills"],
-            "technical_skills": data["technical_skills"],
-            "domain_knowledge": data["domain_knowledge"],
-            "onboarding_completed": True,
-        })
+        assert "error" not in result, f"generate_mission failed: {result}"
 
-        # --- Seed market data with known skill_demand ---
-        market_table = dynamodb_tables["market_data"]
-        market_table.put_item(Item={
-            "sector": sector,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "skill_demand": data["market_skill_demand"],
-            "job_trends": {},
-            "salary_ranges": {},
-            "data_source": "test",
-        })
-
-        # --- Generate a mission with the chosen skill_tag ---
-        gen_result = tools.generate_mission(
-            user_id=user_id,
-            campaign_id="campaign-test",
-            title="Test Mission",
-            description="A test mission for skill alignment",
-            skill_tag=skill_tag,
-        )
-
-        # --- Assert: no error ---
-        assert "error" not in gen_result, f"generate_mission failed: {gen_result}"
-
-        # --- Assert: the mission's skillTag is in the valid pool ---
-        returned_skill = gen_result["skillTag"]
-        assert returned_skill in valid_pool, (
-            f"Mission skillTag {returned_skill!r} not in valid pool. "
-            f"Profile skills: {data['transferable_skills'] + data['technical_skills'] + data['domain_knowledge']}, "
-            f"Market demand: {data['market_skill_demand']}"
-        )
-
-        # --- Read back from DynamoDB and verify ---
-        mission_table = dynamodb_tables["mission_history"]
-        response = mission_table.get_item(
-            Key={"userId": user_id, "missionId": gen_result["missionId"]}
-        )
-        stored_mission = response.get("Item", {})
-        assert stored_mission["skillTag"] in valid_pool, (
-            f"Stored mission skillTag {stored_mission['skillTag']!r} "
-            f"not in valid pool"
-        )
+        # Primary mission skill_tags match engine output
+        returned_tags = result["primary"]["skill_tags"]
+        assert returned_tags == data["skill_tags"]
+        assert len(returned_tags) >= 1

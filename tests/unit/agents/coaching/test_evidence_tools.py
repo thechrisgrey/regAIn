@@ -3,15 +3,23 @@
 Tests use moto-mocked DynamoDB via the shared dynamodb_tables fixture.
 The @tool decorator from strands is stubbed since strands-agents is not
 yet installed.
+
+complete_mission now delegates to the Mission Engine after logging evidence.
+We mock the engine to isolate the tool layer.
 """
 
 import importlib
 import sys
 import types
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
 from moto import mock_aws
+
+from backend.engine.models import (
+    CompletionResult, GateResult, GateCondition,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -42,6 +50,27 @@ def _seed_mission(dynamodb_tables: Dict[str, Any], user_id: str, mission_id: str
         "skillTag": "python",
         "createdAt": "2025-01-15T09:00:00+00:00",
     })
+
+
+def _make_completion_result(mission_id: str) -> CompletionResult:
+    """Build a CompletionResult for testing."""
+    return CompletionResult(
+        mission_id=mission_id,
+        difficulty_change=None,
+        gate_result=GateResult(
+            passed=False,
+            current_phase="foundation",
+            next_phase=None,
+            conditions={
+                "min_completed_missions": GateCondition(required=10, current=1, met=False),
+            },
+        ),
+        behavioral_update={
+            "category": "reflection",
+            "outcome": "completed",
+            "new_difficulty_state": {},
+        },
+    )
 
 
 class TestLogEvidence:
@@ -164,32 +193,36 @@ class TestLogEvidence:
 
 
 class TestCompleteMission:
-    """Tests for the complete_mission tool."""
+    """Tests for the complete_mission tool (engine-backed)."""
 
-    def test_updates_mission_status_to_completed(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Completing a mission sets its status to 'completed' with a completedDate."""
+    @patch("backend.engine.generator.complete_mission")
+    def test_logs_evidence_and_delegates_to_engine(
+        self, mock_complete, dynamodb_tables: Dict[str, Any]
+    ) -> None:
+        """complete_mission logs evidence first, then calls the engine."""
         _seed_mission(dynamodb_tables, "user-1", "mission-aaa")
+        mock_complete.return_value = _make_completion_result("mission-aaa")
         tools = _load_tools(dynamodb_tables)
 
-        tools.complete_mission(
+        result = tools.complete_mission(
             user_id="user-1",
             mission_id="mission-aaa",
             reflection="Learned a lot about testing.",
             skill_tag="python",
         )
 
-        table = dynamodb_tables["mission_history"]
-        response = table.get_item(Key={
-            "userId": "user-1",
-            "missionId": "mission-aaa",
-        })
-        item = response["Item"]
-        assert item["status"] == "completed"
-        assert "completedDate" in item
+        assert "evidence_id" in result
+        assert "mission_id" in result
+        assert "gate_result" in result
+        mock_complete.assert_called_once()
 
-    def test_creates_evidence_record(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Completing a mission creates an evidence record in the vault."""
+    @patch("backend.engine.generator.complete_mission")
+    def test_returns_evidence_id_and_count(
+        self, mock_complete, dynamodb_tables: Dict[str, Any]
+    ) -> None:
+        """complete_mission includes evidence_id and skill_evidence_count."""
         _seed_mission(dynamodb_tables, "user-1", "mission-bbb")
+        mock_complete.return_value = _make_completion_result("mission-bbb")
         tools = _load_tools(dynamodb_tables)
 
         result = tools.complete_mission(
@@ -199,13 +232,16 @@ class TestCompleteMission:
             skill_tag="test_automation",
         )
 
-        assert "evidence_id" in result
         assert result["evidence_id"].startswith("evidence-")
         assert result["skill_evidence_count"] == 1
 
-    def test_returns_evidence_with_artifact_url(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Completing a mission with an artifact_url passes it to evidence."""
+    @patch("backend.engine.generator.complete_mission")
+    def test_passes_evidence_ids_to_engine(
+        self, mock_complete, dynamodb_tables: Dict[str, Any]
+    ) -> None:
+        """complete_mission passes the logged evidence_id to the engine."""
         _seed_mission(dynamodb_tables, "user-1", "mission-ccc")
+        mock_complete.return_value = _make_completion_result("mission-ccc")
         tools = _load_tools(dynamodb_tables)
 
         result = tools.complete_mission(
@@ -216,33 +252,44 @@ class TestCompleteMission:
             artifact_url="https://example.com/portfolio",
         )
 
-        assert "evidence_id" in result
+        call_kwargs = mock_complete.call_args
+        evidence_ids = call_kwargs.kwargs.get("evidence_ids") or call_kwargs[1].get("evidence_ids", [])
+        assert len(evidence_ids) == 1
+        assert evidence_ids[0].startswith("evidence-")
 
-        table = dynamodb_tables["evidence_vault"]
-        response = table.get_item(Key={
-            "userId": "user-1",
-            "evidenceId": result["evidence_id"],
-        })
-        assert response["Item"]["artifactUrl"] == "https://example.com/portfolio"
-
-    def test_evidence_count_accumulates(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Completing multiple missions for the same skill accumulates evidence count."""
-        _seed_mission(dynamodb_tables, "user-1", "mission-d1")
-        _seed_mission(dynamodb_tables, "user-1", "mission-d2")
+    @patch("backend.engine.generator.complete_mission")
+    def test_returns_engine_error_dict(
+        self, mock_complete, dynamodb_tables: Dict[str, Any]
+    ) -> None:
+        """complete_mission passes through engine error dicts."""
+        _seed_mission(dynamodb_tables, "user-1", "mission-ddd")
+        mock_complete.return_value = {"error": "Mission not found for mission_id=mission-ddd"}
         tools = _load_tools(dynamodb_tables)
 
-        r1 = tools.complete_mission("user-1", "mission-d1", "First", "python")
-        assert r1["skill_evidence_count"] == 1
+        result = tools.complete_mission(
+            user_id="user-1",
+            mission_id="mission-ddd",
+            reflection="Test",
+            skill_tag="python",
+        )
 
-        r2 = tools.complete_mission("user-1", "mission-d2", "Second", "python")
-        assert r2["skill_evidence_count"] == 2
+        assert "error" in result
 
-    def test_returns_error_when_table_not_configured(self, aws_credentials: None) -> None:
-        """Completing when the table env var is missing returns an error dict."""
-        import os
-        os.environ.pop("MISSION_HISTORY_TABLE", None)
+    @patch("backend.engine.generator.complete_mission")
+    def test_handles_engine_exception(
+        self, mock_complete, dynamodb_tables: Dict[str, Any]
+    ) -> None:
+        """complete_mission catches engine exceptions and returns error dict."""
+        _seed_mission(dynamodb_tables, "user-1", "mission-eee")
+        mock_complete.side_effect = RuntimeError("DynamoDB throttled")
+        tools = _load_tools(dynamodb_tables)
 
-        tools = _load_tools({})
-        result = tools.complete_mission("u-1", "m-1", "r", "s")
+        result = tools.complete_mission(
+            user_id="user-1",
+            mission_id="mission-eee",
+            reflection="Test",
+            skill_tag="python",
+        )
 
-        assert result["error"] in ("invalid_input", "write_failed")
+        assert result["error"] == "completion_failed"
+        assert "DynamoDB throttled" in result["message"]

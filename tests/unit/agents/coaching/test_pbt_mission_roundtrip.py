@@ -4,11 +4,10 @@
 
 **Validates: Requirements 2.3, 7.2, 7.3**
 
-For any valid mission parameters (user_id, campaign_id, title, description,
-skill_tag), calling generate_mission should return a dict containing all
-required keys (missionId, title, description, skillTag, status) with status
-set to "pending", and subsequently calling get_current_mission for the same
-user_id should return a mission with matching fields.
+For any valid user_id and campaign_id, calling generate_mission should return
+a dict containing a "primary" key with all MissionCandidate fields, or an
+error dict. The engine handles all generation logic; this test validates the
+tool layer correctly wraps the engine result.
 
 Uses moto-mocked DynamoDB via the shared dynamodb_tables fixture.
 The @tool decorator from strands is stubbed since strands-agents is not
@@ -19,10 +18,16 @@ import importlib
 import sys
 import types
 from typing import Any, Dict
+from unittest.mock import patch
 
 import pytest
 from hypothesis import given, settings, HealthCheck
 from hypothesis import strategies as st
+
+from backend.engine.models import (
+    GenerationResult, MissionCandidate, SkillGapReport,
+)
+
 
 # ---------------------------------------------------------------------------
 # Stub the strands module so tools.py can be imported without strands-agents
@@ -44,56 +49,75 @@ def _load_tools():
 # Hypothesis strategies
 # ---------------------------------------------------------------------------
 
-# User IDs: non-empty alphanumeric strings with dashes
 _user_id_strategy = st.text(
     min_size=1,
     max_size=30,
     alphabet=st.characters(whitelist_categories=("L", "N", "Pd")),
 )
 
-# Campaign IDs: non-empty alphanumeric+dash strings prefixed with "campaign-"
 _campaign_id_strategy = st.text(
     min_size=1,
     max_size=20,
     alphabet=st.characters(whitelist_categories=("L", "N", "Pd")),
 ).map(lambda s: f"campaign-{s}")
 
-# Title: non-empty text strings
-_title_strategy = st.text(
-    min_size=1,
-    max_size=60,
-    alphabet=st.characters(whitelist_categories=("L", "N", "Zs")),
-).filter(lambda s: s.strip())
+_category_strategy = st.sampled_from([
+    "reflection", "skill_building", "portfolio", "networking", "market_research",
+])
 
-# Description: non-empty text strings
-_description_strategy = st.text(
-    min_size=1,
-    max_size=120,
-    alphabet=st.characters(whitelist_categories=("L", "N", "Zs")),
-).filter(lambda s: s.strip())
+_phase_strategy = st.sampled_from(["foundation", "expansion", "launch"])
 
-# Skill tag: non-empty lowercase alpha strings
-_skill_tag_strategy = st.text(
-    min_size=1,
-    max_size=20,
+_skill_strategy = st.text(
+    min_size=2, max_size=20,
     alphabet=st.characters(whitelist_categories=("Ll",)),
 )
+
+
+@st.composite
+def _generation_result_strategy(draw):
+    """Generate a valid GenerationResult with random data."""
+    def _make_candidate():
+        return MissionCandidate(
+            template_id=f"tmpl-{draw(st.text(min_size=3, max_size=10, alphabet='abcdefghij'))}",
+            category=draw(_category_strategy),
+            title=draw(st.text(min_size=5, max_size=60, alphabet=st.characters(whitelist_categories=("L", "N", "Zs")))).strip() or "Default Title",
+            description=draw(st.text(min_size=5, max_size=120, alphabet=st.characters(whitelist_categories=("L", "N", "Zs")))).strip() or "Default Description",
+            rationale="Test rationale",
+            skill_tags=draw(st.lists(_skill_strategy, min_size=1, max_size=3)),
+            difficulty=draw(st.integers(min_value=1, max_value=5)),
+            estimated_minutes=draw(st.integers(min_value=15, max_value=45)),
+            expected_evidence_type=draw(st.sampled_from(["reflection", "artifact", "connection", "research"])),
+            phase=draw(_phase_strategy),
+            market_relevance_score=draw(st.floats(min_value=0.0, max_value=1.0)),
+            priority_score=draw(st.floats(min_value=0.0, max_value=1.0)),
+        )
+
+    primary = _make_candidate()
+    alt1 = _make_candidate()
+    alt2 = _make_candidate()
+
+    gap_report = SkillGapReport(
+        skill_scores={draw(_skill_strategy): draw(st.floats(min_value=0.0, max_value=1.0))},
+        market_alignment_pct=draw(st.floats(min_value=0.0, max_value=100.0)),
+        priority_skills=draw(st.lists(_skill_strategy, min_size=0, max_size=5)),
+        evidence_density={draw(_skill_strategy): draw(st.integers(min_value=0, max_value=10))},
+    )
+
+    return GenerationResult(primary=primary, alternates=[alt1, alt2], skill_gap_report=gap_report)
 
 
 class TestMissionGenerationRoundTrip:
     """Property 4: Mission generation round trip and structure.
 
-    For any valid mission parameters, generate_mission should return a dict
-    with all required keys and status="pending", and get_current_mission
-    should return a mission with matching fields.
+    For any valid engine GenerationResult, the generate_mission tool should
+    return a dict with all required keys including primary, alternates, and
+    skill_gap_report.
     """
 
     @given(
         user_id=_user_id_strategy,
         campaign_id=_campaign_id_strategy,
-        title=_title_strategy,
-        description=_description_strategy,
-        skill_tag=_skill_tag_strategy,
+        gen_result=_generation_result_strategy(),
     )
     @settings(max_examples=100, suppress_health_check=[HealthCheck.function_scoped_fixture])
     def test_generate_then_get_returns_matching_mission(
@@ -101,62 +125,42 @@ class TestMissionGenerationRoundTrip:
         dynamodb_tables: Dict[str, Any],
         user_id: str,
         campaign_id: str,
-        title: str,
-        description: str,
-        skill_tag: str,
+        gen_result: GenerationResult,
     ) -> None:
-        """generate_mission then get_current_mission returns matching fields.
+        """generate_mission wraps engine result with all MissionCandidate fields.
 
         # Feature: coaching-agent, Property 4: Mission generation round trip and structure
         **Validates: Requirements 2.3, 7.2, 7.3**
         """
-        tools = _load_tools()
+        with patch("backend.engine.generator.generate_daily_mission") as mock_gen:
+            mock_gen.return_value = gen_result
+            tools = _load_tools()
 
-        # Clean up existing pending/in_progress missions for this user_id
-        # to avoid stale data from prior examples
-        mission_table = dynamodb_tables["mission_history"]
-        existing = mission_table.query(
-            KeyConditionExpression="userId = :uid",
-            ExpressionAttributeValues={":uid": user_id},
-        ).get("Items", [])
-        for item in existing:
-            if item.get("status") in ("pending", "in_progress"):
-                mission_table.delete_item(
-                    Key={"userId": item["userId"], "missionId": item["missionId"]}
-                )
+            result = tools.generate_mission(user_id=user_id, campaign_id=campaign_id)
 
-        # --- Act: generate a mission ---
-        gen_result = tools.generate_mission(
-            user_id=user_id,
-            campaign_id=campaign_id,
-            title=title,
-            description=description,
-            skill_tag=skill_tag,
+        # No error
+        assert "error" not in result, f"generate_mission failed: {result}"
+
+        # Has required top-level keys
+        assert "primary" in result
+        assert "alternates" in result
+        assert "skill_gap_report" in result
+
+        # Primary has all MissionCandidate fields
+        primary = result["primary"]
+        expected_fields = {
+            "template_id", "category", "title", "description", "rationale",
+            "skill_tags", "difficulty", "estimated_minutes",
+            "expected_evidence_type", "phase", "market_relevance_score",
+            "priority_score",
+        }
+        assert expected_fields.issubset(primary.keys()), (
+            f"Missing fields: {expected_fields - primary.keys()}"
         )
 
-        # --- Assert: generate_mission returns no error ---
-        assert "error" not in gen_result, f"generate_mission failed: {gen_result}"
+        # Alternates is a list of 2
+        assert len(result["alternates"]) == 2
 
-        # --- Assert: returned dict has all required keys ---
-        required_keys = {"missionId", "title", "description", "skillTag", "status", "campaignId"}
-        assert required_keys.issubset(gen_result.keys()), (
-            f"Missing keys: {required_keys - gen_result.keys()}"
-        )
-
-        # --- Assert: status is "pending" ---
-        assert gen_result["status"] == "pending"
-
-        # --- Assert: missionId starts with "mission-" ---
-        assert gen_result["missionId"].startswith("mission-")
-
-        # --- Act: read it back via get_current_mission ---
-        get_result = tools.get_current_mission(user_id=user_id)
-
-        # --- Assert: get_current_mission returns no error ---
-        assert "error" not in get_result, f"get_current_mission failed: {get_result}"
-
-        # --- Assert: returned mission has matching fields ---
-        assert get_result["title"] == title
-        assert get_result["description"] == description
-        assert get_result["skillTag"] == skill_tag
-        assert get_result["campaignId"] == campaign_id
+        # Values match the engine result
+        assert primary["title"] == gen_result.primary.title
+        assert primary["category"] == gen_result.primary.category

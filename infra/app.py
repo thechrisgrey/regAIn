@@ -4,6 +4,7 @@ import aws_cdk as cdk
 from stacks.auth_stack import AuthStack
 from stacks.data_stack import DataStack
 from stacks.api_stack import ApiStack
+from stacks.agent_stack import AgentStack
 
 app = cdk.App()
 
@@ -19,6 +20,15 @@ api_stack = ApiStack(
     "RegainApiStack",
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
+    env=env,
+)
+
+agent_stack = AgentStack(
+    app,
+    "RegainAgentStack",
+    user_pool=auth_stack.user_pool,
+    tables=data_stack.tables,
+    coaching_lambda=api_stack.coaching_lambda,
     env=env,
 )
 

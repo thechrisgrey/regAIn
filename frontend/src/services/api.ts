@@ -6,6 +6,8 @@ import type {
   CompleteResponse,
   EvidenceResponse,
   DashboardResponse,
+  CoachingRequest,
+  CoachingResponse,
 } from '../types';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
@@ -90,6 +92,14 @@ export const api = {
       apiRequest<DashboardResponse>(
         '/dashboard',
         { method: 'GET' },
+        token,
+      ),
+  },
+  coaching: {
+    checkin: (data: CoachingRequest, token: string) =>
+      apiRequest<CoachingResponse>(
+        '/coaching/checkin',
+        { method: 'POST', body: data },
         token,
       ),
   },

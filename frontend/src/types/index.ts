@@ -88,3 +88,16 @@ export interface DashboardResponse {
     currentPhase: Campaign['phase'];
   };
 }
+
+// Coaching types
+
+export interface CoachingRequest {
+  message: string;
+  session_type: 'onboarding' | 'checkin' | 'general';
+}
+
+export interface CoachingResponse {
+  response: string;
+  userId: string;
+}
+

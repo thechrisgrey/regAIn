@@ -44,9 +44,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if not message:
         return error_response("Missing required field: message", 400)
 
+    session_type = body.get("session_type", "checkin")
+
     try:
         service = CoachingService()
-        result = service.checkin(user_id, message)
+        result = service.checkin(user_id, message, session_type=session_type)
         return success_response(result)
     except Exception:
         logger.exception("Coaching handler failed")

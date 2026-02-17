@@ -8,6 +8,7 @@ import Dashboard from './pages/Dashboard';
 import Missions from './pages/Missions';
 import Evidence from './pages/Evidence';
 import Profile from './pages/Profile';
+import CoachingPage from './pages/CoachingPage';
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
           >
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="dashboard" element={<Dashboard />} />
+            <Route path="coaching" element={<CoachingPage />} />
             <Route path="missions" element={<Missions />} />
             <Route path="evidence" element={<Evidence />} />
             <Route path="profile" element={<Profile />} />

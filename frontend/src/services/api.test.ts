@@ -143,5 +143,18 @@ describe('API service', () => {
 
       expectCalledWithEndpoint(globalThis.fetch as unknown as Mock, '/dashboard', 'GET');
     });
+
+    it('calls POST /coaching/checkin for coaching.checkin', async () => {
+      const data = { message: 'Hello coach', session_type: 'checkin' as const };
+      globalThis.fetch = mockFetchResponse({ response: 'Hi there', userId: 'u-1' });
+
+      await api.coaching.checkin(data, MOCK_TOKEN);
+
+      expectCalledWithEndpoint(globalThis.fetch as unknown as Mock, '/coaching/checkin', 'POST');
+      expect(globalThis.fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({ body: JSON.stringify(data) }),
+      );
+    });
   });
 });

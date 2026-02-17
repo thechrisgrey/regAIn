@@ -1,38 +1,51 @@
 """Coaching service module.
 
-Placeholder for future agent integration. Currently returns
-a basic acknowledgement for check-in requests.
+Bridges the Lambda handler to the Strands Coaching Agent.
+The service is intentionally thin — it instantiates the agent,
+passes the formatted message, and returns the structured response.
+All business logic lives inside the agent and its tools.
 """
 
+import logging
 from typing import Any, Dict
 
-from backend.lambda.shared.dynamodb import DynamoDBClient
+from backend.agents.coaching.agent import create_coaching_agent
+
+logger = logging.getLogger(__name__)
 
 
 class CoachingService:
-    """Handles coaching check-in business logic."""
+    """Delegates coaching interactions to the Strands Coaching Agent."""
 
-    def __init__(self, db_client: DynamoDBClient | None = None) -> None:
-        self.db = db_client or DynamoDBClient()
-
-    def checkin(self, user_id: str, message: str) -> Dict[str, Any]:
-        """Process a coaching check-in.
-
-        This is a placeholder that will be replaced with Strands agent
-        integration in a future spec.
+    def checkin(
+        self,
+        user_id: str,
+        message: str,
+        session_type: str = "checkin",
+    ) -> Dict[str, Any]:
+        """Process a coaching interaction via the Strands Agent.
 
         Args:
             user_id: The authenticated user's ID.
-            message: The user's check-in message.
+            message: The user's message.
+            session_type: One of 'onboarding', 'checkin', or 'general'.
 
         Returns:
-            Dict with a placeholder response.
+            Dict with the agent's response text and the userId.
         """
-        profile = self.db.get_item("user_profiles", {"userId": user_id})
-        name = profile.get("name", "there") if profile else "there"
-
-        return {
-            "response": f"Thanks for checking in, {name}. "
-            "Coaching agent integration coming soon.",
-            "userId": user_id,
-        }
+        try:
+            agent = create_coaching_agent(user_id)
+            result = agent(
+                f"[session_type={session_type}] [user_id={user_id}] {message}"
+            )
+            return {
+                "response": str(result),
+                "userId": user_id,
+            }
+        except Exception:
+            logger.exception("Coaching agent invocation failed for user %s", user_id)
+            return {
+                "error": "agent_error",
+                "message": "Coaching agent is temporarily unavailable. Please try again.",
+                "userId": user_id,
+            }

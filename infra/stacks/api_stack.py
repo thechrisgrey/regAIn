@@ -31,6 +31,9 @@ class ApiStack(cdk.Stack):
         self._grant_permissions(lambdas)
         self._create_api(authorizer, lambdas)
 
+        # Expose coaching Lambda for AgentStack to add Bedrock permissions
+        self.coaching_lambda = lambdas["Coaching"]
+
     def _create_cognito_authorizer(self) -> apigw.CognitoUserPoolsAuthorizer:
         """Create Cognito authorizer for API Gateway."""
         return apigw.CognitoUserPoolsAuthorizer(

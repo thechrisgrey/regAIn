@@ -5,6 +5,7 @@ from stacks.auth_stack import AuthStack
 from stacks.data_stack import DataStack
 from stacks.api_stack import ApiStack
 from stacks.agent_stack import AgentStack
+from stacks.market_intel_stack import MarketIntelStack
 
 app = cdk.App()
 
@@ -29,6 +30,13 @@ agent_stack = AgentStack(
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
     coaching_lambda=api_stack.coaching_lambda,
+    env=env,
+)
+
+market_intel_stack = MarketIntelStack(
+    app,
+    "RegainMarketIntelStack",
+    tables=data_stack.tables,
     env=env,
 )
 

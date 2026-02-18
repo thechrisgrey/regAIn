@@ -7,11 +7,16 @@ market alignment percentage.
 
 from __future__ import annotations
 
+import importlib
 import math
 from datetime import datetime, timezone
 from typing import Any
 
 from backend.engine.models import SkillGapReport
+
+# 'lambda' is a Python keyword, so we use importlib for the market_intel path.
+_market_intel = importlib.import_module("backend.lambda.market_intel")
+_normalize_skill = _market_intel.normalize_skill
 
 # Evidence items needed for a full score on a skill.
 EVIDENCE_THRESHOLD = 3
@@ -97,6 +102,20 @@ def analyze_skill_gaps(
     """
     if reference_date is None:
         reference_date = datetime.now(timezone.utc)
+
+    # Normalize all skill identifiers through the canonical taxonomy so that
+    # gap analysis uses the same skill names as market intelligence data.
+    user_skills = [_normalize_skill(s) or s for s in user_skills]
+    target_requirements = [
+        {**req, "skill": _normalize_skill(req.get("skill", "")) or req.get("skill", "")}
+        for req in target_requirements
+    ]
+    market_demand = {
+        _normalize_skill(k) or k: v for k, v in market_demand.items()
+    }
+    evidence_by_skill = {
+        _normalize_skill(k) or k: v for k, v in evidence_by_skill.items()
+    }
 
     # Build the set of all skills we care about.
     target_skill_names = {req.get("skill", "") for req in target_requirements}

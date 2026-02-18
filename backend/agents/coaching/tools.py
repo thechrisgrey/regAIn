@@ -521,56 +521,81 @@ def get_evidence_summary(user_id: str) -> dict[str, Any]:
 
 
 @tool
-def get_market_insights(sector: str) -> dict[str, Any]:
-    """Get the latest market intelligence data for a job sector.
+def get_market_insights(role_id: str) -> dict[str, Any]:
+    """Get the latest market intelligence data for a target role.
 
-    Use this tool to retrieve current job market trends, in-demand
-    skills, and salary ranges for a specific sector. Reference this
-    data when coaching users on which skills to prioritize, when
+    Use this tool when you need current demand scores, growth trends,
+    in-demand skills, and salary ranges for a specific role. Reference
+    this data when coaching users on which skills to prioritize, when
     generating market-aligned missions, or when discussing career
-    trajectory with the user.
+    trajectory and market positioning with the user.
 
     Args:
-        sector: The job sector to query (e.g. "quality_assurance",
-            "software_engineering", "data_science").
+        role_id: The role identifier to query (e.g. "ai_qa_engineer",
+            "project_manager", "data_analyst").
 
     Returns:
-        A dict with sector, job_trends, skill_demand, salary_ranges,
-        and data_source from the most recent market data entry, or an
-        error dict if no data is found for the sector.
+        A dict with demand_score, trend_direction, growth_rate,
+        top_skills, salary_range, and relevant market insights for the
+        role — or an error dict if no data is found.
     """
     try:
-        items = db.query(
-            "market_data",
-            key_condition=Key("sector").eq(sector),
-        )
+        _market_intel = importlib.import_module("backend.lambda.market_intel")
 
-        if not items:
+        demand = _market_intel.get_demand_score(role_id)
+        if demand is None:
             return {
                 "error": "not_found",
-                "message": f"No market data found for sector '{sector}'.",
+                "message": f"No market data found for role '{role_id}'.",
             }
 
-        # Items are sorted by sort key (timestamp) ascending by default;
-        # take the last item for the most recent entry.
-        latest = sorted(
-            items,
-            key=lambda x: x.get("timestamp", ""),
-            reverse=True,
-        )[0]
+        insights = _market_intel.get_insights(role_id=role_id)
 
         return {
-            "sector": latest.get("sector", sector),
-            "job_trends": latest.get("job_trends", {}),
-            "skill_demand": latest.get("skill_demand", []),
-            "salary_ranges": latest.get("salary_ranges", {}),
-            "data_source": latest.get("data_source", ""),
+            "role_id": role_id,
+            "demand_score": demand.get("demand_score", 0),
+            "trend_direction": demand.get("trend_direction", "stable"),
+            "growth_rate": demand.get("growth_rate", 0.0),
+            "top_skills": demand.get("top_skills", []),
+            "salary_range": demand.get("salary_range", {}),
+            "insights": insights,
         }
-    except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
     except Exception as exc:
-        logger.exception("Failed to get market insights for %s", sector)
+        logger.exception("Failed to get market insights for role %s", role_id)
         return {"error": "read_failed", "message": str(exc)}
+
+
+@tool
+def get_alignment(user_id: str, target_role_id: str) -> dict[str, Any]:
+    """Calculate how well a user's demonstrated skills match a target role.
+
+    Use this tool during alignment checks, progress reviews, or gap
+    discussions to show the user a concrete percentage of how their
+    evidence-backed skills overlap with market requirements for a role.
+    The result includes a per-skill breakdown, top gaps to close, and
+    top strengths to leverage.
+
+    Args:
+        user_id: The user whose skills and evidence are evaluated.
+        target_role_id: The role identifier to align against
+            (e.g. "ai_qa_engineer", "project_manager").
+
+    Returns:
+        A dict with alignment_pct (0-100), skill_breakdown list,
+        top_gaps (3 highest-impact missing skills), top_strengths
+        (3 strongest matches), target_role_id, user_id, and
+        calculated_at timestamp.
+    """
+    try:
+        _market_intel = importlib.import_module("backend.lambda.market_intel")
+        return _market_intel.calculate_alignment(user_id, target_role_id)
+    except Exception as exc:
+        logger.exception(
+            "Failed to calculate alignment for user %s, role %s",
+            user_id,
+            target_role_id,
+        )
+        return {"error": "alignment_failed", "message": str(exc)}
 
 
 # ---------------------------------------------------------------------------

@@ -132,10 +132,11 @@ class TestMissionSkillAlignment:
             mock_gen.return_value = data["gen_result"]
             tools = _load_tools()
 
-            result = tools.generate_mission(
-                user_id=data["user_id"],
-                campaign_id="campaign-test",
-            )
+            with patch.object(tools, "_enforce_daily_rate_limit"):
+                result = tools.generate_mission(
+                    user_id=data["user_id"],
+                    campaign_id="campaign-test",
+                )
 
         assert "error" not in result, f"generate_mission failed: {result}"
 

@@ -20,6 +20,24 @@ def _get_user_id(event: Dict[str, Any]) -> str | None:
     except (KeyError, TypeError):
         return None
 
+def _get_jwt_token(event: Dict[str, Any]) -> str | None:
+    """Extract JWT token from Authorization header.
+
+    Args:
+        event: API Gateway event containing headers.
+
+    Returns:
+        The raw JWT token string, or None if not present.
+    """
+    try:
+        auth_header = event.get("headers", {}).get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            return auth_header[7:]
+        return auth_header or None
+    except (AttributeError, TypeError):
+        return None
+
+
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle POST /coaching/checkin requests.
@@ -35,6 +53,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     if not user_id:
         return error_response("Unauthorized", 401)
 
+    jwt_token = _get_jwt_token(event)
+    if not jwt_token:
+        return error_response("Missing authorization token", 401)
+
     try:
         body = json.loads(event.get("body", "{}"))
     except (json.JSONDecodeError, TypeError):
@@ -48,7 +70,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
     try:
         service = CoachingService()
-        result = service.checkin(user_id, message, session_type=session_type)
+        result = service.checkin(user_id, message, jwt_token=jwt_token, session_type=session_type)
         return success_response(result)
     except Exception:
         logger.exception("Coaching handler failed")

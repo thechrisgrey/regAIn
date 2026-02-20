@@ -17,6 +17,11 @@ from backend.engine.skill_gap import analyze_skill_gaps
 # Fixed reference date for deterministic testing.
 REF_DATE = datetime(2025, 6, 1, tzinfo=timezone.utc)
 
+# Import normalize_skill so expected values use canonical names.
+import importlib as _importlib
+_taxonomy = _importlib.import_module("backend.lambda.market_intel.taxonomy")
+_normalize_skill = _taxonomy.normalize_skill
+
 # ---------------------------------------------------------------------------
 # Hypothesis strategies
 # ---------------------------------------------------------------------------
@@ -153,16 +158,20 @@ class TestProperty3MarketAlignmentWeightedAverage:
         )
 
         # Recompute expected alignment from the report's own skill_scores.
-        # The implementation uses target_skills = target_skill_names | market_demand.keys()
-        target_skills = {r["skill"] for r in data["target_requirements"]} | set(
-            data["market_demand"].keys()
-        )
+        # The implementation normalizes skill names, so we must normalize too.
+        norm_demand = {
+            _normalize_skill(k) or k: v for k, v in data["market_demand"].items()
+        }
+        norm_target = {
+            _normalize_skill(r["skill"]) or r["skill"] for r in data["target_requirements"]
+        }
+        target_skills = norm_target | set(norm_demand.keys())
         target_skills.discard("")
 
         total_weighted = 0.0
         total_demand = 0.0
         for skill in target_skills:
-            demand = data["market_demand"].get(skill, 0.0)
+            demand = norm_demand.get(skill, 0.0)
             score = report.skill_scores.get(skill, 0.0)
             total_weighted += score * demand
             total_demand += demand

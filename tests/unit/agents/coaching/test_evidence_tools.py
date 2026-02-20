@@ -189,7 +189,7 @@ class TestLogEvidence:
         tools = _load_tools({})
         result = tools.log_evidence("u-1", "m-1", "s", "r")
 
-        assert result["error"] in ("invalid_input", "write_failed")
+        assert result["error"] in ("invalid_input", "write_failed", "read_failed")
 
 
 class TestCompleteMission:

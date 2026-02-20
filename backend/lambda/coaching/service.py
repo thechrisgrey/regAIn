@@ -21,6 +21,8 @@ class CoachingService:
         self,
         user_id: str,
         message: str,
+        *,
+        jwt_token: str,
         session_type: str = "checkin",
     ) -> Dict[str, Any]:
         """Process a coaching interaction via the Strands Agent.
@@ -28,13 +30,14 @@ class CoachingService:
         Args:
             user_id: The authenticated user's ID.
             message: The user's message.
+            jwt_token: The user's Cognito JWT for Gateway authorization.
             session_type: One of 'onboarding', 'checkin', or 'general'.
 
         Returns:
             Dict with the agent's response text and the userId.
         """
         try:
-            agent = create_coaching_agent(user_id)
+            agent = create_coaching_agent(user_id, jwt_token)
             result = agent(
                 f"[session_type={session_type}] [user_id={user_id}] {message}"
             )

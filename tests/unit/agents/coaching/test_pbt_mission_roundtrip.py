@@ -136,7 +136,8 @@ class TestMissionGenerationRoundTrip:
             mock_gen.return_value = gen_result
             tools = _load_tools()
 
-            result = tools.generate_mission(user_id=user_id, campaign_id=campaign_id)
+            with patch.object(tools, "_enforce_daily_rate_limit"):
+                result = tools.generate_mission(user_id=user_id, campaign_id=campaign_id)
 
         # No error
         assert "error" not in result, f"generate_mission failed: {result}"

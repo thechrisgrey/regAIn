@@ -21,7 +21,7 @@ logger.setLevel(logging.INFO)
 # Module-level state for Lambda instance reuse.
 # Each WebSocket connection is sticky to one Lambda instance,
 # so in-memory mappings are safe for the connection lifetime.
-_connections: Dict[str, str] = {}  # connection_id → user_id
+_connections: Dict[str, Dict[str, str]] = {}  # connection_id → {user_id, jwt_token}
 _sessions: Dict[str, Dict[str, Any]] = {}  # connection_id → session state
 
 # Lazy-initialized clients
@@ -252,7 +252,8 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
     """Handle WebSocket $connect event.
 
     Extracts the Cognito token from the query string, validates it,
-    and stores the connection_id → user_id mapping.
+    and stores the connection_id → user_id mapping along with the
+    raw JWT token for Gateway authorization.
 
     Args:
         event: API Gateway WebSocket $connect event.
@@ -269,7 +270,7 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Auth failed for connection %s", connection_id)
         return {"statusCode": 401}
 
-    _connections[connection_id] = user_id
+    _connections[connection_id] = {"user_id": user_id, "jwt_token": token}
     logger.info(
         "Connection %s established for user %s", connection_id, user_id
     )
@@ -290,13 +291,14 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         Response dict with statusCode 200.
     """
     connection_id = event["requestContext"]["connectionId"]
-    user_id = _connections.get(connection_id)
+    conn_info = _connections.get(connection_id)
 
-    if not user_id:
+    if not conn_info:
         logger.warning("No user mapping for connection %s", connection_id)
         return {"statusCode": 400}
 
     # Create Nova Sonic session on first audio frame.
+    user_id = conn_info["user_id"]
     if connection_id not in _sessions:
         success = _create_nova_sonic_session(connection_id, user_id)
         if not success:
@@ -349,7 +351,8 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
         Response dict with statusCode 200.
     """
     connection_id = event["requestContext"]["connectionId"]
-    user_id = _connections.pop(connection_id, None)
+    conn_info = _connections.pop(connection_id, None)
+    user_id = conn_info["user_id"] if conn_info else None
 
     # Close the Nova Sonic streaming session.
     _close_nova_sonic_session(connection_id)

@@ -9,6 +9,7 @@ import importlib
 import sys
 import types
 from typing import Any, Dict
+from unittest.mock import MagicMock, patch
 
 import pytest
 from moto import mock_aws
@@ -137,72 +138,55 @@ class TestGetEvidenceSummary:
 class TestGetMarketInsights:
     """Tests for the get_market_insights tool."""
 
-    def test_returns_latest_entry_for_sector(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Returns the most recent market data entry for the given sector."""
-        _seed_market_data(
-            dynamodb_tables, "quality_assurance", "2025-01-01T00:00:00Z",
-            job_trends={"old_role": "+10% YoY"},
-            data_source="old_scan",
-        )
-        _seed_market_data(
-            dynamodb_tables, "quality_assurance", "2025-06-01T00:00:00Z",
-            job_trends={"ai_qa_engineer": "+40% YoY"},
-            skill_demand=["python", "selenium"],
-            salary_ranges={"entry": "75k-90k"},
-            data_source="latest_scan",
-        )
-
+    def test_returns_data_for_known_role(self, dynamodb_tables: Dict[str, Any]) -> None:
+        """Returns market data when the market_intel module has data."""
         tools = _load_tools(dynamodb_tables)
-        result = tools.get_market_insights(sector="quality_assurance")
 
-        assert result["sector"] == "quality_assurance"
-        assert result["job_trends"] == {"ai_qa_engineer": "+40% YoY"}
-        assert result["skill_demand"] == ["python", "selenium"]
-        assert result["salary_ranges"] == {"entry": "75k-90k"}
-        assert result["data_source"] == "latest_scan"
+        mock_demand = {
+            "role_id": "qa_engineer",
+            "demand_score": 75,
+            "trend_direction": "up",
+            "growth_rate": 12.5,
+            "top_skills": ["python", "selenium"],
+            "salary_range": {"entry": "75k-90k"},
+        }
+        mock_insights = [{"type": "trend", "text": "QA demand rising"}]
 
-    def test_returns_not_found_for_unknown_sector(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Returns an error dict when no data exists for the sector."""
+        with patch("backend.agents.coaching.tools.importlib") as mock_importlib:
+            mock_mi = MagicMock()
+            mock_mi.get_demand_score.return_value = mock_demand
+            mock_mi.get_insights.return_value = mock_insights
+            mock_importlib.import_module.return_value = mock_mi
+
+            result = tools.get_market_insights(role_id="qa_engineer")
+
+        assert result["role_id"] == "qa_engineer"
+        assert result["demand_score"] == 75
+        assert result["trend_direction"] == "up"
+
+    def test_returns_not_found_for_unknown_role(self, dynamodb_tables: Dict[str, Any]) -> None:
+        """Returns an error dict when no data exists for the role."""
         tools = _load_tools(dynamodb_tables)
-        result = tools.get_market_insights(sector="underwater_basket_weaving")
+
+        with patch("backend.agents.coaching.tools.importlib") as mock_importlib:
+            mock_mi = MagicMock()
+            mock_mi.get_demand_score.return_value = None
+            mock_importlib.import_module.return_value = mock_mi
+
+            result = tools.get_market_insights(role_id="underwater_basket_weaving")
 
         assert result["error"] == "not_found"
         assert "underwater_basket_weaving" in result["message"]
 
-    def test_returns_single_entry(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Works correctly when only one entry exists for the sector."""
-        _seed_market_data(
-            dynamodb_tables, "data_science", "2025-03-15T00:00:00Z",
-            job_trends={"ml_engineer": "+30% YoY"},
-            skill_demand=["python", "tensorflow"],
-            salary_ranges={"mid": "110k-140k"},
-            data_source="single_scan",
-        )
-
-        tools = _load_tools(dynamodb_tables)
-        result = tools.get_market_insights(sector="data_science")
-
-        assert result["sector"] == "data_science"
-        assert result["data_source"] == "single_scan"
-
-    def test_output_contract_keys(self, dynamodb_tables: Dict[str, Any]) -> None:
-        """Output contains all keys from the design doc contract."""
-        _seed_market_data(
-            dynamodb_tables, "software_engineering", "2025-05-01T00:00:00Z",
-        )
-
-        tools = _load_tools(dynamodb_tables)
-        result = tools.get_market_insights(sector="software_engineering")
-
-        expected_keys = {"sector", "job_trends", "skill_demand", "salary_ranges", "data_source"}
-        assert set(result.keys()) == expected_keys
-
-    def test_returns_error_when_table_not_configured(self, aws_credentials: None) -> None:
-        """Returns an error dict when the table env var is missing."""
+    def test_returns_error_on_exception(self, aws_credentials: None) -> None:
+        """Returns an error dict when the underlying module raises."""
         import os
         os.environ.pop("MARKET_DATA_TABLE", None)
 
         tools = _load_tools({})
-        result = tools.get_market_insights("some_sector")
 
-        assert result["error"] in ("invalid_input", "read_failed")
+        with patch("backend.agents.coaching.tools.importlib") as mock_importlib:
+            mock_importlib.import_module.side_effect = Exception("boom")
+            result = tools.get_market_insights("some_role")
+
+        assert result["error"] == "read_failed"

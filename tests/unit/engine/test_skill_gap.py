@@ -1,5 +1,6 @@
 """Unit tests for backend.engine.skill_gap module."""
 
+import importlib
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -11,6 +12,9 @@ from backend.engine.skill_gap import (
     _recency_weight,
     analyze_skill_gaps,
 )
+
+_taxonomy = importlib.import_module("backend.lambda.market_intel.taxonomy")
+_norm = _taxonomy.normalize_skill
 
 
 NOW = datetime(2025, 6, 1, tzinfo=timezone.utc)
@@ -91,8 +95,8 @@ class TestAnalyzeSkillGaps:
             market_demand={"python": 0.8, "sql": 0.6},
             reference_date=NOW,
         )
-        assert report.skill_scores["python"] == 0.0
-        assert report.skill_scores["sql"] == 0.0
+        assert report.skill_scores[_norm("python")] == 0.0
+        assert report.skill_scores[_norm("sql")] == 0.0
         assert report.market_alignment_pct == 0.0
 
     def test_full_evidence_high_alignment(self):
@@ -140,8 +144,8 @@ class TestAnalyzeSkillGaps:
             reference_date=NOW,
         )
         # python: gap=0, sql: gap=1.0*0.9=0.9, aws: gap=1.0*0.5=0.5
-        assert report.priority_skills[0] == "sql"
-        assert report.priority_skills[1] == "aws"
+        assert report.priority_skills[0] == _norm("sql")
+        assert report.priority_skills[1] == _norm("aws")
 
     def test_evidence_density_counts(self):
         evidence = {
@@ -155,8 +159,8 @@ class TestAnalyzeSkillGaps:
             market_demand={"python": 0.5, "sql": 0.5},
             reference_date=NOW,
         )
-        assert report.evidence_density["python"] == 2
-        assert report.evidence_density["sql"] == 1
+        assert report.evidence_density[_norm("python")] == 2
+        assert report.evidence_density[_norm("sql")] == 1
 
     def test_empty_inputs(self):
         report = analyze_skill_gaps(

@@ -7,6 +7,8 @@ CDK custom resource to trigger seed data on first deployment.
 Requirements: 1.7, 2.6, 3.6, 8.1, 8.2, 8.3, 8.6, 9.3
 """
 
+from pathlib import Path
+
 import aws_cdk as cdk
 from aws_cdk import (
     aws_dynamodb as dynamodb,
@@ -69,7 +71,9 @@ class MarketIntelStack(cdk.Stack):
             function_name=f"Regain{name}",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler=handler_path,
-            code=_lambda.Code.from_asset("../backend"),
+            code=_lambda.Code.from_asset(
+                str(Path(__file__).resolve().parent.parent.parent / "backend")
+            ),
             environment=env,
             timeout=cdk.Duration.seconds(30),
             memory_size=256,

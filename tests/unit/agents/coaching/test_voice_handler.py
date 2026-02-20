@@ -104,7 +104,7 @@ class TestConnectSuccess:
         result = vh.lambda_handler(event, None)
 
         assert result["statusCode"] == 200
-        assert vh._connections["conn-1"] == "user-abc"
+        assert vh._connections["conn-1"] == {"user_id": "user-abc", "jwt_token": token}
 
 
 class TestConnectMissingToken:
@@ -147,7 +147,7 @@ class TestDisconnectCleanup:
         vh = _load_voice_handler()
 
         # Pre-populate state as if a connection + session exist
-        vh._connections["conn-4"] = "user-xyz"
+        vh._connections["conn-4"] = {"user_id": "user-xyz", "jwt_token": "fake-token"}
         mock_stream = MagicMock()
         vh._sessions["conn-4"] = {
             "user_id": "user-xyz",
@@ -178,7 +178,7 @@ class TestDisconnectNoSession:
         vh = _load_voice_handler()
 
         # Connection exists but no Nova Sonic session was created
-        vh._connections["conn-5"] = "user-solo"
+        vh._connections["conn-5"] = {"user_id": "user-solo", "jwt_token": "fake-token"}
 
         event = _disconnect_event(connection_id="conn-5")
 
@@ -203,7 +203,7 @@ class TestDefaultFallbackOnSessionFailure:
         vh = _load_voice_handler()
 
         # Pre-populate connection mapping (as if $connect succeeded)
-        vh._connections["conn-6"] = "user-fallback"
+        vh._connections["conn-6"] = {"user_id": "user-fallback", "jwt_token": "fake-token"}
 
         audio_data = base64.b64encode(b"fake-audio-bytes").decode()
         event = _default_event(connection_id="conn-6", body=audio_data)

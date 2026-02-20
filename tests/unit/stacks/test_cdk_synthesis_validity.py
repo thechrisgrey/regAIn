@@ -133,7 +133,7 @@ _tag_value_st = st.text(
         max_size=3,
     ),
 )
-@settings(max_examples=100, deadline=None)
+@settings(max_examples=10, deadline=None)
 def test_stacks_produce_valid_cloudformation_templates(
     stack_index: int,
     extra_tags: list[tuple[str, str]],

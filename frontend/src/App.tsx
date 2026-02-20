@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import Layout from './components/Layout';
@@ -9,6 +9,7 @@ import Missions from './pages/Missions';
 import Evidence from './pages/Evidence';
 import Profile from './pages/Profile';
 import CoachingPage from './pages/CoachingPage';
+import NotFound from './pages/NotFound';
 
 function App() {
   return (
@@ -24,6 +25,7 @@ function App() {
               </ProtectedRoute>
             }
           >
+            <Route index element={<Navigate to="/dashboard" />} />
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="coaching" element={<CoachingPage />} />
@@ -31,6 +33,7 @@ function App() {
             <Route path="evidence" element={<Evidence />} />
             <Route path="profile" element={<Profile />} />
           </Route>
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

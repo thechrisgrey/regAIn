@@ -15,10 +15,10 @@ from unittest.mock import patch, MagicMock
 import pytest
 from hypothesis import given, settings, strategies as st
 
-# 'lambda' is a Python keyword, so we use importlib to load the module.
-_dynamodb_mod = importlib.import_module("backend.lambda.shared.dynamodb")
-DynamoDBClient = _dynamodb_mod.DynamoDBClient
 _DYNAMODB_MODULE = "backend.lambda.shared.dynamodb"
+
+# Ensure the module is imported so patch targets resolve.
+_dynamodb_mod = importlib.import_module(_DYNAMODB_MODULE)
 
 
 # Strategy: generate non-empty table name strings (simulating env var values)
@@ -57,22 +57,29 @@ def test_table_names_come_from_environment_variables(
         "MARKET_DATA_TABLE": market_data,
     }
 
-    with patch.dict(os.environ, env, clear=False), \
-         patch("backend.lambda.shared.dynamodb.boto3") as mock_boto3:
-        mock_resource = MagicMock()
-        mock_boto3.resource.return_value = mock_resource
+    mock_resource = MagicMock()
+    mock_boto3 = MagicMock()
+    mock_boto3.resource.return_value = mock_resource
 
-        client = DynamoDBClient()
+    with patch.dict(os.environ, env, clear=False):
+        # Directly set the module attribute so DynamoDBClient.__init__
+        # picks up the mock regardless of prior import state.
+        original_boto3 = _dynamodb_mod.boto3
+        _dynamodb_mod.boto3 = mock_boto3
+        try:
+            client = _dynamodb_mod.DynamoDBClient()
+        finally:
+            _dynamodb_mod.boto3 = original_boto3
 
-        # Verify boto3.Table was called with each env-var-provided name
-        expected_calls = {user_profiles, campaigns, mission_history,
-                         evidence_vault, market_data}
-        actual_calls = {
-            call.args[0] for call in mock_resource.Table.call_args_list
-        }
-        assert expected_calls == actual_calls, (
-            f"Expected table names {expected_calls}, got {actual_calls}"
-        )
+    # Verify boto3.Table was called with each env-var-provided name
+    expected_calls = {user_profiles, campaigns, mission_history,
+                     evidence_vault, market_data}
+    actual_calls = {
+        call.args[0] for call in mock_resource.Table.call_args_list
+    }
+    assert expected_calls == actual_calls, (
+        f"Expected table names {expected_calls}, got {actual_calls}"
+    )
 
 
 @given(table_name_value=table_name_strategy)
@@ -90,12 +97,17 @@ def test_missing_env_var_raises_on_access(table_name_value: str) -> None:
         "MARKET_DATA_TABLE": "",
     }
 
-    with patch.dict(os.environ, {**env, **cleared}, clear=False), \
-         patch("backend.lambda.shared.dynamodb.boto3") as mock_boto3:
-        mock_resource = MagicMock()
-        mock_boto3.resource.return_value = mock_resource
+    mock_resource = MagicMock()
+    mock_boto3 = MagicMock()
+    mock_boto3.resource.return_value = mock_resource
 
-        client = DynamoDBClient()
+    with patch.dict(os.environ, {**env, **cleared}, clear=False):
+        original_boto3 = _dynamodb_mod.boto3
+        _dynamodb_mod.boto3 = mock_boto3
+        try:
+            client = _dynamodb_mod.DynamoDBClient()
+        finally:
+            _dynamodb_mod.boto3 = original_boto3
 
         # Accessing an unconfigured table must raise
         with pytest.raises(ValueError, match="not configured"):

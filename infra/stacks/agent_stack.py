@@ -1,4 +1,6 @@
 """REGAIN Agent Stack — Coaching Agent infrastructure (WebSocket API, Voice Lambda, Bedrock permissions)."""
+from pathlib import Path
+
 import aws_cdk as cdk
 from aws_cdk import (
     aws_apigatewayv2 as apigwv2,
@@ -46,13 +48,15 @@ class AgentStack(cdk.Stack):
         }
 
     def _bedrock_env(self) -> dict[str, str]:
-        """Return Bedrock and AgentCore environment variables."""
+        """Return Bedrock, AgentCore, and Gateway environment variables."""
         return {
             "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
             "NOVA_SONIC_MODEL_ID": "amazon.nova-sonic-v1:0",
             "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
             "AWS_REGION_NAME": "us-east-1",
+            "AGENTCORE_GATEWAY_ID": cdk.Fn.import_value("RegainAgentCoreGatewayId"),
+            "AGENTCORE_GATEWAY_ENDPOINT": cdk.Fn.import_value("RegainAgentCoreGatewayEndpoint"),
         }
 
     def _create_voice_lambda(self) -> _lambda.Function:
@@ -65,7 +69,9 @@ class AgentStack(cdk.Stack):
             function_name="RegainVoiceSession",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler="lambda.coaching.voice_handler.lambda_handler",
-            code=_lambda.Code.from_asset("../backend"),
+            code=_lambda.Code.from_asset(
+                str(Path(__file__).resolve().parent.parent.parent / "backend")
+            ),
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,

@@ -301,6 +301,58 @@ def get_current_mission(user_id: str) -> dict[str, Any]:
         return {"error": "read_failed", "message": str(exc)}
 
 
+class _RateLimitExceeded(Exception):
+    """Raised when the daily mission generation limit is reached."""
+
+
+def _enforce_daily_rate_limit(user_id: str) -> None:
+    """Atomically increment the daily mission generation counter.
+
+    Uses a DynamoDB conditional update on UserProfiles to ensure no more
+    than 3 missions are generated per user per day. Resets the counter
+    when the date changes.
+
+    Args:
+        user_id: The user whose counter to increment.
+
+    Raises:
+        _RateLimitExceeded: If the user has already generated 3 missions today.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    table = db._get_table("user_profiles")
+
+    # First, reset the counter if the date has changed.
+    try:
+        table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression="SET dailyMissionGenCount = :zero, lastMissionGenDate = :today",
+            ConditionExpression=(
+                "attribute_not_exists(lastMissionGenDate) OR lastMissionGenDate <> :today"
+            ),
+            ExpressionAttributeValues={
+                ":zero": 0,
+                ":today": today,
+            },
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        # Date already matches today — counter is current, no reset needed.
+        pass
+
+    # Atomically increment, but only if count < 3.
+    try:
+        table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression="ADD dailyMissionGenCount :inc",
+            ConditionExpression="dailyMissionGenCount < :limit",
+            ExpressionAttributeValues={
+                ":inc": 1,
+                ":limit": 3,
+            },
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        raise _RateLimitExceeded()
+
+
 @tool
 def generate_mission(
     user_id: str,
@@ -314,6 +366,10 @@ def generate_mission(
     alternates. The engine handles all intelligence — just provide the user
     and campaign identifiers.
 
+    Rate-limited to 3 missions per user per day via an atomic DynamoDB
+    conditional update on UserProfiles. The counter resets when the date
+    changes.
+
     Args:
         user_id: The unique identifier of the user to generate a mission for.
         campaign_id: The active campaign this mission belongs to.
@@ -321,8 +377,20 @@ def generate_mission(
     Returns:
         A dict with "primary" (the recommended mission with all fields),
         "alternates" (list of 2 backup missions), and "skill_gap_report"
-        (current gap analysis). Returns an error dict if generation fails.
+        (current gap analysis). Returns an error dict if generation fails
+        or the daily limit is reached.
     """
+    try:
+        _enforce_daily_rate_limit(user_id)
+    except _RateLimitExceeded:
+        return {
+            "error": "daily_limit_reached",
+            "message": "Daily mission generation limit reached (3 per day).",
+        }
+    except Exception as exc:
+        logger.exception("Rate limit check failed for %s", user_id)
+        return {"error": "rate_limit_check_failed", "message": str(exc)}
+
     try:
         result = engine_generate_mission(
             user_id=user_id,
@@ -370,6 +438,28 @@ def log_evidence(
         skill_evidence_count (total evidence records for this user and
         skill_tag), or an error dict if logging fails.
     """
+    # Requirement 5.3 — reject evidence writes when campaign is completed.
+    # This check lives in Lambda tool logic (not Cedar) to avoid giving
+    # Gateway DynamoDB access to the Campaigns table.
+    try:
+        campaigns = db.query(
+            "campaigns",
+            key_condition=Key("userId").eq(user_id),
+        )
+        completed = [c for c in campaigns if c.get("status") == "completed"]
+        active = [c for c in campaigns if c.get("status") == "active"]
+        if completed and not active:
+            return {
+                "error": "campaign_completed",
+                "message": (
+                    "Cannot log evidence — all campaigns for this user are "
+                    "completed. Start a new campaign first."
+                ),
+            }
+    except Exception as exc:
+        logger.exception("Failed to check campaign status for %s", user_id)
+        return {"error": "read_failed", "message": str(exc)}
+
     evidence_id = f"evidence-{uuid.uuid4()}"
     item: dict[str, Any] = {
         "userId": user_id,

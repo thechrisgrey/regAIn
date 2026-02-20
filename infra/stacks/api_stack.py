@@ -1,4 +1,6 @@
 """REGAIN API Stack — API Gateway, Lambda Functions, and IAM Roles."""
+from pathlib import Path
+
 import aws_cdk as cdk
 from aws_cdk import (
     aws_apigateway as apigw,
@@ -31,8 +33,11 @@ class ApiStack(cdk.Stack):
         self._grant_permissions(lambdas)
         self._create_api(authorizer, lambdas)
 
-        # Expose coaching Lambda for AgentStack to add Bedrock permissions
+        # Expose Lambda functions for cross-stack references
         self.coaching_lambda = lambdas["Coaching"]
+        self.missions_lambda = lambdas["Missions"]
+        self.evidence_lambda = lambdas["Evidence"]
+        self.dashboard_lambda = lambdas["Dashboard"]
 
     def _create_cognito_authorizer(self) -> apigw.CognitoUserPoolsAuthorizer:
         """Create Cognito authorizer for API Gateway."""
@@ -69,7 +74,9 @@ class ApiStack(cdk.Stack):
             function_name=f"Regain{name}",
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler=handler_path,
-            code=_lambda.Code.from_asset("../backend"),
+            code=_lambda.Code.from_asset(
+                str(Path(__file__).resolve().parent.parent.parent / "backend")
+            ),
             environment=self._table_env(),
             timeout=cdk.Duration.seconds(30),
             memory_size=256,

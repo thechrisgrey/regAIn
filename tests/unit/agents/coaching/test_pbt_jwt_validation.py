@@ -37,7 +37,7 @@ from backend.agents.coaching.gateway_client import GatewayToolClient  # noqa: E4
 # ---------------------------------------------------------------------------
 # Handler JWT extraction logic (mirrored from handler.py).
 #
-# The coaching handler.py uses ``from backend.lambda.shared...`` imports
+# The coaching handler.py uses ``from backend.handlers.shared...`` imports
 # which are unparseable by Python (``lambda`` is a keyword). We replicate
 # the two pure extraction functions here so we can property-test them.
 # ---------------------------------------------------------------------------

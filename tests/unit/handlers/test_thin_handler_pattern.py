@@ -22,18 +22,18 @@ _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 
 # All handler files that must follow the thin handler pattern
 HANDLER_FILES = {
-    "onboarding": _PROJECT_ROOT / "backend" / "lambda" / "onboarding" / "handler.py",
-    "missions": _PROJECT_ROOT / "backend" / "lambda" / "missions" / "handler.py",
-    "evidence": _PROJECT_ROOT / "backend" / "lambda" / "evidence" / "handler.py",
-    "coaching": _PROJECT_ROOT / "backend" / "lambda" / "coaching" / "handler.py",
-    "dashboard": _PROJECT_ROOT / "backend" / "lambda" / "dashboard" / "handler.py",
+    "onboarding": _PROJECT_ROOT / "backend" / "handlers" / "onboarding" / "handler.py",
+    "missions": _PROJECT_ROOT / "backend" / "handlers" / "missions" / "handler.py",
+    "evidence": _PROJECT_ROOT / "backend" / "handlers" / "evidence" / "handler.py",
+    "coaching": _PROJECT_ROOT / "backend" / "handlers" / "coaching" / "handler.py",
+    "dashboard": _PROJECT_ROOT / "backend" / "handlers" / "dashboard" / "handler.py",
 }
 
 # Imports that indicate business logic leaking into the handler
 FORBIDDEN_IMPORT_PATTERNS = [
     r"^\s*import\s+boto3",
     r"^\s*from\s+boto3",
-    r"from\s+backend\.lambda\.shared\.dynamodb\s+import",
+    r"from\s+backend\.handlers\.shared\.dynamodb\s+import",
 ]
 
 # Strategy: pick any handler name from the list
@@ -66,7 +66,7 @@ def test_handler_imports_service_not_dynamodb(handler_name: str) -> None:
     import_text = "\n".join(import_lines)
 
     # Must import from its own service module
-    service_pattern = rf"from\s+backend\.lambda\.{handler_name}\.service\s+import"
+    service_pattern = rf"from\s+backend\.handlers\.{handler_name}\.service\s+import"
     assert re.search(service_pattern, import_text), (
         f"{handler_name}/handler.py does not import from its service module"
     )
@@ -130,7 +130,7 @@ def test_handler_returns_formatted_response(handler_name: str) -> None:
     import_lines = _get_import_lines(source)
     import_text = "\n".join(import_lines)
 
-    assert re.search(r"from\s+backend\.lambda\.shared\.responses\s+import", import_text), (
+    assert re.search(r"from\s+backend\.handlers\.shared\.responses\s+import", import_text), (
         f"{handler_name}/handler.py does not import from shared responses module. "
         "Handlers must use shared response helpers for consistent API responses."
     )

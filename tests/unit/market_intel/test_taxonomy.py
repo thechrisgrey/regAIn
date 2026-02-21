@@ -13,7 +13,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # 'lambda' is a Python keyword — use importlib to import the taxonomy module.
-_taxonomy_mod = importlib.import_module("backend.lambda.market_intel.taxonomy")
+_taxonomy_mod = importlib.import_module("backend.handlers.market_intel.taxonomy")
 
 TAXONOMY = _taxonomy_mod.TAXONOMY
 ALIAS_INDEX = _taxonomy_mod.ALIAS_INDEX

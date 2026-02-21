@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 _onet_mod = importlib.import_module(
-    "backend.lambda.market_intel.ingestion.onet"
+    "backend.handlers.market_intel.ingestion.onet"
 )
 _transform = _onet_mod._transform
 _get_auth = _onet_mod._get_auth
@@ -110,7 +110,7 @@ class TestTransform:
 
     def test_to_dynamodb_item_roundtrip(self) -> None:
         """Record can serialize to DynamoDB format and back."""
-        _models_mod = importlib.import_module("backend.lambda.market_intel.models")
+        _models_mod = importlib.import_module("backend.handlers.market_intel.models")
         record = _transform("15-1256.00", SAMPLE_OCCUPATION, SAMPLE_SKILLS)
         item = record.to_dynamodb_item()
         restored = _models_mod.MarketDataRecord.from_dynamodb_item(item)

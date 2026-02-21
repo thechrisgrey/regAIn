@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const getToken = useCallback(async (): Promise<string> => {
     const session = await fetchAuthSession();
-    const token = session.tokens?.accessToken?.toString();
+    const token = session.tokens?.idToken?.toString();
     if (!token) {
       throw new Error('No access token available');
     }

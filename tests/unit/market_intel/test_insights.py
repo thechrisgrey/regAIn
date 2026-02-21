@@ -9,12 +9,12 @@ import re
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
-_models_mod = importlib.import_module("backend.lambda.market_intel.models")
+_models_mod = importlib.import_module("backend.handlers.market_intel.models")
 MarketDataRecord = _models_mod.MarketDataRecord
 AlignmentResult = _models_mod.AlignmentResult
 MarketInsight = _models_mod.MarketInsight
 
-_insights_mod = importlib.import_module("backend.lambda.market_intel.insights")
+_insights_mod = importlib.import_module("backend.handlers.market_intel.insights")
 INSIGHT_TEMPLATES = _insights_mod.INSIGHT_TEMPLATES
 generate_role_trend_insight = _insights_mod.generate_role_trend_insight
 generate_alignment_insight = _insights_mod.generate_alignment_insight

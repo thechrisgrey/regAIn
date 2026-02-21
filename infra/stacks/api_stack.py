@@ -63,7 +63,7 @@ class ApiStack(cdk.Stack):
 
         Args:
             name: Logical name for the function (e.g. "Onboarding").
-            handler_path: Dotted handler path (e.g. "backend.lambda.onboarding.handler.lambda_handler").
+            handler_path: Dotted handler path (e.g. "backend.handlers.onboarding.handler.lambda_handler").
 
         Returns:
             The Lambda function construct.
@@ -75,7 +75,8 @@ class ApiStack(cdk.Stack):
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler=handler_path,
             code=_lambda.Code.from_asset(
-                str(Path(__file__).resolve().parent.parent.parent / "backend")
+                str(Path(__file__).resolve().parent.parent.parent),
+                exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
             environment=self._table_env(),
             timeout=cdk.Duration.seconds(30),
@@ -85,11 +86,11 @@ class ApiStack(cdk.Stack):
     def _create_lambda_functions(self) -> dict[str, _lambda.Function]:
         """Create all Lambda functions."""
         handlers = {
-            "Onboarding": "lambda.onboarding.handler.lambda_handler",
-            "Missions": "lambda.missions.handler.lambda_handler",
-            "Evidence": "lambda.evidence.handler.lambda_handler",
-            "Coaching": "lambda.coaching.handler.lambda_handler",
-            "Dashboard": "lambda.dashboard.handler.lambda_handler",
+            "Onboarding": "backend.handlers.onboarding.handler.lambda_handler",
+            "Missions": "backend.handlers.missions.handler.lambda_handler",
+            "Evidence": "backend.handlers.evidence.handler.lambda_handler",
+            "Coaching": "backend.handlers.coaching.handler.lambda_handler",
+            "Dashboard": "backend.handlers.dashboard.handler.lambda_handler",
         }
         return {
             name: self._create_lambda_function(name, path)
@@ -101,9 +102,13 @@ class ApiStack(cdk.Stack):
 
         Each function only gets access to the tables it actually uses.
         """
-        # Onboarding: writes to UserProfiles and Campaigns
-        self.tables["UserProfiles"].grant_write_data(lambdas["Onboarding"])
-        self.tables["Campaigns"].grant_write_data(lambdas["Onboarding"])
+        # Onboarding: read/write UserProfiles and Campaigns + mission seeding
+        # needs read/write MissionHistory, read EvidenceVault and MarketData
+        self.tables["UserProfiles"].grant_read_write_data(lambdas["Onboarding"])
+        self.tables["Campaigns"].grant_read_write_data(lambdas["Onboarding"])
+        self.tables["MissionHistory"].grant_read_write_data(lambdas["Onboarding"])
+        self.tables["EvidenceVault"].grant_read_data(lambdas["Onboarding"])
+        self.tables["MarketData"].grant_read_data(lambdas["Onboarding"])
 
         # Missions: read/write MissionHistory, write EvidenceVault, read Campaigns
         self.tables["MissionHistory"].grant_read_write_data(lambdas["Missions"])
@@ -192,6 +197,22 @@ class ApiStack(cdk.Stack):
             apigw.LambdaIntegration(lambdas["Dashboard"]),
             **auth_kwargs,
         )
+
+        # Ensure 4xx/5xx gateway responses include CORS headers so the
+        # browser doesn't block error responses (e.g. Cognito 401).
+        for suffix, response_type in [
+            ("4xx", apigw.ResponseType.DEFAULT_4_XX),
+            ("5xx", apigw.ResponseType.DEFAULT_5_XX),
+        ]:
+            self.api.add_gateway_response(
+                f"CorsGateway{suffix}",
+                type=response_type,
+                response_headers={
+                    "Access-Control-Allow-Origin": "'*'",
+                    "Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+                    "Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+                },
+            )
 
         cdk.CfnOutput(
             self,

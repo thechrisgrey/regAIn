@@ -18,7 +18,7 @@ from strands import tool
 # 'lambda' is a Python keyword, so we use importlib to load the module.
 from boto3.dynamodb.conditions import Attr as boto3_attr, Key
 
-_dynamodb_mod = importlib.import_module("backend.lambda.shared.dynamodb")
+_dynamodb_mod = importlib.import_module("backend.handlers.shared.dynamodb")
 DynamoDBClient = _dynamodb_mod.DynamoDBClient
 
 from backend.engine.generator import (
@@ -630,7 +630,7 @@ def get_market_insights(role_id: str) -> dict[str, Any]:
         role — or an error dict if no data is found.
     """
     try:
-        _market_intel = importlib.import_module("backend.lambda.market_intel")
+        _market_intel = importlib.import_module("backend.handlers.market_intel")
 
         demand = _market_intel.get_demand_score(role_id)
         if demand is None:
@@ -677,7 +677,7 @@ def get_alignment(user_id: str, target_role_id: str) -> dict[str, Any]:
         calculated_at timestamp.
     """
     try:
-        _market_intel = importlib.import_module("backend.lambda.market_intel")
+        _market_intel = importlib.import_module("backend.handlers.market_intel")
         return _market_intel.calculate_alignment(user_id, target_role_id)
     except Exception as exc:
         logger.exception(

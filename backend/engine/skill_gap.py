@@ -15,7 +15,7 @@ from typing import Any
 from backend.engine.models import SkillGapReport
 
 # 'lambda' is a Python keyword, so we use importlib for the market_intel path.
-_market_intel = importlib.import_module("backend.lambda.market_intel")
+_market_intel = importlib.import_module("backend.handlers.market_intel")
 _normalize_skill = _market_intel.normalize_skill
 
 # Evidence items needed for a full score on a skill.

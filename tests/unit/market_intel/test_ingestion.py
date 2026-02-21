@@ -22,17 +22,17 @@ from hypothesis import strategies as st
 from moto import mock_aws
 
 # 'lambda' is a Python keyword — use importlib for sibling imports.
-_models_mod = importlib.import_module("backend.lambda.market_intel.models")
+_models_mod = importlib.import_module("backend.handlers.market_intel.models")
 MarketDataRecord = _models_mod.MarketDataRecord
 
-_onet_mod = importlib.import_module("backend.lambda.market_intel.ingestion.onet")
+_onet_mod = importlib.import_module("backend.handlers.market_intel.ingestion.onet")
 _onet_transform = _onet_mod._transform
 
-_bls_mod = importlib.import_module("backend.lambda.market_intel.ingestion.bls")
+_bls_mod = importlib.import_module("backend.handlers.market_intel.ingestion.bls")
 _bls_extract_latest_value = _bls_mod._extract_latest_value
 _bls_merge_into_record = _bls_mod._merge_into_record
 
-_usajobs_mod = importlib.import_module("backend.lambda.market_intel.ingestion.usajobs")
+_usajobs_mod = importlib.import_module("backend.handlers.market_intel.ingestion.usajobs")
 _usajobs_merge_into_record = _usajobs_mod._merge_into_record
 _usajobs_extract_skills = _usajobs_mod._extract_skills
 _usajobs_extract_salary_range = _usajobs_mod._extract_salary_range

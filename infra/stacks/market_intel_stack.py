@@ -35,10 +35,24 @@ class MarketIntelStack(cdk.Stack):
 
         self.tables = tables
 
+        self._deps_layer = self._create_deps_layer()
         lambdas = self._create_lambda_functions()
         self._grant_permissions(lambdas)
         self._create_schedules(lambdas)
         self._create_seed_trigger(lambdas["Seed"])
+
+    def _create_deps_layer(self) -> _lambda.LayerVersion:
+        """Create a Lambda Layer with third-party Python dependencies (requests)."""
+        return _lambda.LayerVersion(
+            self,
+            "RegainPythonDepsLayer",
+            layer_version_name="RegainPythonDeps",
+            code=_lambda.Code.from_asset(
+                str(Path(__file__).resolve().parent.parent.parent / "_layer"),
+            ),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            description="Third-party Python dependencies for REGAIN market intel Lambdas",
+        )
 
     def _table_env(self) -> dict[str, str]:
         """Environment variables for DynamoDB table names and API keys."""
@@ -72,8 +86,10 @@ class MarketIntelStack(cdk.Stack):
             runtime=_lambda.Runtime.PYTHON_3_12,
             handler=handler_path,
             code=_lambda.Code.from_asset(
-                str(Path(__file__).resolve().parent.parent.parent / "backend")
+                str(Path(__file__).resolve().parent.parent.parent),
+                exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
+            layers=[self._deps_layer],
             environment=env,
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
@@ -90,16 +106,16 @@ class MarketIntelStack(cdk.Stack):
         return {
             "Onet": self._create_lambda_function(
                 "OnetIngestion",
-                "lambda.market_intel.handler.onet_handler",
+                "backend.handlers.market_intel.handler.onet_handler",
                 extra_env={"ONET_API_KEY": api_key_env["ONET_API_KEY"]},
             ),
             "Bls": self._create_lambda_function(
                 "BlsIngestion",
-                "lambda.market_intel.handler.bls_handler",
+                "backend.handlers.market_intel.handler.bls_handler",
             ),
             "Usajobs": self._create_lambda_function(
                 "UsajobsIngestion",
-                "lambda.market_intel.handler.usajobs_handler",
+                "backend.handlers.market_intel.handler.usajobs_handler",
                 extra_env={
                     "USAJOBS_API_KEY": api_key_env["USAJOBS_API_KEY"],
                     "USAJOBS_USER_AGENT": api_key_env["USAJOBS_USER_AGENT"],
@@ -107,7 +123,7 @@ class MarketIntelStack(cdk.Stack):
             ),
             "Seed": self._create_lambda_function(
                 "SeedLoader",
-                "lambda.market_intel.handler.seed_handler",
+                "backend.handlers.market_intel.handler.seed_handler",
             ),
         }
 

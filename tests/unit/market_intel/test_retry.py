@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 _retry_mod = importlib.import_module(
-    "backend.lambda.market_intel.ingestion.retry"
+    "backend.handlers.market_intel.ingestion.retry"
 )
 retry_with_backoff = _retry_mod.retry_with_backoff
 
@@ -54,7 +54,7 @@ class TestRetryWithBackoff:
         with pytest.raises(OSError, match="third"):
             retry_with_backoff(fn, max_retries=3, base_delay=0.0)
 
-    @patch("backend.lambda.market_intel.ingestion.retry.time.sleep")
+    @patch("backend.handlers.market_intel.ingestion.retry.time.sleep")
     def test_exponential_backoff_delays(self, mock_sleep: MagicMock) -> None:
         """Applies exponential backoff: base_delay * 2^attempt."""
         fn = MagicMock(side_effect=[ValueError("a"), ValueError("b"), "ok"])
@@ -64,7 +64,7 @@ class TestRetryWithBackoff:
         mock_sleep.assert_any_call(1.0)   # 1.0 * 2^0
         mock_sleep.assert_any_call(2.0)   # 1.0 * 2^1
 
-    @patch("backend.lambda.market_intel.ingestion.retry.time.sleep")
+    @patch("backend.handlers.market_intel.ingestion.retry.time.sleep")
     def test_all_three_delays_on_full_failure(self, mock_sleep: MagicMock) -> None:
         """Delays are 1s, 2s, 4s for default params when all retries fail."""
         fn = MagicMock(side_effect=RuntimeError("fail"))

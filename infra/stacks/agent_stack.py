@@ -55,8 +55,8 @@ class AgentStack(cdk.Stack):
             "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
             "AWS_REGION_NAME": "us-east-1",
-            "AGENTCORE_GATEWAY_ID": cdk.Fn.import_value("RegainAgentCoreGatewayId"),
-            "AGENTCORE_GATEWAY_ENDPOINT": cdk.Fn.import_value("RegainAgentCoreGatewayEndpoint"),
+            "AGENTCORE_GATEWAY_ID": "pending-agentcore-deploy",
+            "AGENTCORE_GATEWAY_ENDPOINT": "pending-agentcore-deploy",
         }
 
     def _create_voice_lambda(self) -> _lambda.Function:
@@ -68,9 +68,10 @@ class AgentStack(cdk.Stack):
             "RegainVoiceSessionFunction",
             function_name="RegainVoiceSession",
             runtime=_lambda.Runtime.PYTHON_3_12,
-            handler="lambda.coaching.voice_handler.lambda_handler",
+            handler="backend.handlers.coaching.voice_handler.lambda_handler",
             code=_lambda.Code.from_asset(
-                str(Path(__file__).resolve().parent.parent.parent / "backend")
+                str(Path(__file__).resolve().parent.parent.parent),
+                exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
             environment=env,
             timeout=cdk.Duration.seconds(120),

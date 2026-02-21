@@ -343,6 +343,24 @@ export default function Dashboard() {
 
   const { campaign, stats } = data;
 
+  if (!campaign) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Card className="p-8 text-center">
+          <h2 className="text-lg font-semibold text-neutral-900">Welcome to REGAIN</h2>
+          <p className="mt-2 text-sm text-neutral-500">
+            Complete onboarding to set up your career campaign and start building evidence.
+          </p>
+          <div className="mt-6">
+            <Link to="/onboarding">
+              <Button size="lg">Get started</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <CampaignStatus

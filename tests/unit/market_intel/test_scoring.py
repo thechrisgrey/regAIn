@@ -12,7 +12,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 # 'lambda' is a Python keyword — use importlib to import the scoring module.
-_scoring_mod = importlib.import_module("backend.lambda.market_intel.scoring")
+_scoring_mod = importlib.import_module("backend.handlers.market_intel.scoring")
 
 calculate_demand_score = _scoring_mod.calculate_demand_score
 get_trend_direction = _scoring_mod.get_trend_direction

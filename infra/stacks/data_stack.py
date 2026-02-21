@@ -121,8 +121,8 @@ class DataStack(cdk.Stack):
         self.tables["EvidenceVault"] = table
 
     def _create_market_data_table(self) -> None:
-        """Create MarketData table (PK: sector, SK: timestamp)."""
-        self.tables["MarketData"] = dynamodb.Table(
+        """Create MarketData table (PK: sector, SK: timestamp) with role-title GSI."""
+        table = dynamodb.Table(
             self,
             "RegainMarketData",
             table_name="RegainMarketData",
@@ -135,6 +135,13 @@ class DataStack(cdk.Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
         )
+        table.add_global_secondary_index(
+            index_name="role-title-index",
+            partition_key=dynamodb.Attribute(
+                name="roleTitle", type=dynamodb.AttributeType.STRING
+            ),
+        )
+        self.tables["MarketData"] = table
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs for all table names and ARNs."""

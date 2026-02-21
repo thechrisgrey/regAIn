@@ -16,11 +16,11 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from moto import mock_aws
 
-_alignment_mod = importlib.import_module("backend.lambda.market_intel.alignment")
+_alignment_mod = importlib.import_module("backend.handlers.market_intel.alignment")
 compute_evidence_strength = _alignment_mod.compute_evidence_strength
 calculate_alignment = _alignment_mod.calculate_alignment
 
-_models_mod = importlib.import_module("backend.lambda.market_intel.models")
+_models_mod = importlib.import_module("backend.handlers.market_intel.models")
 AlignmentResult = _models_mod.AlignmentResult
 
 

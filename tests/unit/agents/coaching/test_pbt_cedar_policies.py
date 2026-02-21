@@ -406,7 +406,7 @@ def _fresh_tools_module():
     """Import (or reimport) tools.py with a fresh DynamoDBClient."""
     mod_name = "backend.agents.coaching.tools"
     # Also refresh the shared dynamodb module so it picks up new env vars
-    shared_mod = "backend.lambda.shared.dynamodb"
+    shared_mod = "backend.handlers.shared.dynamodb"
     for m in (mod_name, shared_mod):
         if m in sys.modules:
             del sys.modules[m]

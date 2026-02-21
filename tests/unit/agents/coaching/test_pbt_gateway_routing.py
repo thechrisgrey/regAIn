@@ -290,7 +290,7 @@ def _moto_env(monkeypatch: pytest.MonkeyPatch) -> Any:
 
         # Re-initialize DynamoDBClient so it picks up moto tables
         import backend.agents.coaching.tools as tools_mod
-        _dynamodb_mod = importlib.import_module("backend.lambda.shared.dynamodb")
+        _dynamodb_mod = importlib.import_module("backend.handlers.shared.dynamodb")
         tools_mod.db = _dynamodb_mod.DynamoDBClient()
 
         yield

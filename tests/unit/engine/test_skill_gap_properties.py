@@ -19,7 +19,7 @@ REF_DATE = datetime(2025, 6, 1, tzinfo=timezone.utc)
 
 # Import normalize_skill so expected values use canonical names.
 import importlib as _importlib
-_taxonomy = _importlib.import_module("backend.lambda.market_intel.taxonomy")
+_taxonomy = _importlib.import_module("backend.handlers.market_intel.taxonomy")
 _normalize_skill = _taxonomy.normalize_skill
 
 # ---------------------------------------------------------------------------

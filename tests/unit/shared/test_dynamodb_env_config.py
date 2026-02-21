@@ -15,7 +15,7 @@ from unittest.mock import patch, MagicMock
 import pytest
 from hypothesis import given, settings, strategies as st
 
-_DYNAMODB_MODULE = "backend.lambda.shared.dynamodb"
+_DYNAMODB_MODULE = "backend.handlers.shared.dynamodb"
 
 # Ensure the module is imported so patch targets resolve.
 _dynamodb_mod = importlib.import_module(_DYNAMODB_MODULE)

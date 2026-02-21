@@ -9,10 +9,10 @@ import importlib
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-_seed_mod = importlib.import_module("backend.lambda.market_intel.seed")
+_seed_mod = importlib.import_module("backend.handlers.market_intel.seed")
 _build_seed_records = _seed_mod._build_seed_records
 
-_models_mod = importlib.import_module("backend.lambda.market_intel.models")
+_models_mod = importlib.import_module("backend.handlers.market_intel.models")
 MarketDataRecord = _models_mod.MarketDataRecord
 
 # All seed records (static data — built once for the module)

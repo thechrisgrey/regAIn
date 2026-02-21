@@ -13,7 +13,7 @@ from backend.engine.skill_gap import (
     analyze_skill_gaps,
 )
 
-_taxonomy = importlib.import_module("backend.lambda.market_intel.taxonomy")
+_taxonomy = importlib.import_module("backend.handlers.market_intel.taxonomy")
 _norm = _taxonomy.normalize_skill
 
 

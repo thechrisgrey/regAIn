@@ -21,7 +21,7 @@ EXPECTED_LAMBDA_COUNT = 5
 # Map each Lambda logical-name fragment to the tables it MAY access.
 # Derived from ApiStack._grant_permissions.
 ALLOWED_TABLES: dict[str, set[str]] = {
-    "Onboarding": {"UserProfiles", "Campaigns"},
+    "Onboarding": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"},
     "Missions": {"MissionHistory", "EvidenceVault", "Campaigns"},
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},

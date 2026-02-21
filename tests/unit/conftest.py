@@ -150,7 +150,7 @@ def dynamodb_tables(aws_credentials: None) -> Generator[Dict[str, Any], None, No
             BillingMode="PAY_PER_REQUEST",
         )
 
-        # MarketData (PK: sector, SK: timestamp)
+        # MarketData (PK: sector, SK: timestamp, GSI: role-title-index)
         tables["market_data"] = dynamodb.create_table(
             TableName="RegainMarketData",
             KeySchema=[
@@ -160,6 +160,16 @@ def dynamodb_tables(aws_credentials: None) -> Generator[Dict[str, Any], None, No
             AttributeDefinitions=[
                 {"AttributeName": "sector", "AttributeType": "S"},
                 {"AttributeName": "timestamp", "AttributeType": "S"},
+                {"AttributeName": "roleTitle", "AttributeType": "S"},
+            ],
+            GlobalSecondaryIndexes=[
+                {
+                    "IndexName": "role-title-index",
+                    "KeySchema": [
+                        {"AttributeName": "roleTitle", "KeyType": "HASH"},
+                    ],
+                    "Projection": {"ProjectionType": "ALL"},
+                },
             ],
             BillingMode="PAY_PER_REQUEST",
         )

@@ -35,7 +35,7 @@ def _make_token(sub: str = "test-user-123") -> str:
 
 def _load_voice_handler():
     """Import voice_handler with a fresh module state."""
-    mod_name = "backend.lambda.coaching.voice_handler"
+    mod_name = "backend.handlers.coaching.voice_handler"
     # Also ensure tools module is loadable
     tools_name = "backend.agents.coaching.tools"
     if tools_name in sys.modules:

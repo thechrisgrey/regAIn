@@ -34,7 +34,7 @@ from backend.engine.skill_gap import analyze_skill_gaps
 from backend.engine.templates import instantiate_all_templates
 
 # 'lambda' is a Python keyword, so we use importlib to load the module.
-_dynamodb_mod = importlib.import_module("backend.lambda.shared.dynamodb")
+_dynamodb_mod = importlib.import_module("backend.handlers.shared.dynamodb")
 DynamoDBClient = _dynamodb_mod.DynamoDBClient
 
 logger = logging.getLogger(__name__)
@@ -255,7 +255,9 @@ def generate_daily_mission(
     if not profile:
         return {"error": f"User profile not found for user_id={user_id}"}
 
-    campaign = db.get_item("campaigns", {"campaignId": campaign_id})
+    campaign = db.get_item(
+        "campaigns", {"userId": user_id, "campaignId": campaign_id}
+    )
     if not campaign:
         return {"error": f"Campaign not found for campaign_id={campaign_id}"}
 
@@ -269,12 +271,17 @@ def generate_daily_mission(
         Key("userId").eq(user_id),
     )
 
-    # Market data keyed by target role/sector.
-    target_role = profile.get("target_role", "")
-    market_items = db.query(
-        "market_data",
-        Key("role").eq(target_role),
-    ) if target_role else []
+    # Market data keyed by role title via GSI.
+    target_role = profile.get("targetRole") or profile.get("target_role", "")
+    try:
+        market_items = db.query(
+            "market_data",
+            Key("roleTitle").eq(target_role),
+            index_name="role-title-index",
+        ) if target_role else []
+    except Exception:
+        logger.warning("Market data lookup failed for role=%s", target_role)
+        market_items = []
 
     # --- Prepare inputs ---
     user_skills: list[str] = profile.get("skills", [])
@@ -287,12 +294,19 @@ def generate_daily_mission(
 
     if market_items:
         market_data_dict = market_items[0]
-        for skill_info in market_data_dict.get("required_skills", []):
+        # Support both test format (required_skills/demand) and
+        # DynamoDB format (topSkills/frequency).
+        skills_list = (
+            market_data_dict.get("required_skills")
+            or market_data_dict.get("topSkills")
+            or []
+        )
+        for skill_info in skills_list:
             target_requirements.append(skill_info)
             skill_name = skill_info.get("skill", "")
-            demand = skill_info.get("demand", 1.0)
+            demand = skill_info.get("demand") or skill_info.get("frequency", 1.0)
             if skill_name:
-                market_demand[skill_name] = float(demand)
+                market_demand[skill_name] = float(demand) / 100.0 if float(demand) > 1.0 else float(demand)
     else:
         # Fallback: equal demand for all user skills.
         for skill in user_skills:
@@ -389,7 +403,9 @@ def complete_mission(
         db = DynamoDBClient()
 
     # --- Step 1: Fetch mission ---
-    mission = db.get_item("mission_history", {"missionId": mission_id})
+    mission = db.get_item(
+        "mission_history", {"userId": user_id, "missionId": mission_id}
+    )
     if not mission:
         return {"error": f"Mission not found for mission_id={mission_id}"}
 
@@ -425,7 +441,9 @@ def complete_mission(
 
     # --- Step 4: Evaluate phase gate ---
     campaign_id = updated_mission.get("campaignId") or updated_mission.get("campaign_id", "")
-    campaign = db.get_item("campaigns", {"campaignId": campaign_id})
+    campaign = db.get_item(
+        "campaigns", {"userId": user_id, "campaignId": campaign_id}
+    )
     raw_phase = (campaign or {}).get("phase", "foundation")
     current_phase = _map_phase(raw_phase)
 
@@ -451,24 +469,40 @@ def complete_mission(
     )
 
     # Recompute market alignment for a more accurate gate evaluation.
-    target_role = (campaign or {}).get("target_role", "")
-    if target_role:
-        market_items = db.query("market_data", Key("role").eq(target_role))
-    else:
-        # Try from user profile.
+    target_role = (
+        (campaign or {}).get("targetRole")
+        or (campaign or {}).get("target_role", "")
+    )
+    if not target_role:
         profile = db.get_item("user_profiles", {"userId": user_id})
-        target_role = (profile or {}).get("target_role", "")
-        market_items = db.query("market_data", Key("role").eq(target_role)) if target_role else []
+        target_role = (
+            (profile or {}).get("targetRole")
+            or (profile or {}).get("target_role", "")
+        )
+    try:
+        market_items = db.query(
+            "market_data",
+            Key("roleTitle").eq(target_role),
+            index_name="role-title-index",
+        ) if target_role else []
+    except Exception:
+        logger.warning("Market data lookup failed for role=%s", target_role)
+        market_items = []
 
     market_demand: dict[str, float] = {}
     target_requirements: list[dict[str, Any]] = []
     if market_items:
-        for skill_info in market_items[0].get("required_skills", []):
+        skills_list = (
+            market_items[0].get("required_skills")
+            or market_items[0].get("topSkills")
+            or []
+        )
+        for skill_info in skills_list:
             target_requirements.append(skill_info)
             skill_name = skill_info.get("skill", "")
-            demand = skill_info.get("demand", 1.0)
+            demand = skill_info.get("demand") or skill_info.get("frequency", 1.0)
             if skill_name:
-                market_demand[skill_name] = float(demand)
+                market_demand[skill_name] = float(demand) / 100.0 if float(demand) > 1.0 else float(demand)
 
     if market_demand:
         user_skills = list(evidence_by_skill.keys())
@@ -496,7 +530,9 @@ def complete_mission(
         # If gate passed, advance the phase.
         if gate_result.passed and gate_result.next_phase:
             updates["phase"] = gate_result.next_phase
-        db.update_item("campaigns", {"campaignId": campaign_id}, updates)
+        db.update_item(
+            "campaigns", {"userId": user_id, "campaignId": campaign_id}, updates
+        )
 
     # --- Step 6: Return result ---
     return CompletionResult(

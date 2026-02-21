@@ -131,6 +131,67 @@ class DynamoDBClient:
         )
         return response
 
+    def delete_item(self, table_name: str, key: Dict[str, Any]) -> Dict[str, Any]:
+        """Delete a single item by primary key.
+
+        Args:
+            table_name: Logical table name.
+            key: Primary key dict (e.g. {'userId': '123'}).
+
+        Returns:
+            The DynamoDB delete_item response.
+        """
+        table = self._get_table(table_name)
+        response = table.delete_item(Key=key)
+        return response
+
+    def delete_all_by_partition_key(
+        self,
+        table_name: str,
+        partition_key_name: str,
+        partition_key_value: str,
+        sort_key_name: str,
+    ) -> int:
+        """Query all items by partition key and batch-delete them.
+
+        Uses BatchWriteItem with 25-item batches and handles pagination
+        on both the query and the batch write.
+
+        Args:
+            table_name: Logical table name.
+            partition_key_name: Name of the partition key attribute.
+            partition_key_value: Value to match on.
+            sort_key_name: Name of the sort key attribute (needed for delete key).
+
+        Returns:
+            Total number of items deleted.
+        """
+        items = self.query(
+            table_name,
+            Key(partition_key_name).eq(partition_key_value),
+        )
+
+        if not items:
+            return 0
+
+        table = self._get_table(table_name)
+        deleted = 0
+
+        # BatchWriteItem supports max 25 requests per call.
+        for i in range(0, len(items), 25):
+            batch = items[i : i + 25]
+            with table.batch_writer() as writer:
+                for item in batch:
+                    writer.delete_item(
+                        Key={
+                            partition_key_name: item[partition_key_name],
+                            sort_key_name: item[sort_key_name],
+                        }
+                    )
+            deleted += len(batch)
+
+        return deleted
+
     def _get_table(self, table_name: str) -> Any:
         """Resolve a logical table name to a DynamoDB Table resource.
 

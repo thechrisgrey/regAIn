@@ -103,4 +103,12 @@ export const api = {
         token,
       ),
   },
+  profile: {
+    delete: (token: string) =>
+      apiRequest<{ message: string }>(
+        '/profile',
+        { method: 'DELETE' },
+        token,
+      ),
+  },
 };

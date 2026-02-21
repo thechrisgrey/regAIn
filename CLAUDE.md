@@ -51,7 +51,7 @@ cd frontend && npx vitest --run # Run tests (30 tests)
 cd frontend && npm run lint     # ESLint
 
 # Backend
-.venv/bin/pytest tests/ -x -q   # Run tests (531 tests, ~3 min)
+.venv/bin/pytest tests/ -x -q   # Run tests (~525 tests, ~3 min)
 
 # CDK Deploy (all stacks in us-east-1, account 563170906428)
 cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval never
@@ -74,6 +74,8 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Mission seeding**: `OnboardingService._seed_first_missions()` calls `generate_daily_mission()` during onboarding so users have missions from day 1
 - **MarketData GSI**: `role-title-index` on `roleTitle` allows lookup by human-readable role name
 - **Thin handler pattern**: Each Lambda handler validates input, delegates to a service class, returns via `success_response`/`error_response` — no business logic in handlers
+- **Profile (delete account)**: `backend/handlers/profile/` — cascading hard delete across 4 DynamoDB tables + Cognito `AdminDeleteUser`. DynamoDB deletions first, Cognito last for recoverability
+- **Cascade deletion**: Uses `delete_all_by_partition_key()` with `batch_writer()` (25-item batches) for tables with composite keys (Campaigns, MissionHistory, EvidenceVault)
 
 ## DynamoDB Table Keys
 
@@ -95,3 +97,5 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **API Gateway CORS**: `default_cors_preflight_options` only handles OPTIONS — add `GatewayResponse` for `DEFAULT_4_XX`/`DEFAULT_5_XX` with CORS headers to cover error responses
 - **DynamoDB composite keys**: `get_item`/`update_item` on Campaigns requires `{userId, campaignId}`, on MissionHistory requires `{userId, missionId}` — moto mocks dispatch by table name only, so key bugs are invisible in tests
 - **Hosting**: AWS Amplify in **us-east-2** (app ID: `d2z52fw5cbbzo`, domain: regain.altivum.ai) — auto-deploys from git push to main
+- **Hardcoded Lambda/method counts in tests**: When adding a new Lambda or API route, update `EXPECTED_LAMBDA_COUNT` in `test_iam_least_privilege.py`, `test_lambda_env_config.py`, `test_lambda_runtime_consistency.py`, and `EXPECTED_METHOD_COUNT` in `test_api_authorization.py`
+- **Profile Lambda IAM**: Needs `cognito-idp:AdminDeleteUser` on user pool ARN + read/write on 4 DynamoDB tables. `USER_POOL_ID` env var is set via `_table_env()`

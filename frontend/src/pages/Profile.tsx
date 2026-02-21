@@ -1,10 +1,11 @@
-import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState, useCallback } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboard } from '../hooks/useDashboard';
+import { api } from '../services/api';
 import type { Campaign } from '../types';
 import { DISPLAY_PHASES, phaseIndex, phaseProgress, daysActive, formatDate } from '../utils/campaign';
-import { Card, SectionLabel, Badge, ProgressBar, Button, SkeletonBlock } from '../components/ui';
+import { Card, SectionLabel, Badge, ProgressBar, Button, Input, SkeletonBlock } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -263,11 +264,105 @@ function CampaignJourney({ campaign }: { campaign: Campaign }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 4: Delete Account
+// ---------------------------------------------------------------------------
+
+function DeleteAccount({
+  getToken,
+  signOut,
+}: {
+  getToken: () => Promise<string>;
+  signOut: () => Promise<void>;
+}) {
+  const navigate = useNavigate();
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [confirmText, setConfirmText] = useState('');
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
+
+  const handleDelete = useCallback(async () => {
+    if (confirmText !== 'DELETE') return;
+    setDeleting(true);
+    setDeleteError('');
+    try {
+      const token = await getToken();
+      await api.profile.delete(token);
+      await signOut();
+      navigate('/login');
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : 'Failed to delete account',
+      );
+    } finally {
+      setDeleting(false);
+    }
+  }, [confirmText, getToken, signOut, navigate]);
+
+  return (
+    <Card className="p-6">
+      <SectionLabel>Account</SectionLabel>
+
+      <div className="mt-5 border-t border-neutral-100 pt-5">
+        <p className="text-sm font-medium text-neutral-900">Delete account</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
+          This will permanently delete your account and all associated data
+          including your profile, campaigns, missions, and evidence vault.
+          This action cannot be undone.
+        </p>
+
+        {deleteError && (
+          <p className="mt-3 text-sm text-error-600">{deleteError}</p>
+        )}
+
+        {!showConfirm ? (
+          <button
+            onClick={() => setShowConfirm(true)}
+            className="mt-4 text-sm font-medium text-error-600 hover:text-error-700 transition-colors"
+          >
+            Delete my account
+          </button>
+        ) : (
+          <div className="mt-4 space-y-3">
+            <Input
+              label="Type DELETE to confirm"
+              placeholder="DELETE"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={confirmText !== 'DELETE' || deleting}
+                onClick={() => void handleDelete()}
+              >
+                {deleting ? 'Deleting...' : 'Confirm deletion'}
+              </Button>
+              <button
+                onClick={() => {
+                  setShowConfirm(false);
+                  setConfirmText('');
+                  setDeleteError('');
+                }}
+                className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
 export default function Profile() {
-  const { user } = useAuth();
+  const { user, getToken, signOut } = useAuth();
   const { data, loading, error, fetchDashboard } = useDashboard();
 
   useEffect(() => {
@@ -299,6 +394,8 @@ export default function Profile() {
       <SkillsInventory skills={campaign.skillsFocus} />
 
       <CampaignJourney campaign={campaign} />
+
+      <DeleteAccount getToken={getToken} signOut={signOut} />
     </div>
   );
 }

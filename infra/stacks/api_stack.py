@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_apigateway as apigw,
     aws_cognito as cognito,
     aws_dynamodb as dynamodb,
+    aws_iam as iam,
     aws_lambda as _lambda,
 )
 from constructs import Construct
@@ -56,6 +57,7 @@ class ApiStack(cdk.Stack):
             "MISSION_HISTORY_TABLE": self.tables["MissionHistory"].table_name,
             "EVIDENCE_VAULT_TABLE": self.tables["EvidenceVault"].table_name,
             "MARKET_DATA_TABLE": self.tables["MarketData"].table_name,
+            "USER_POOL_ID": self.user_pool.user_pool_id,
         }
 
     def _create_lambda_function(self, name: str, handler_path: str) -> _lambda.Function:
@@ -91,6 +93,7 @@ class ApiStack(cdk.Stack):
             "Evidence": "backend.handlers.evidence.handler.lambda_handler",
             "Coaching": "backend.handlers.coaching.handler.lambda_handler",
             "Dashboard": "backend.handlers.dashboard.handler.lambda_handler",
+            "Profile": "backend.handlers.profile.handler.lambda_handler",
         }
         return {
             name: self._create_lambda_function(name, path)
@@ -125,6 +128,18 @@ class ApiStack(cdk.Stack):
         self.tables["Campaigns"].grant_read_data(lambdas["Dashboard"])
         self.tables["MissionHistory"].grant_read_data(lambdas["Dashboard"])
         self.tables["EvidenceVault"].grant_read_data(lambdas["Dashboard"])
+
+        # Profile: read/write all user tables (for cascade delete) + Cognito
+        self.tables["UserProfiles"].grant_read_write_data(lambdas["Profile"])
+        self.tables["Campaigns"].grant_read_write_data(lambdas["Profile"])
+        self.tables["MissionHistory"].grant_read_write_data(lambdas["Profile"])
+        self.tables["EvidenceVault"].grant_read_write_data(lambdas["Profile"])
+        lambdas["Profile"].add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cognito-idp:AdminDeleteUser"],
+                resources=[self.user_pool.user_pool_arn],
+            )
+        )
 
     def _create_api(
         self,
@@ -195,6 +210,14 @@ class ApiStack(cdk.Stack):
         dashboard.add_method(
             "GET",
             apigw.LambdaIntegration(lambdas["Dashboard"]),
+            **auth_kwargs,
+        )
+
+        # DELETE /profile
+        profile = self.api.root.add_resource("profile")
+        profile.add_method(
+            "DELETE",
+            apigw.LambdaIntegration(lambdas["Profile"]),
             **auth_kwargs,
         )
 

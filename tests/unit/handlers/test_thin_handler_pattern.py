@@ -27,6 +27,7 @@ HANDLER_FILES = {
     "evidence": _PROJECT_ROOT / "backend" / "handlers" / "evidence" / "handler.py",
     "coaching": _PROJECT_ROOT / "backend" / "handlers" / "coaching" / "handler.py",
     "dashboard": _PROJECT_ROOT / "backend" / "handlers" / "dashboard" / "handler.py",
+    "profile": _PROJECT_ROOT / "backend" / "handlers" / "profile" / "handler.py",
 }
 
 # Imports that indicate business logic leaking into the handler

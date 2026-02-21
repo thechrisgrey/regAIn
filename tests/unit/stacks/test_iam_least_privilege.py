@@ -16,7 +16,7 @@ from infra.stacks.api_stack import ApiStack
 
 
 # Expected Lambda count in the API stack.
-EXPECTED_LAMBDA_COUNT = 5
+EXPECTED_LAMBDA_COUNT = 6
 
 # Map each Lambda logical-name fragment to the tables it MAY access.
 # Derived from ApiStack._grant_permissions.
@@ -26,6 +26,7 @@ ALLOWED_TABLES: dict[str, set[str]] = {
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},
     "Dashboard": {"Campaigns", "MissionHistory", "EvidenceVault"},
+    "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault"},
 }
 
 ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"}

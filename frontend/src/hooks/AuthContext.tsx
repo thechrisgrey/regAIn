@@ -7,6 +7,9 @@ import {
 } from 'react';
 import {
   signIn as amplifySignIn,
+  signUp as amplifySignUp,
+  confirmSignUp as amplifyConfirmSignUp,
+  resendSignUpCode as amplifyResendSignUpCode,
   signOut as amplifySignOut,
   getCurrentUser,
   fetchAuthSession,
@@ -21,6 +24,9 @@ export interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  signUp: (email: string, password: string, name: string) => Promise<void>;
+  confirmSignUp: (email: string, code: string) => Promise<void>;
+  resendConfirmationCode: (email: string) => Promise<void>;
   signOut: () => Promise<void>;
   getToken: () => Promise<string>;
 }
@@ -60,6 +66,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const signUp = useCallback(async (email: string, password: string, name: string) => {
+    await amplifySignUp({
+      username: email,
+      password,
+      options: {
+        userAttributes: { email, name },
+      },
+    });
+  }, []);
+
+  const confirmSignUp = useCallback(async (email: string, code: string) => {
+    await amplifyConfirmSignUp({ username: email, confirmationCode: code });
+  }, []);
+
+  const resendConfirmationCode = useCallback(async (email: string) => {
+    await amplifyResendSignUpCode({ username: email });
+  }, []);
+
   const signOut = useCallback(async () => {
     await amplifySignOut();
     setUser(null);
@@ -75,7 +99,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signOut, getToken }}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, confirmSignUp, resendConfirmationCode, signOut, getToken }}>
       {children}
     </AuthContext.Provider>
   );

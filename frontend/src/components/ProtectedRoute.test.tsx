@@ -60,6 +60,9 @@ describe('Property 11: Protected Route Authentication', () => {
           user: null,
           loading: false,
           signIn: vi.fn(),
+          signUp: vi.fn(),
+          confirmSignUp: vi.fn(),
+          resendConfirmationCode: vi.fn(),
           signOut: vi.fn(),
           getToken: vi.fn(),
         });
@@ -94,6 +97,9 @@ describe('Property 11: Protected Route Authentication', () => {
           user: { userId: 'user-123', username: 'test@example.com' },
           loading: false,
           signIn: vi.fn(),
+          signUp: vi.fn(),
+          confirmSignUp: vi.fn(),
+          resendConfirmationCode: vi.fn(),
           signOut: vi.fn(),
           getToken: vi.fn(),
         });
@@ -130,6 +136,9 @@ describe('Property 11: Protected Route Authentication', () => {
           user: null,
           loading: true,
           signIn: vi.fn(),
+          signUp: vi.fn(),
+          confirmSignUp: vi.fn(),
+          resendConfirmationCode: vi.fn(),
           signOut: vi.fn(),
           getToken: vi.fn(),
         });

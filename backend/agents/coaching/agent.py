@@ -1,30 +1,86 @@
 """Coaching Agent configuration for the REGAIN platform.
 
 Creates and configures the Strands Coaching Agent with model, tools,
-and system prompt. Tools are discovered from AgentCore Gateway instead
-of direct imports, routing all invocations through centralized auth,
-policy, and observability layers.
+and system prompt. Detects whether AgentCore Gateway is provisioned:
+
+- If Gateway is available → discover tools via GatewayToolClient
+  (centralized auth, policy, and observability).
+- If Gateway is pending → use direct @tool functions from tools.py
+  (local invocation, no Gateway dependency).
 
 Agent configuration lives here; business logic lives in tools.py;
 persona definition lives in prompts.py.
 """
 
+import logging
 import os
 
 from strands import Agent
 from strands.models.bedrock import BedrockModel
 
-from backend.agents.coaching.gateway_client import GatewayToolClient
 from backend.agents.coaching.prompts import get_system_prompt
+
+logger = logging.getLogger(__name__)
+
+_PENDING = "pending-agentcore-deploy"
+
+
+def _is_gateway_available() -> bool:
+    """Check if AgentCore Gateway is provisioned and ready."""
+    endpoint = os.environ.get("AGENTCORE_GATEWAY_ENDPOINT", "")
+    return bool(endpoint) and endpoint != _PENDING
+
+
+def _get_gateway_tools(jwt_token: str):
+    """Discover tools from AgentCore Gateway (lazy import)."""
+    from backend.agents.coaching.gateway_client import GatewayToolClient
+
+    gateway_id = os.environ.get("AGENTCORE_GATEWAY_ID", "regain-coaching-gateway")
+    client = GatewayToolClient(gateway_id, jwt_token)
+    return client.discover_tools()
+
+
+def _get_direct_tools() -> list:
+    """Return direct @tool functions for local invocation (lazy import)."""
+    from backend.agents.coaching.tools import (
+        read_user_profile,
+        update_user_profile,
+        get_campaign_status,
+        create_campaign,
+        get_current_mission,
+        generate_mission,
+        complete_mission,
+        log_evidence,
+        get_evidence_summary,
+        get_market_insights,
+        get_alignment,
+        recall_memory,
+        store_memory,
+    )
+
+    return [
+        read_user_profile,
+        update_user_profile,
+        get_campaign_status,
+        create_campaign,
+        get_current_mission,
+        generate_mission,
+        complete_mission,
+        log_evidence,
+        get_evidence_summary,
+        get_market_insights,
+        get_alignment,
+        recall_memory,
+        store_memory,
+    ]
 
 
 def create_coaching_agent(user_id: str, jwt_token: str) -> Agent:
-    """Create a Coaching Agent that routes tools through AgentCore Gateway.
+    """Create a Coaching Agent with tools routed through Gateway or invoked directly.
 
-    Discovers available tools from the AgentCore Gateway MCP endpoint
-    instead of importing tool functions directly. All 13 tools
-    (including get_alignment) are discovered automatically from the
-    Gateway registry.
+    Detects Gateway availability via the AGENTCORE_GATEWAY_ENDPOINT env var.
+    If the endpoint is "pending-agentcore-deploy" or empty, falls back to
+    direct @tool function invocation from tools.py.
 
     Args:
         user_id: The authenticated user's ID. Kept for future
@@ -32,11 +88,14 @@ def create_coaching_agent(user_id: str, jwt_token: str) -> Agent:
         jwt_token: The user's Cognito JWT for Gateway authorization.
 
     Returns:
-        A configured Strands Agent with Gateway-routed tools.
+        A configured Strands Agent.
     """
-    gateway_id = os.environ.get("AGENTCORE_GATEWAY_ID", "regain-coaching-gateway")
-    gateway_client = GatewayToolClient(gateway_id, jwt_token)
-    gateway_tools = gateway_client.discover_tools()
+    if _is_gateway_available():
+        logger.info("Using AgentCore Gateway tools")
+        tools = _get_gateway_tools(jwt_token)
+    else:
+        logger.info("Gateway not provisioned, using direct tool invocation")
+        tools = _get_direct_tools()
 
     model = BedrockModel(
         model_id=os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"),
@@ -46,5 +105,5 @@ def create_coaching_agent(user_id: str, jwt_token: str) -> Agent:
     return Agent(
         model=model,
         system_prompt=get_system_prompt(),
-        tools=gateway_tools,
+        tools=tools,
     )

@@ -3,6 +3,7 @@
 import aws_cdk as cdk
 from stacks.auth_stack import AuthStack
 from stacks.data_stack import DataStack
+from stacks.layer_stack import LayerStack
 from stacks.api_stack import ApiStack
 from stacks.agent_stack import AgentStack
 from stacks.agentcore_stack import AgentCoreStack
@@ -17,11 +18,13 @@ env = cdk.Environment(
 
 auth_stack = AuthStack(app, "RegainAuthStack", env=env)
 data_stack = DataStack(app, "RegainDataStack", env=env)
+layer_stack = LayerStack(app, "RegainLayerStack", env=env)
 api_stack = ApiStack(
     app,
     "RegainApiStack",
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
+    strands_layer=layer_stack.strands_layer,
     env=env,
 )
 
@@ -31,6 +34,7 @@ agent_stack = AgentStack(
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
     coaching_lambda=api_stack.coaching_lambda,
+    strands_layer=layer_stack.strands_layer,
     env=env,
 )
 

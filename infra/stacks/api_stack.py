@@ -22,12 +22,14 @@ class ApiStack(cdk.Stack):
         *,
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
+        strands_layer: _lambda.LayerVersion | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         self.user_pool = user_pool
         self.tables = tables
+        self.strands_layer = strands_layer
 
         authorizer = self._create_cognito_authorizer()
         lambdas = self._create_lambda_functions()
@@ -60,12 +62,18 @@ class ApiStack(cdk.Stack):
             "USER_POOL_ID": self.user_pool.user_pool_id,
         }
 
-    def _create_lambda_function(self, name: str, handler_path: str) -> _lambda.Function:
+    def _create_lambda_function(
+        self,
+        name: str,
+        handler_path: str,
+        layers: list[_lambda.LayerVersion] | None = None,
+    ) -> _lambda.Function:
         """Create a single Lambda function.
 
         Args:
             name: Logical name for the function (e.g. "Onboarding").
             handler_path: Dotted handler path (e.g. "backend.handlers.onboarding.handler.lambda_handler").
+            layers: Optional Lambda Layers to attach.
 
         Returns:
             The Lambda function construct.
@@ -80,6 +88,7 @@ class ApiStack(cdk.Stack):
                 str(Path(__file__).resolve().parent.parent.parent),
                 exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
+            layers=layers or [],
             environment=self._table_env(),
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
@@ -96,7 +105,11 @@ class ApiStack(cdk.Stack):
             "Profile": "backend.handlers.profile.handler.lambda_handler",
         }
         return {
-            name: self._create_lambda_function(name, path)
+            name: self._create_lambda_function(
+                name,
+                path,
+                layers=[self.strands_layer] if name == "Coaching" and self.strands_layer else None,
+            )
             for name, path in handlers.items()
         }
 

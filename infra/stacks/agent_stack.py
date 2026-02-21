@@ -24,6 +24,7 @@ class AgentStack(cdk.Stack):
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
         coaching_lambda: _lambda.Function,
+        strands_layer: _lambda.LayerVersion | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -31,6 +32,7 @@ class AgentStack(cdk.Stack):
         self.user_pool = user_pool
         self.tables = tables
         self.coaching_lambda = coaching_lambda
+        self.strands_layer = strands_layer
 
         voice_lambda = self._create_voice_lambda()
         self._create_websocket_api(voice_lambda)
@@ -73,6 +75,7 @@ class AgentStack(cdk.Stack):
                 str(Path(__file__).resolve().parent.parent.parent),
                 exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
+            layers=[self.strands_layer] if self.strands_layer else [],
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,

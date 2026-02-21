@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache/
 cdk.out/
 infra/.venv/
+infra/layer_build/

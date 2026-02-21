@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useEvidence } from '../hooks/useEvidence';
 import type { Evidence as EvidenceType } from '../types';
+import { Card, SectionLabel, Button, Badge, ProgressBar, SkeletonBlock } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -52,35 +53,35 @@ interface SkillStat {
 
 function Skeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       {/* Skill coverage */}
-      <div className="rounded-sm border border-slate-200 bg-white p-6">
-        <div className="h-2.5 w-28 rounded-sm bg-slate-100" />
+      <Card className="p-6">
+        <SkeletonBlock className="h-2.5 w-28" />
         <div className="mt-5 space-y-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="flex items-center gap-4">
-              <div className="h-3 w-24 rounded-sm bg-slate-100" />
-              <div className="h-1.5 flex-1 rounded-sm bg-slate-100" />
-              <div className="h-3 w-6 rounded-sm bg-slate-100" />
+              <SkeletonBlock className="h-3 w-24" />
+              <SkeletonBlock className="h-1.5 flex-1" />
+              <SkeletonBlock className="h-3 w-6" />
             </div>
           ))}
         </div>
         <div className="mt-6 flex gap-12">
           {[1, 2].map(i => (
             <div key={i}>
-              <div className="h-8 w-10 rounded-sm bg-slate-100" />
-              <div className="mt-1.5 h-2 w-20 rounded-sm bg-slate-100" />
+              <SkeletonBlock className="h-8 w-10" />
+              <SkeletonBlock className="mt-1.5 h-2 w-20" />
             </div>
           ))}
         </div>
-      </div>
+      </Card>
 
       {/* Filter row placeholder */}
       <div>
-        <div className="h-2.5 w-20 rounded-sm bg-slate-100" />
+        <SkeletonBlock className="h-2.5 w-20" />
         <div className="mt-4 flex gap-2">
           {[1, 2, 3].map(i => (
-            <div key={i} className="h-7 w-20 rounded-sm bg-slate-100" />
+            <SkeletonBlock key={i} className="h-7 w-20" />
           ))}
         </div>
       </div>
@@ -88,19 +89,16 @@ function Skeleton() {
       {/* Evidence cards */}
       <div className="space-y-4">
         {[1, 2, 3].map(i => (
-          <div
-            key={i}
-            className="rounded-sm border border-slate-200 bg-white p-6"
-          >
-            <div className="h-5 w-24 rounded-sm bg-slate-100" />
-            <div className="mt-4 h-3.5 w-full rounded-sm bg-slate-100" />
-            <div className="mt-2 h-3.5 w-4/5 rounded-sm bg-slate-100" />
-            <div className="mt-2 h-3.5 w-3/5 rounded-sm bg-slate-100" />
+          <Card key={i} className="p-6">
+            <SkeletonBlock className="h-5 w-24" />
+            <SkeletonBlock className="mt-4 h-3.5 w-full" />
+            <SkeletonBlock className="mt-2 h-3.5 w-4/5" />
+            <SkeletonBlock className="mt-2 h-3.5 w-3/5" />
             <div className="mt-4 flex gap-6">
-              <div className="h-3 w-24 rounded-sm bg-slate-100" />
-              <div className="h-3 w-32 rounded-sm bg-slate-100" />
+              <SkeletonBlock className="h-3 w-24" />
+              <SkeletonBlock className="h-3 w-32" />
             </div>
-          </div>
+          </Card>
         ))}
       </div>
     </div>
@@ -120,17 +118,13 @@ function EvidenceError({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-24">
-      <p className="text-sm font-medium text-slate-900">
+      <p className="text-sm font-medium text-neutral-900">
         Unable to load evidence
       </p>
-      <p className="mt-1.5 text-sm text-slate-500">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-6 rounded-sm bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
-      >
+      <p className="mt-1.5 text-sm text-neutral-500">{message}</p>
+      <Button onClick={onRetry} className="mt-6">
         Retry
-      </button>
+      </Button>
     </div>
   );
 }
@@ -141,17 +135,17 @@ function EvidenceError({
 
 function EmptyEvidence() {
   return (
-    <section className="rounded-sm border border-slate-200 bg-white p-8">
+    <Card className="p-8">
       <div className="flex flex-col items-center py-12 text-center">
-        <p className="text-xl font-semibold text-slate-900">No evidence yet</p>
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-500">
+        <p className="text-xl font-semibold text-neutral-900">No evidence yet</p>
+        <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
           Complete missions to start building your evidence portfolio. Each
           mission creates a timestamped record of demonstrated capability.
         </p>
         <div className="mt-6">
           <Link
             to="/missions"
-            className="inline-flex items-center gap-2 rounded-sm bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors"
+            className="inline-flex items-center gap-2 rounded-[var(--radius-button)] bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
           >
             Go to Missions
             <svg
@@ -170,7 +164,7 @@ function EmptyEvidence() {
           </Link>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -189,9 +183,9 @@ function SkillCoverageBar({
   ratio: number;
   dimmed: boolean;
 }) {
-  let barClass = 'bg-indigo-600/20';
-  if (count >= 5) barClass = 'bg-indigo-600';
-  else if (count >= 3) barClass = 'bg-indigo-600/50';
+  let barClass = 'bg-primary-500/20';
+  if (count >= 5) barClass = 'bg-primary-500';
+  else if (count >= 3) barClass = 'bg-primary-500/50';
 
   return (
     <div
@@ -199,16 +193,15 @@ function SkillCoverageBar({
         dimmed ? 'opacity-30' : ''
       }`}
     >
-      <span className="w-32 shrink-0 truncate text-sm text-slate-600">
+      <span className="w-32 shrink-0 truncate text-sm text-neutral-600">
         {skill}
       </span>
-      <div className="h-1.5 flex-1 overflow-hidden rounded-sm bg-slate-100">
-        <div
-          className={`h-full rounded-sm transition-all duration-500 ${barClass}`}
-          style={{ width: `${Math.max(ratio * 100, 4)}%` }}
-        />
-      </div>
-      <span className="w-6 text-right text-xs tabular-nums text-slate-400">
+      <ProgressBar
+        value={Math.max(ratio * 100, 4)}
+        className="flex-1"
+        barClassName={barClass}
+      />
+      <span className="w-6 text-right text-xs font-mono tabular-nums text-neutral-400">
         {count}
       </span>
     </div>
@@ -237,10 +230,10 @@ function SkillFilterChips({
             key={skill}
             type="button"
             onClick={() => onToggle(skill)}
-            className={`rounded-sm px-3 py-1.5 text-xs font-medium transition-colors ${
+            className={`rounded-[var(--radius-badge)] px-3 py-1.5 text-xs font-medium transition-colors ${
               isActive
-                ? 'bg-indigo-600 text-white'
-                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                ? 'bg-primary-500 text-white'
+                : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
             }`}
           >
             {skill}
@@ -258,26 +251,24 @@ function SkillFilterChips({
 function EvidenceCard({
   entry,
   tagIntensity,
+  index,
 }: {
   entry: EvidenceType;
   tagIntensity: 'low' | 'medium' | 'high';
+  index: number;
 }) {
-  let tagClass = 'bg-indigo-50 text-indigo-600';
-  if (tagIntensity === 'high') tagClass = 'bg-indigo-100 text-indigo-700';
-  else if (tagIntensity === 'medium')
-    tagClass = 'bg-indigo-50/80 text-indigo-600';
+  let badgeVariant: 'primary' | 'default' = 'primary';
+  if (tagIntensity === 'low') badgeVariant = 'default';
 
   return (
-    <div className="rounded-sm border border-slate-200 bg-white p-6">
+    <Card hoverable className="p-6 animate-fade-in-up" style={{ animationDelay: `${index * 60}ms` }}>
       {/* Skill tag */}
-      <span
-        className={`inline-block rounded-sm px-2.5 py-1 text-xs font-medium ${tagClass}`}
-      >
+      <Badge variant={badgeVariant}>
         {entry.skillTag}
-      </span>
+      </Badge>
 
-      {/* Reflection — the primary content */}
-      <p className="mt-4 text-sm leading-relaxed text-slate-700">
+      {/* Reflection */}
+      <p className="mt-4 text-sm leading-relaxed text-neutral-700">
         {entry.reflection}
       </p>
 
@@ -287,7 +278,7 @@ function EvidenceCard({
           href={entry.artifactUrl}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
         >
           <svg
             className="h-3 w-3"
@@ -308,14 +299,14 @@ function EvidenceCard({
 
       {/* Metadata */}
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-1">
-        <span className="text-xs text-slate-400">
+        <span className="text-xs text-neutral-400">
           {relativeTime(entry.createdAt)}
         </span>
-        <span className="text-xs tabular-nums text-slate-300">
+        <span className="text-xs font-mono tabular-nums text-neutral-300">
           {entry.evidenceId}
         </span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -350,7 +341,7 @@ export default function Evidence() {
     return sorted;
   }, [evidence]);
 
-  // Map skill → intensity for card tag styling
+  // Map skill -> intensity for card tag styling
   const skillIntensityMap = useMemo(() => {
     const map = new Map<string, 'low' | 'medium' | 'high'>();
     for (const { skill, count } of skillStats) {
@@ -415,10 +406,8 @@ export default function Evidence() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Section 1: Skill Coverage */}
-      <section className="rounded-sm border border-slate-200 bg-white p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-          Skill Coverage
-        </p>
+      <Card className="p-6">
+        <SectionLabel>Skill Coverage</SectionLabel>
 
         <div className="mt-5 space-y-3">
           {visibleSkillBars.map(stat => (
@@ -438,7 +427,7 @@ export default function Evidence() {
           <button
             type="button"
             onClick={() => setShowAllSkills(true)}
-            className="mt-3 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+            className="mt-3 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
           >
             Show all skills<span className="ml-1">&rarr;</span>
           </button>
@@ -447,28 +436,26 @@ export default function Evidence() {
         {/* Summary numbers */}
         <div className="mt-6 flex gap-12">
           <div>
-            <p className="text-3xl font-medium tabular-nums text-slate-900">
+            <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
               {evidence.length}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">total items</p>
+            <p className="mt-0.5 text-xs text-neutral-400">total items</p>
           </div>
           <div>
-            <p className="text-3xl font-medium tabular-nums text-slate-900">
+            <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
               {skillStats.length}
             </p>
-            <p className="mt-0.5 text-xs text-slate-400">skills covered</p>
+            <p className="mt-0.5 text-xs text-neutral-400">skills covered</p>
           </div>
         </div>
-      </section>
+      </Card>
 
       {/* Section 2: Evidence Feed */}
       <section>
         <div className="flex items-center justify-between">
-          <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-            Evidence
-          </p>
+          <SectionLabel>Evidence</SectionLabel>
           {activeFilters.size > 0 && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-neutral-400">
               Showing {filteredEvidence.length} of {evidence.length} items
             </p>
           )}
@@ -487,18 +474,19 @@ export default function Evidence() {
 
         {/* Evidence cards */}
         <div className="mt-4 space-y-4">
-          {visibleEvidence.map(entry => (
+          {visibleEvidence.map((entry, i) => (
             <EvidenceCard
               key={entry.evidenceId}
               entry={entry}
               tagIntensity={skillIntensityMap.get(entry.skillTag) ?? 'low'}
+              index={i}
             />
           ))}
         </div>
 
         {/* Filtered empty state */}
         {activeFilters.size > 0 && filteredEvidence.length === 0 && (
-          <p className="mt-6 text-center text-sm text-slate-500">
+          <p className="mt-6 text-center text-sm text-neutral-500">
             No evidence matches the selected filters.
           </p>
         )}
@@ -509,7 +497,7 @@ export default function Evidence() {
             <button
               type="button"
               onClick={() => setVisibleCount(prev => prev + 10)}
-              className="text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+              className="text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
             >
               Load more<span className="ml-1">&rarr;</span>
             </button>

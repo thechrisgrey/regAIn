@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useCoaching } from '../hooks/useCoaching';
 import { useVoiceSession } from '../hooks/useVoiceSession';
+import { Button } from '../components/ui';
 
 const SESSION_TYPES = [
   { value: 'onboarding', label: 'Onboarding' },
@@ -37,19 +38,19 @@ export default function CoachingPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)]">
+    <div className="flex flex-col h-[calc(100vh-3rem)] animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-gray-200">
-        <h1 className="text-2xl font-bold text-gray-900">Coaching</h1>
+      <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
+        <h1 className="text-2xl font-bold text-neutral-900">Coaching</h1>
         <div className="flex items-center gap-2">
-          <label htmlFor="session-type" className="text-sm text-gray-600">
+          <label htmlFor="session-type" className="text-sm text-neutral-600">
             Session:
           </label>
           <select
             id="session-type"
             value={sessionType}
             onChange={(e) => setSessionType(e.target.value)}
-            className="rounded border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-700 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className="rounded-[var(--radius-button)] border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
           >
             {SESSION_TYPES.map(({ value, label }) => (
               <option key={value} value={value}>{label}</option>
@@ -61,7 +62,7 @@ export default function CoachingPage() {
       {/* Message History */}
       <div className="flex-1 overflow-y-auto py-4 space-y-3" role="log" aria-label="Coaching conversation">
         {messages.length === 0 && (
-          <p className="text-center text-gray-400 mt-12">
+          <p className="text-center text-neutral-400 mt-12">
             Start a conversation with your coaching agent.
           </p>
         )}
@@ -71,10 +72,10 @@ export default function CoachingPage() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[75%] rounded-lg px-4 py-2 text-sm whitespace-pre-wrap ${
+              className={`max-w-[75%] px-4 py-2 text-sm whitespace-pre-wrap animate-scale-in ${
                 msg.role === 'user'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-200 text-gray-900'
+                  ? 'bg-primary-500 text-white rounded-2xl rounded-br-sm'
+                  : 'bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm'
               }`}
             >
               {msg.content}
@@ -83,8 +84,10 @@ export default function CoachingPage() {
         ))}
         {loading && (
           <div className="flex justify-start">
-            <div className="bg-gray-200 text-gray-500 rounded-lg px-4 py-2 text-sm animate-pulse">
-              Thinking…
+            <div className="bg-surface-3 text-neutral-500 rounded-2xl rounded-bl-sm px-4 py-3 text-sm flex items-center gap-1.5">
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         )}
@@ -93,44 +96,43 @@ export default function CoachingPage() {
 
       {/* Voice / Error Notices */}
       {voiceError && (
-        <p className="text-sm text-red-600 px-1 pb-1" role="alert">{voiceError}</p>
+        <p className="text-sm text-error-600 px-1 pb-1" role="alert">{voiceError}</p>
       )}
       {fallbackToText && !voiceError && (
-        <p className="text-sm text-amber-600 px-1 pb-1" role="status">
+        <p className="text-sm text-warning-600 px-1 pb-1" role="status">
           Voice unavailable — using text mode.
         </p>
       )}
       {error && (
-        <p className="text-sm text-red-600 px-1 pb-1" role="alert">{error}</p>
+        <p className="text-sm text-error-600 px-1 pb-1" role="alert">{error}</p>
       )}
 
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 pt-3 border-t border-gray-200">
+      <form onSubmit={handleSubmit} className="flex items-center gap-2 pt-3 border-t border-neutral-200">
         <input
           type="text"
           value={input}
           onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message…"
+          placeholder="Type a message..."
           disabled={loading}
           aria-label="Coaching message"
-          className="flex-1 rounded-lg border border-gray-300 px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+          className="flex-1 rounded-[var(--radius-card)] border border-neutral-200 px-4 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50"
         />
-        <button
+        <Button
           type="submit"
           disabled={loading || !input.trim()}
           aria-label="Send message"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           Send
-        </button>
+        </Button>
         <button
           type="button"
           onClick={toggleVoice}
           aria-label={voiceActive ? 'Stop voice session' : 'Start voice session'}
-          className={`rounded-lg px-3 py-2 text-sm font-medium ${
+          className={`rounded-[var(--radius-card)] px-3 py-2 text-sm font-medium transition-colors duration-150 ${
             voiceActive
-              ? 'bg-red-500 text-white hover:bg-red-600 animate-pulse'
-              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+              ? 'bg-error-500 text-white hover:bg-error-600 animate-pulse'
+              : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
           }`}
         >
           <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">

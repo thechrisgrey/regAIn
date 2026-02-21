@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useMissions } from '../hooks/useMissions';
 import type { Mission, CompleteData } from '../types';
+import { Card, SectionLabel, Button, Badge, SkeletonBlock } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -21,50 +22,50 @@ function formatDate(dateStr: string): string {
 
 function Skeleton() {
   return (
-    <div className="space-y-6 animate-pulse">
+    <div className="space-y-6">
       {/* Primary mission card */}
-      <div className="rounded-sm border border-slate-200 bg-white p-8">
-        <div className="h-2.5 w-28 rounded-sm bg-slate-100" />
-        <div className="mt-5 h-7 w-72 rounded-sm bg-slate-100" />
-        <div className="mt-4 h-3.5 w-full rounded-sm bg-slate-100" />
-        <div className="mt-2 h-3.5 w-4/5 rounded-sm bg-slate-100" />
-        <div className="mt-8 border-t border-slate-100 pt-6">
-          <div className="h-2.5 w-20 rounded-sm bg-slate-100" />
-          <div className="mt-3 h-24 w-full rounded-sm bg-slate-100" />
-          <div className="mt-4 h-2.5 w-32 rounded-sm bg-slate-100" />
-          <div className="mt-3 h-10 w-full rounded-sm bg-slate-100" />
-          <div className="mt-6 h-10 w-40 rounded-sm bg-slate-100" />
+      <Card className="p-8">
+        <SkeletonBlock className="h-2.5 w-28" />
+        <SkeletonBlock className="mt-5 h-7 w-72" />
+        <SkeletonBlock className="mt-4 h-3.5 w-full" />
+        <SkeletonBlock className="mt-2 h-3.5 w-4/5" />
+        <div className="mt-8 border-t border-neutral-100 pt-6">
+          <SkeletonBlock className="h-2.5 w-20" />
+          <SkeletonBlock className="mt-3 h-24 w-full" />
+          <SkeletonBlock className="mt-4 h-2.5 w-32" />
+          <SkeletonBlock className="mt-3 h-10 w-full" />
+          <SkeletonBlock className="mt-6 h-10 w-40" />
         </div>
-      </div>
+      </Card>
 
       {/* Alternate missions */}
       <div>
-        <div className="h-2.5 w-32 rounded-sm bg-slate-100" />
+        <SkeletonBlock className="h-2.5 w-32" />
         <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {[1, 2].map(i => (
-            <div key={i} className="rounded-sm border border-slate-200 bg-white p-5">
-              <div className="h-4 w-48 rounded-sm bg-slate-100" />
-              <div className="mt-3 h-3 w-full rounded-sm bg-slate-100" />
-              <div className="mt-1.5 h-3 w-2/3 rounded-sm bg-slate-100" />
-              <div className="mt-4 h-3 w-28 rounded-sm bg-slate-100" />
-            </div>
+            <Card key={i} className="p-5">
+              <SkeletonBlock className="h-4 w-48" />
+              <SkeletonBlock className="mt-3 h-3 w-full" />
+              <SkeletonBlock className="mt-1.5 h-3 w-2/3" />
+              <SkeletonBlock className="mt-4 h-3 w-28" />
+            </Card>
           ))}
         </div>
       </div>
 
       {/* Mission history */}
-      <div className="rounded-sm border border-slate-200 bg-white p-6">
-        <div className="h-2.5 w-28 rounded-sm bg-slate-100" />
+      <Card className="p-6">
+        <SkeletonBlock className="h-2.5 w-28" />
         <div className="mt-5 space-y-4">
           {[1, 2, 3, 4].map(i => (
             <div key={i} className="flex items-center gap-4">
-              <div className="h-3.5 w-52 rounded-sm bg-slate-100 flex-1" />
-              <div className="h-3 w-16 rounded-sm bg-slate-100" />
-              <div className="h-3 w-20 rounded-sm bg-slate-100" />
+              <SkeletonBlock className="h-3.5 flex-1" />
+              <SkeletonBlock className="h-3 w-16" />
+              <SkeletonBlock className="h-3 w-20" />
             </div>
           ))}
         </div>
-      </div>
+      </Card>
     </div>
   );
 }
@@ -82,15 +83,11 @@ function MissionsError({
 }) {
   return (
     <div className="flex flex-col items-center justify-center py-24">
-      <p className="text-sm font-medium text-slate-900">Unable to load missions</p>
-      <p className="mt-1.5 text-sm text-slate-500">{message}</p>
-      <button
-        type="button"
-        onClick={onRetry}
-        className="mt-6 rounded-sm bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 transition-colors"
-      >
+      <p className="text-sm font-medium text-neutral-900">Unable to load missions</p>
+      <p className="mt-1.5 text-sm text-neutral-500">{message}</p>
+      <Button onClick={onRetry} className="mt-6">
         Retry
-      </button>
+      </Button>
     </div>
   );
 }
@@ -101,29 +98,29 @@ function MissionsError({
 
 function AllCaughtUp() {
   return (
-    <section className="rounded-sm border border-slate-200 bg-white p-8">
+    <Card className="p-8">
       <div className="flex flex-col items-center py-12 text-center">
-        <p className="text-xl font-semibold text-slate-900">All caught up</p>
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-slate-500">
+        <p className="text-xl font-semibold text-neutral-900">All caught up</p>
+        <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
           Your next mission arrives tomorrow. In the meantime, review your
           evidence or check your dashboard.
         </p>
         <div className="mt-6 flex gap-6">
           <Link
             to="/evidence"
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
           >
             View evidence<span className="ml-1">&rarr;</span>
           </Link>
           <Link
             to="/dashboard"
-            className="text-sm font-medium text-slate-600 hover:text-slate-900 transition-colors"
+            className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
           >
             Dashboard<span className="ml-1">&rarr;</span>
           </Link>
         </div>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -133,11 +130,11 @@ function AllCaughtUp() {
 
 function CompletionConfirmation({ evidenceId }: { evidenceId: string }) {
   return (
-    <section className="rounded-sm border border-indigo-500/20 bg-white p-8 animate-fade-in">
+    <Card variant="accent" className="p-8 animate-scale-in">
       <div className="flex flex-col items-center py-8 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-50">
+        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50">
           <svg
-            className="h-5 w-5 text-indigo-600"
+            className="h-5 w-5 text-primary-600"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -150,17 +147,17 @@ function CompletionConfirmation({ evidenceId }: { evidenceId: string }) {
             />
           </svg>
         </div>
-        <p className="mt-4 text-lg font-semibold text-slate-900">
+        <p className="mt-4 text-lg font-semibold text-neutral-900">
           Mission complete
         </p>
-        <p className="mt-1.5 text-sm text-slate-500">
+        <p className="mt-1.5 text-sm text-neutral-500">
           Your reflection has been recorded as evidence.
         </p>
-        <p className="mt-3 text-xs tabular-nums text-slate-400">
+        <p className="mt-3 text-xs font-mono tabular-nums text-neutral-400">
           {evidenceId}
         </p>
       </div>
-    </section>
+    </Card>
   );
 }
 
@@ -213,10 +210,10 @@ function CompletionForm({
   }
 
   return (
-    <div className="mt-8 border-t border-slate-100 pt-6">
+    <div className="mt-8 border-t border-neutral-100 pt-6">
       {/* Reflection */}
       <label className="block">
-        <span className="text-xs font-medium text-slate-500">
+        <span className="text-xs font-medium text-neutral-500">
           Your reflection
         </span>
         <textarea
@@ -227,17 +224,17 @@ function CompletionForm({
           }}
           placeholder="Describe what you did and what you learned..."
           rows={4}
-          className="mt-2 block w-full resize-y rounded-sm border border-slate-200 bg-white px-4 py-3 text-sm leading-relaxed text-slate-900 placeholder:text-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+          className="mt-2 block w-full resize-y rounded-[var(--radius-button)] border border-neutral-200 bg-white px-4 py-3 text-sm leading-relaxed text-neutral-900 placeholder:text-neutral-300 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-shadow"
         />
       </label>
 
       {validationError && (
-        <p className="mt-2 text-xs text-red-600">{validationError}</p>
+        <p className="mt-2 text-xs text-error-600">{validationError}</p>
       )}
 
       {/* Artifact URL */}
       <label className="mt-4 block">
-        <span className="text-xs font-medium text-slate-500">
+        <span className="text-xs font-medium text-neutral-500">
           Link to artifact (optional)
         </span>
         <input
@@ -245,24 +242,24 @@ function CompletionForm({
           value={artifactUrl}
           onChange={e => setArtifactUrl(e.target.value)}
           placeholder="https://"
-          className="mt-2 block w-full rounded-sm border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 placeholder:text-slate-300 focus:border-indigo-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 transition-colors"
+          className="mt-2 block w-full rounded-[var(--radius-button)] border border-neutral-200 bg-white px-4 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-300 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-shadow"
         />
       </label>
 
       {/* Skill tags */}
       <div className="mt-4">
-        <span className="text-xs font-medium text-slate-500">Skill tags</span>
-        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-sm border border-slate-200 bg-white px-3 py-2">
+        <span className="text-xs font-medium text-neutral-500">Skill tags</span>
+        <div className="mt-2 flex flex-wrap items-center gap-2 rounded-[var(--radius-button)] border border-neutral-200 bg-white px-3 py-2">
           {skillTags.map(tag => (
             <span
               key={tag}
-              className="inline-flex items-center gap-1.5 rounded-sm bg-slate-100 px-2.5 py-1 text-xs text-slate-600"
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-badge)] bg-neutral-100 px-2.5 py-1 text-xs text-neutral-600"
             >
               {tag}
               <button
                 type="button"
                 onClick={() => removeTag(tag)}
-                className="text-slate-400 hover:text-slate-600 transition-colors"
+                className="text-neutral-400 hover:text-neutral-600 transition-colors"
               >
                 <svg
                   className="h-3 w-3"
@@ -295,30 +292,25 @@ function CompletionForm({
                 ? 'Type a skill and press Enter'
                 : 'Add more...'
             }
-            className="min-w-[120px] flex-1 border-0 bg-transparent py-1 text-xs text-slate-900 placeholder:text-slate-300 focus:outline-none"
+            className="min-w-[120px] flex-1 border-0 bg-transparent py-1 text-xs text-neutral-900 placeholder:text-neutral-300 focus:outline-none"
           />
         </div>
       </div>
 
       {completionError && (
-        <p className="mt-4 text-xs text-red-600">{completionError}</p>
+        <p className="mt-4 text-xs text-error-600">{completionError}</p>
       )}
 
       {/* Actions */}
       <div className="mt-6 flex items-center gap-6">
-        <button
-          type="button"
-          onClick={handleSubmit}
-          disabled={completing}
-          className="rounded-sm bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-        >
+        <Button onClick={handleSubmit} disabled={completing}>
           {completing ? 'Completing...' : 'Complete Mission'}
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => onSkip(missionId)}
           disabled={completing}
-          className="text-xs text-slate-400 hover:underline disabled:opacity-50"
+          className="text-xs text-neutral-400 hover:underline disabled:opacity-50"
         >
           Skip this mission
         </button>
@@ -345,16 +337,14 @@ function PrimaryMissionCard({
   completionError: string | null;
 }) {
   return (
-    <section className="rounded-sm border border-indigo-500/20 bg-white p-8">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-        Current Mission
-      </p>
+    <Card variant="accent" className="p-8">
+      <SectionLabel>Current Mission</SectionLabel>
 
-      <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+      <h2 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">
         {mission.title}
       </h2>
 
-      <p className="mt-3 text-sm leading-relaxed text-slate-500">
+      <p className="mt-3 text-sm leading-relaxed text-neutral-500">
         {mission.description}
       </p>
 
@@ -366,7 +356,7 @@ function PrimaryMissionCard({
         completing={completing}
         completionError={completionError}
       />
-    </section>
+    </Card>
   );
 }
 
@@ -377,26 +367,28 @@ function PrimaryMissionCard({
 function AlternateMissionCard({
   mission,
   onSwitch,
+  index,
 }: {
   mission: Mission;
   onSwitch: (missionId: string) => void;
+  index: number;
 }) {
   return (
-    <div className="rounded-sm border border-slate-200 bg-white p-5">
-      <h3 className="text-sm font-medium text-slate-900 line-clamp-2">
+    <Card hoverable className="p-5 animate-fade-in-up" style={{ animationDelay: `${index * 60}ms` }}>
+      <h3 className="text-sm font-medium text-neutral-900 line-clamp-2">
         {mission.title}
       </h3>
-      <p className="mt-2 text-xs leading-relaxed text-slate-500 line-clamp-2">
+      <p className="mt-2 text-xs leading-relaxed text-neutral-500 line-clamp-2">
         {mission.description}
       </p>
       <button
         type="button"
         onClick={() => onSwitch(mission.missionId)}
-        className="mt-4 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+        className="mt-4 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
       >
         Switch to this mission<span className="ml-1">&rarr;</span>
       </button>
-    </div>
+    </Card>
   );
 }
 
@@ -411,15 +403,14 @@ function AlternateMissions({
 
   return (
     <section>
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-        Alternate Missions
-      </p>
+      <SectionLabel>Alternate Missions</SectionLabel>
       <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {missions.slice(0, 3).map(m => (
+        {missions.slice(0, 3).map((m, i) => (
           <AlternateMissionCard
             key={m.missionId}
             mission={m}
             onSwitch={onSwitch}
+            index={i}
           />
         ))}
       </div>
@@ -436,29 +427,25 @@ function MissionHistoryItem({ mission }: { mission: Mission }) {
   const isCompleted = mission.status === 'completed';
 
   return (
-    <div className="border-b border-slate-100 last:border-0">
+    <div className="border-b border-neutral-100 last:border-0">
       <button
         type="button"
         onClick={() => setExpanded(prev => !prev)}
         className="flex w-full items-center gap-4 py-3 text-left"
       >
-        <span className="flex-1 truncate text-sm text-slate-700">
+        <span className="flex-1 truncate text-sm text-neutral-700">
           {mission.title}
         </span>
-        <span
-          className={`shrink-0 text-xs font-medium ${
-            isCompleted ? 'text-indigo-600' : 'text-slate-400'
-          }`}
-        >
+        <Badge variant={isCompleted ? 'primary' : 'default'}>
           {isCompleted ? 'Completed' : 'Skipped'}
-        </span>
+        </Badge>
         {mission.completedDate && (
-          <span className="shrink-0 text-xs tabular-nums text-slate-400">
+          <span className="shrink-0 text-xs font-mono tabular-nums text-neutral-400">
             {formatDate(mission.completedDate)}
           </span>
         )}
         <svg
-          className={`h-3 w-3 shrink-0 text-slate-300 transition-transform ${
+          className={`h-3 w-3 shrink-0 text-neutral-300 transition-transform ${
             expanded ? 'rotate-180' : ''
           }`}
           fill="none"
@@ -475,7 +462,7 @@ function MissionHistoryItem({ mission }: { mission: Mission }) {
       </button>
       {expanded && (
         <div className="pb-3">
-          <p className="text-xs leading-relaxed text-slate-500">
+          <p className="text-xs leading-relaxed text-neutral-500">
             {mission.description}
           </p>
         </div>
@@ -495,24 +482,20 @@ function MissionHistory({
 }) {
   if (missions.length === 0) {
     return (
-      <section className="rounded-sm border border-slate-200 bg-white p-6">
-        <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-          Mission History
-        </p>
-        <p className="mt-4 text-sm leading-relaxed text-slate-500">
+      <Card className="p-6">
+        <SectionLabel>Mission History</SectionLabel>
+        <p className="mt-4 text-sm leading-relaxed text-neutral-500">
           Your mission history will appear here as you complete missions.
         </p>
-      </section>
+      </Card>
     );
   }
 
   const visible = showAll ? missions : missions.slice(0, 10);
 
   return (
-    <section className="rounded-sm border border-slate-200 bg-white p-6">
-      <p className="text-[11px] font-semibold uppercase tracking-widest text-slate-400">
-        Mission History
-      </p>
+    <Card className="p-6">
+      <SectionLabel>Mission History</SectionLabel>
       <div className="mt-4">
         {visible.map(m => (
           <MissionHistoryItem key={m.missionId} mission={m} />
@@ -522,12 +505,12 @@ function MissionHistory({
         <button
           type="button"
           onClick={onShowMore}
-          className="mt-4 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+          className="mt-4 text-xs font-medium text-neutral-500 hover:text-neutral-700 transition-colors"
         >
           View more<span className="ml-1">&rarr;</span>
         </button>
       )}
-    </section>
+    </Card>
   );
 }
 

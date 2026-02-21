@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useAuth } from '../hooks/useAuth';
 import type { OnboardingData } from '../types';
+import { Card, SectionLabel, Badge, Button, Input, Textarea, Select } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -95,10 +96,10 @@ function StepIndicator({ current }: { current: number }) {
             <div
               className={`flex h-8 w-8 items-center justify-center rounded-full text-sm font-semibold transition-colors duration-300 ${
                 current > s.number
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-primary-500 text-white'
                   : current === s.number
-                    ? 'bg-indigo-600 text-white'
-                    : 'bg-slate-200 text-slate-400'
+                    ? 'bg-primary-500 text-white shadow-elevated'
+                    : 'bg-neutral-200 text-neutral-400'
               }`}
             >
               {current > s.number ? (
@@ -111,7 +112,7 @@ function StepIndicator({ current }: { current: number }) {
             </div>
             <span
               className={`mt-1.5 text-xs font-medium transition-colors duration-300 ${
-                current >= s.number ? 'text-indigo-600' : 'text-slate-400'
+                current >= s.number ? 'text-primary-600' : 'text-neutral-400'
               }`}
             >
               {s.label}
@@ -120,7 +121,7 @@ function StepIndicator({ current }: { current: number }) {
           {i < STEPS.length - 1 && (
             <div
               className={`mx-3 mb-5 h-px w-12 sm:w-20 transition-colors duration-300 ${
-                current > s.number ? 'bg-indigo-600' : 'bg-slate-200'
+                current > s.number ? 'bg-primary-500' : 'bg-neutral-200'
               }`}
             />
           )}
@@ -162,10 +163,10 @@ function SkillChips({
               key={skill}
               type="button"
               onClick={() => onToggle(skill)}
-              className={`rounded-full px-3.5 py-1.5 text-sm font-medium transition-all duration-200 ${
+              className={`rounded-[var(--radius-badge)] px-3.5 py-1.5 text-sm font-medium transition-all duration-200 ${
                 active
-                  ? 'bg-indigo-100 text-indigo-700 ring-1 ring-indigo-300'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-primary-100 text-primary-700 ring-1 ring-primary-300'
+                  : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
               }`}
             >
               {skill}
@@ -177,10 +178,10 @@ function SkillChips({
             key={skill}
             type="button"
             onClick={() => onToggle(skill)}
-            className="rounded-full bg-indigo-100 px-3.5 py-1.5 text-sm font-medium text-indigo-700 ring-1 ring-indigo-300 transition-all duration-200"
+            className="rounded-[var(--radius-badge)] bg-primary-100 px-3.5 py-1.5 text-sm font-medium text-primary-700 ring-1 ring-primary-300 transition-all duration-200"
           >
             {skill}
-            <span className="ml-1.5 text-indigo-400">&times;</span>
+            <span className="ml-1.5 text-primary-400">&times;</span>
           </button>
         ))}
       </div>
@@ -191,16 +192,16 @@ function SkillChips({
           onChange={e => onCustomInputChange(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder="Add a custom skill..."
-          className="flex-1 rounded-lg border border-slate-200 px-3.5 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
+          className="flex-1 rounded-[var(--radius-button)] border border-neutral-200 px-3.5 py-2 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-shadow"
         />
-        <button
-          type="button"
+        <Button
+          variant="secondary"
+          size="sm"
           onClick={onCustomAdd}
           disabled={!customInput.trim()}
-          className="rounded-lg bg-slate-100 px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-200 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
         >
           Add
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -210,15 +211,12 @@ function SkillCategory({ label, skills }: { label: string; skills: string[] }) {
   if (skills.length === 0) return null;
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">{label}</p>
+      <SectionLabel className="mb-2">{label}</SectionLabel>
       <div className="flex flex-wrap gap-1.5">
         {skills.map(skill => (
-          <span
-            key={skill}
-            className="rounded-full bg-indigo-50 px-3 py-1 text-sm font-medium text-indigo-700"
-          >
+          <Badge key={skill} variant="primary">
             {skill}
-          </span>
+          </Badge>
         ))}
       </div>
     </div>
@@ -323,9 +321,9 @@ export default function Onboarding() {
         {step === 1 && (
           <div className="space-y-6">
             {/* Voice banner (non-functional) */}
-            <div className="flex items-center gap-3 rounded-xl border border-dashed border-slate-300 bg-slate-50/80 px-5 py-4 opacity-70">
+            <div className="flex items-center gap-3 rounded-[var(--radius-card)] border border-dashed border-neutral-300 bg-surface-2 px-5 py-4 opacity-70">
               <svg
-                className="h-5 w-5 shrink-0 text-slate-400"
+                className="h-5 w-5 shrink-0 text-neutral-400"
                 fill="none"
                 viewBox="0 0 24 24"
                 stroke="currentColor"
@@ -338,110 +336,81 @@ export default function Onboarding() {
                 />
               </svg>
               <div>
-                <p className="text-sm font-medium text-slate-500">
+                <p className="text-sm font-medium text-neutral-500">
                   Prefer to talk? Tell your AI coach about your experience.
                 </p>
-                <p className="mt-0.5 text-xs text-slate-400">Coming soon</p>
+                <p className="mt-0.5 text-xs text-neutral-400">Coming soon</p>
               </div>
             </div>
 
             {/* Card */}
-            <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8">
-              <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+            <Card className="p-6 sm:p-8">
+              <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
                 Tell us about your experience
               </h2>
-              <p className="mt-2 text-[15px] leading-relaxed text-slate-500">
+              <p className="mt-2 text-[15px] leading-relaxed text-neutral-500">
                 Take a moment to share where you've been. This helps us build a
                 transition plan that fits you.
               </p>
 
               <div className="mt-8 space-y-6">
                 {/* Name */}
-                <div>
-                  <label htmlFor="onb-name" className="block text-sm font-medium text-slate-700">
-                    Your name
-                  </label>
-                  <input
-                    id="onb-name"
-                    type="text"
-                    value={name}
-                    onChange={e => setName(e.target.value)}
-                    placeholder="First and last name"
-                    className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
-                  />
-                </div>
+                <Input
+                  id="onb-name"
+                  label="Your name"
+                  value={name}
+                  onChange={e => setName(e.target.value)}
+                  placeholder="First and last name"
+                />
 
                 {/* Role & Industry (side by side on desktop) */}
                 <div className="grid gap-6 sm:grid-cols-2">
-                  <div>
-                    <label htmlFor="onb-role" className="block text-sm font-medium text-slate-700">
-                      Most recent role
-                    </label>
-                    <input
-                      id="onb-role"
-                      type="text"
-                      value={currentRole}
-                      onChange={e => setCurrentRole(e.target.value)}
-                      placeholder="e.g. Software QA Lead"
-                      className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="onb-industry" className="block text-sm font-medium text-slate-700">
-                      Industry
-                    </label>
-                    <input
-                      id="onb-industry"
-                      type="text"
-                      value={industry}
-                      onChange={e => setIndustry(e.target.value)}
-                      placeholder="e.g. Technology"
-                      className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
-                    />
-                  </div>
-                </div>
-
-                {/* Years of experience */}
-                <div>
-                  <label htmlFor="onb-years" className="block text-sm font-medium text-slate-700">
-                    Years of experience
-                  </label>
-                  <select
-                    id="onb-years"
-                    value={yearsExperience}
-                    onChange={e => setYearsExperience(e.target.value)}
-                    className="mt-1.5 block w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-[15px] text-slate-900 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
-                  >
-                    <option value="">Select a range</option>
-                    {EXPERIENCE_RANGES.map(r => (
-                      <option key={r.value} value={r.value}>
-                        {r.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                {/* What happened? */}
-                <div>
-                  <label htmlFor="onb-story" className="block text-sm font-medium text-slate-700">
-                    What happened?
-                  </label>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    Share as much or as little as you're comfortable with.
-                  </p>
-                  <textarea
-                    id="onb-story"
-                    value={story}
-                    onChange={e => setStory(e.target.value)}
-                    rows={4}
-                    placeholder="I was a software QA lead for 8 years and got laid off when they automated our testing pipeline."
-                    className="mt-1.5 block w-full resize-none rounded-lg border border-slate-200 px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
+                  <Input
+                    id="onb-role"
+                    label="Most recent role"
+                    value={currentRole}
+                    onChange={e => setCurrentRole(e.target.value)}
+                    placeholder="e.g. Software QA Lead"
+                  />
+                  <Input
+                    id="onb-industry"
+                    label="Industry"
+                    value={industry}
+                    onChange={e => setIndustry(e.target.value)}
+                    placeholder="e.g. Technology"
                   />
                 </div>
 
+                {/* Years of experience */}
+                <Select
+                  id="onb-years"
+                  label="Years of experience"
+                  value={yearsExperience}
+                  onChange={e => setYearsExperience(e.target.value)}
+                >
+                  <option value="">Select a range</option>
+                  {EXPERIENCE_RANGES.map(r => (
+                    <option key={r.value} value={r.value}>
+                      {r.label}
+                    </option>
+                  ))}
+                </Select>
+
+                {/* What happened? */}
+                <Textarea
+                  id="onb-story"
+                  label="What happened?"
+                  hint="Share as much or as little as you're comfortable with."
+                  value={story}
+                  onChange={e => setStory(e.target.value)}
+                  rows={4}
+                  placeholder="I was a software QA lead for 8 years and got laid off when they automated our testing pipeline."
+                  className="resize-none"
+                />
+
                 {/* Transition type */}
                 <fieldset>
-                  <legend className="block text-sm font-medium text-slate-700">
+                  <legend className="block text-sm font-medium text-neutral-700">
                     What best describes your situation?
                   </legend>
                   <div className="mt-2 grid gap-3 sm:grid-cols-2">
@@ -450,10 +419,10 @@ export default function Onboarding() {
                       return (
                         <label
                           key={t.value}
-                          className={`flex cursor-pointer items-center gap-3 rounded-xl border-2 p-4 transition-all duration-200 ${
+                          className={`flex cursor-pointer items-center gap-3 rounded-[var(--radius-card)] border-2 p-4 transition-all duration-200 ${
                             active
-                              ? 'border-indigo-600 bg-indigo-50/60'
-                              : 'border-slate-200 bg-white hover:border-slate-300'
+                              ? 'border-primary-500 bg-primary-50'
+                              : 'border-neutral-200 bg-white hover:border-neutral-300'
                           }`}
                         >
                           <input
@@ -466,14 +435,14 @@ export default function Onboarding() {
                           />
                           <span
                             className={`flex h-4.5 w-4.5 shrink-0 items-center justify-center rounded-full border-2 transition-colors ${
-                              active ? 'border-indigo-600' : 'border-slate-300'
+                              active ? 'border-primary-500' : 'border-neutral-300'
                             }`}
                           >
-                            {active && <span className="h-2 w-2 rounded-full bg-indigo-600" />}
+                            {active && <span className="h-2 w-2 rounded-full bg-primary-500" />}
                           </span>
                           <span
                             className={`text-sm font-medium ${
-                              active ? 'text-indigo-700' : 'text-slate-700'
+                              active ? 'text-primary-700' : 'text-neutral-700'
                             }`}
                           >
                             {t.label}
@@ -484,7 +453,7 @@ export default function Onboarding() {
                   </div>
                 </fieldset>
               </div>
-            </div>
+            </Card>
           </div>
         )}
 
@@ -492,39 +461,35 @@ export default function Onboarding() {
         {/* STEP 2 — Where do you want to go?                                */}
         {/* ================================================================ */}
         {step === 2 && (
-          <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm sm:p-8">
-            <h2 className="text-2xl font-semibold tracking-tight text-slate-900">
+          <Card className="p-6 sm:p-8">
+            <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
               Where do you want to go?
             </h2>
-            <p className="mt-2 text-[15px] leading-relaxed text-slate-500">
+            <p className="mt-2 text-[15px] leading-relaxed text-neutral-500">
               Now let's look forward. What kind of work excites you?
             </p>
 
             <div className="mt-8 space-y-6">
               {/* Target role */}
               <div>
-                <label htmlFor="onb-target" className="block text-sm font-medium text-slate-700">
-                  Target role or direction
-                </label>
-                <p className="mt-0.5 text-xs text-slate-400">
-                  This can be specific or exploratory.
-                </p>
-                <input
+                <Input
                   id="onb-target"
-                  type="text"
+                  label="Target role or direction"
                   value={targetRole}
                   onChange={e => setTargetRole(e.target.value)}
-                  placeholder='e.g. "AI Quality Assurance Engineer" or "something in data"'
-                  className="mt-1.5 block w-full rounded-lg border border-slate-200 px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
+                  placeholder='"AI Quality Assurance Engineer" or "something in data"'
                 />
+                <p className="mt-1 text-xs text-neutral-400">
+                  This can be specific or exploratory.
+                </p>
               </div>
 
               {/* Skills */}
               <div>
-                <label className="block text-sm font-medium text-slate-700">
+                <label className="block text-sm font-medium text-neutral-700">
                   Skills you want to leverage
                 </label>
-                <p className="mt-0.5 mb-3 text-xs text-slate-400">
+                <p className="mt-0.5 mb-3 text-xs text-neutral-400">
                   Select from common transferable skills or add your own.
                 </p>
                 <SkillChips
@@ -537,22 +502,18 @@ export default function Onboarding() {
               </div>
 
               {/* Coach notes */}
-              <div>
-                <label htmlFor="onb-notes" className="block text-sm font-medium text-slate-700">
-                  Anything else your coach should know?
-                </label>
-                <p className="mt-0.5 text-xs text-slate-400">Optional</p>
-                <textarea
-                  id="onb-notes"
-                  value={coachNotes}
-                  onChange={e => setCoachNotes(e.target.value)}
-                  rows={3}
-                  placeholder="Schedule constraints, learning preferences, accessibility needs..."
-                  className="mt-1.5 block w-full resize-none rounded-lg border border-slate-200 px-3.5 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-shadow"
-                />
-              </div>
+              <Textarea
+                id="onb-notes"
+                label="Anything else your coach should know?"
+                hint="Optional"
+                value={coachNotes}
+                onChange={e => setCoachNotes(e.target.value)}
+                rows={3}
+                placeholder="Schedule constraints, learning preferences, accessibility needs..."
+                className="resize-none"
+              />
             </div>
-          </div>
+          </Card>
         )}
 
         {/* ================================================================ */}
@@ -563,11 +524,11 @@ export default function Onboarding() {
             {/* Loading */}
             {(loading || (!data && !error)) && (
               <div className="flex flex-col items-center justify-center py-20">
-                <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-slate-200 border-t-indigo-600" />
-                <p className="mt-6 text-lg font-medium text-slate-700">
+                <div className="h-10 w-10 animate-spin rounded-full border-[3px] border-neutral-200 border-t-primary-500" />
+                <p className="mt-6 text-lg font-medium text-neutral-700">
                   Building your transition profile
                 </p>
-                <p className="mt-1.5 text-sm text-slate-400">
+                <p className="mt-1.5 text-sm text-neutral-400">
                   This usually takes a few seconds...
                 </p>
               </div>
@@ -575,113 +536,102 @@ export default function Onboarding() {
 
             {/* Error */}
             {error && !loading && (
-              <div className="rounded-2xl border border-red-200 bg-red-50 p-6 sm:p-8 text-center">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-red-100">
-                  <svg className="h-6 w-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <Card className="border-error-200 bg-error-50 p-6 sm:p-8 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-error-100">
+                  <svg className="h-6 w-6 text-error-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
                   </svg>
                 </div>
-                <p className="mt-4 text-base font-medium text-red-800">
+                <p className="mt-4 text-base font-medium text-error-700">
                   Something went wrong
                 </p>
-                <p className="mt-1 text-sm text-red-600">{error}</p>
-                <button
-                  type="button"
+                <p className="mt-1 text-sm text-error-600">{error}</p>
+                <Button
+                  variant="destructive"
                   onClick={handleRetry}
-                  className="mt-6 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-red-700 transition-colors"
+                  className="mt-6"
                 >
                   Try again
-                </button>
-              </div>
+                </Button>
+              </Card>
             )}
 
             {/* Success */}
             {data && !loading && (
-              <div className="space-y-6">
+              <div className="space-y-6 animate-fade-in">
                 {/* Header */}
                 <div className="text-center">
-                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100">
-                    <svg className="h-6 w-6 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-success-100">
+                    <svg className="h-6 w-6 text-success-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                   </div>
-                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-slate-900">
+                  <h2 className="mt-4 text-2xl font-semibold tracking-tight text-neutral-900">
                     Your profile is ready
                   </h2>
-                  <p className="mt-1.5 text-[15px] text-slate-500">
+                  <p className="mt-1.5 text-[15px] text-neutral-500">
                     Here's what we built from your experience.
                   </p>
                 </div>
 
                 {/* Experience summary */}
-                <div className="rounded-xl border border-slate-200/80 bg-slate-50 p-5">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Your Background
-                  </p>
-                  <p className="mt-2 text-[15px] leading-relaxed text-slate-700">
+                <Card variant="default" className="bg-surface-2 p-5">
+                  <SectionLabel>Your Background</SectionLabel>
+                  <p className="mt-2 text-[15px] leading-relaxed text-neutral-700">
                     {experienceSummary}
                   </p>
                   {(data.profile.targetRole || targetRole) && (
-                    <p className="mt-1 text-[15px] text-slate-700">
+                    <p className="mt-1 text-[15px] text-neutral-700">
                       Targeting a transition into{' '}
-                      <span className="font-medium text-indigo-700">
+                      <span className="font-medium text-primary-700">
                         {data.profile.targetRole || targetRole}
                       </span>
                       .
                     </p>
                   )}
-                </div>
+                </Card>
 
                 {/* Skills */}
                 {selectedSkills.length > 0 && (
-                  <div className="rounded-xl border border-slate-200/80 bg-white p-5">
-                    <p className="mb-4 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                      Your Skills
-                    </p>
+                  <Card className="p-5">
+                    <SectionLabel className="mb-4">Your Skills</SectionLabel>
                     <div className="space-y-4">
                       <SkillCategory label="Transferable" skills={skillCategories.transferable} />
                       <SkillCategory label="Technical" skills={skillCategories.technical} />
                       <SkillCategory label="Domain" skills={skillCategories.domain} />
                     </div>
-                  </div>
+                  </Card>
                 )}
 
                 {/* Campaign Roadmap */}
                 <div>
-                  <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                    Your Campaign Roadmap
-                  </p>
+                  <SectionLabel className="mb-3">Your Campaign Roadmap</SectionLabel>
                   <div className="grid gap-4 sm:grid-cols-3">
                     {CAMPAIGN_PHASES.map((phase, i) => {
                       const isCurrent = i === 0;
                       return (
-                        <div
+                        <Card
                           key={phase.name}
-                          className={`rounded-xl border p-5 transition-shadow ${
-                            isCurrent
-                              ? 'border-indigo-300 bg-indigo-50/60 shadow-sm'
-                              : 'border-slate-200 bg-white'
-                          }`}
+                          variant={isCurrent ? 'accent' : 'default'}
+                          className={`p-5 ${isCurrent ? 'shadow-card-hover' : ''}`}
                         >
-                          <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-                            Phase {i + 1}
-                          </p>
+                          <SectionLabel>Phase {i + 1}</SectionLabel>
                           <p
                             className={`mt-1 text-lg font-semibold ${
-                              isCurrent ? 'text-indigo-700' : 'text-slate-700'
+                              isCurrent ? 'text-primary-700' : 'text-neutral-700'
                             }`}
                           >
                             {phase.name}
                           </p>
-                          <p className="mt-2 text-sm leading-relaxed text-slate-500">
+                          <p className="mt-2 text-sm leading-relaxed text-neutral-500">
                             {phase.description}
                           </p>
                           {isCurrent && (
-                            <span className="mt-3 inline-block rounded-full bg-indigo-100 px-2.5 py-0.5 text-xs font-semibold text-indigo-600">
+                            <Badge variant="primary" className="mt-3">
                               Current Phase
-                            </span>
+                            </Badge>
                           )}
-                        </div>
+                        </Card>
                       );
                     })}
                   </div>
@@ -689,16 +639,15 @@ export default function Onboarding() {
 
                 {/* Start button */}
                 <div className="pt-2 text-center">
-                  <button
-                    type="button"
+                  <Button
+                    size="lg"
                     onClick={() => navigate('/dashboard')}
-                    className="inline-flex items-center gap-2 rounded-lg bg-indigo-600 px-8 py-3 text-base font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:ring-offset-2 transition-colors"
                   >
                     Start Your Campaign
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
                     </svg>
-                  </button>
+                  </Button>
                 </div>
               </div>
             )}
@@ -712,30 +661,27 @@ export default function Onboarding() {
       {step < 3 && (
         <div className="mt-8 flex items-center justify-between">
           {step > 1 ? (
-            <button
-              type="button"
+            <Button
+              variant="secondary"
               onClick={() => setStep(1)}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50 transition-colors"
             >
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
               </svg>
               Back
-            </button>
+            </Button>
           ) : (
             <div />
           )}
-          <button
-            type="button"
+          <Button
             onClick={() => void handleNext()}
             disabled={step === 1 ? !canProceed1 : !canProceed2}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/40 focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             Next
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
             </svg>
-          </button>
+          </Button>
         </div>
       )}
     </div>

@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { Button, Input } from './ui';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -28,55 +29,73 @@ export default function Login() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gray-50">
-      <div className="w-full max-w-sm rounded bg-white p-8 shadow">
-        <h1 className="mb-6 text-center text-2xl font-bold text-gray-900">
+    <div className="flex min-h-screen">
+      {/* Brand panel — left 60% on desktop, top banner on mobile */}
+      <div className="hidden lg:flex lg:w-[60%] flex-col justify-center bg-neutral-900 px-16 xl:px-24">
+        <span className="text-4xl font-bold tracking-tight text-white">
           REGAIN
-        </h1>
+        </span>
+        <p className="mt-4 max-w-md text-lg leading-relaxed text-neutral-400">
+          Build documented evidence of your capabilities. Complete missions,
+          track your progress, and land your next role.
+        </p>
+      </div>
 
-        {error && (
-          <p role="alert" className="mb-4 rounded bg-red-100 p-2 text-sm text-red-700">
-            {error}
+      {/* Sign-in form — right 40% on desktop, full on mobile */}
+      <div className="flex flex-1 flex-col items-center justify-center bg-surface-2 px-6">
+        {/* Mobile brand header */}
+        <div className="mb-8 text-center lg:hidden">
+          <span className="text-3xl font-bold tracking-tight text-neutral-900">
+            REGAIN
+          </span>
+          <p className="mt-2 text-sm text-neutral-500">
+            Build evidence. Complete missions. Land your next role.
           </p>
-        )}
+        </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-              Email
-            </label>
-            <input
+        <div className="w-full max-w-sm animate-scale-in">
+          <h1 className="text-2xl font-bold text-neutral-900">
+            Sign in
+          </h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Enter your credentials to continue.
+          </p>
+
+          {error && (
+            <div role="alert" className="mt-4 rounded-[var(--radius-button)] bg-error-50 border border-error-100 p-3 text-sm text-error-700">
+              {error}
+            </div>
+          )}
+
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <Input
               id="email"
               type="email"
+              label="Email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
-          </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
-            </label>
-            <input
+            <Input
               id="password"
               type="password"
+              label="Password"
               required
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full rounded border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none"
             />
-          </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded bg-blue-600 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50"
-          >
-            {loading ? 'Signing in…' : 'Sign in'}
-          </button>
-        </form>
+            <Button
+              type="submit"
+              disabled={loading}
+              size="lg"
+              className="w-full"
+            >
+              {loading ? 'Signing in...' : 'Sign in'}
+            </Button>
+          </form>
+        </div>
       </div>
     </div>
   );

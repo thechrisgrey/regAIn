@@ -1,12 +1,154 @@
 @import "tailwindcss";
 
-@theme {
-  --animate-fade-in: fade-in 0.4s ease-out;
+/* ------------------------------------------------------------------ */
+/* Font faces                                                         */
+/* ------------------------------------------------------------------ */
+
+@font-face {
+  font-family: "General Sans";
+  src: url("/fonts/GeneralSans-Variable.woff2") format("woff2");
+  font-weight: 200 700;
+  font-display: swap;
+  font-style: normal;
 }
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Variable.woff2") format("woff2");
+  font-weight: 100 800;
+  font-display: swap;
+  font-style: normal;
+}
+
+/* ------------------------------------------------------------------ */
+/* Design tokens                                                      */
+/* ------------------------------------------------------------------ */
+
+@theme {
+  /* Font stacks */
+  --font-sans: "General Sans", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "Fira Code", monospace;
+
+  /* Primary palette — slate-blue */
+  --color-primary-50: #EDEDF9;
+  --color-primary-100: #D8D9F2;
+  --color-primary-200: #B3B6E6;
+  --color-primary-300: #8E92D9;
+  --color-primary-400: #7478CD;
+  --color-primary-500: #5B61D5;
+  --color-primary-600: #4A4FBF;
+  --color-primary-700: #3B3F99;
+  --color-primary-800: #2D3073;
+  --color-primary-900: #1E204D;
+
+  /* Surface hierarchy */
+  --color-surface-1: #FFFFFF;
+  --color-surface-2: #F8F9FB;
+  --color-surface-3: #F1F3F5;
+  --color-surface-4: #E8EAED;
+
+  /* Neutrals — refined slate */
+  --color-neutral-50: #F8FAFB;
+  --color-neutral-100: #F1F3F5;
+  --color-neutral-200: #E3E6EA;
+  --color-neutral-300: #CDD1D7;
+  --color-neutral-400: #9BA2AC;
+  --color-neutral-500: #6E7681;
+  --color-neutral-600: #525A65;
+  --color-neutral-700: #3B424B;
+  --color-neutral-800: #272D35;
+  --color-neutral-900: #171B21;
+
+  /* Semantic colors */
+  --color-success-50: #ECFDF5;
+  --color-success-100: #D1FAE5;
+  --color-success-500: #10B981;
+  --color-success-600: #059669;
+  --color-success-700: #047857;
+
+  --color-warning-50: #FFFBEB;
+  --color-warning-100: #FEF3C7;
+  --color-warning-500: #F59E0B;
+  --color-warning-600: #D97706;
+
+  --color-error-50: #FFF1F2;
+  --color-error-100: #FFE4E6;
+  --color-error-500: #F43F5E;
+  --color-error-600: #E11D48;
+  --color-error-700: #BE123C;
+
+  --color-info-50: #ECFEFF;
+  --color-info-100: #CFFAFE;
+  --color-info-500: #06B6D4;
+  --color-info-600: #0891B2;
+
+  /* Shadows — layered approach */
+  --shadow-card: 0 1px 2px rgba(23, 27, 33, 0.04), 0 1px 3px rgba(23, 27, 33, 0.06);
+  --shadow-card-hover: 0 4px 12px rgba(23, 27, 33, 0.08), 0 1px 3px rgba(23, 27, 33, 0.06);
+  --shadow-elevated: 0 8px 24px rgba(23, 27, 33, 0.12), 0 2px 6px rgba(23, 27, 33, 0.06);
+
+  /* Radii */
+  --radius-card: 8px;
+  --radius-button: 6px;
+  --radius-badge: 9999px;
+
+  /* Animations */
+  --animate-fade-in: fade-in 0.4s ease-out;
+  --animate-fade-in-up: fade-in-up 0.45s ease-out backwards;
+  --animate-slide-in-right: slide-in-right 0.35s ease-out;
+  --animate-scale-in: scale-in 0.3s ease-out;
+  --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+}
+
+/* ------------------------------------------------------------------ */
+/* Keyframes                                                          */
+/* ------------------------------------------------------------------ */
 
 @keyframes fade-in {
   from {
     opacity: 0;
-    transform: translateY(10px);
+    transform: translateY(8px);
   }
+}
+
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}
+
+@keyframes scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+/* ------------------------------------------------------------------ */
+/* Base layer                                                         */
+/* ------------------------------------------------------------------ */
+
+body {
+  font-family: var(--font-sans);
+  color: var(--color-neutral-900);
+  background-color: var(--color-surface-2);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }

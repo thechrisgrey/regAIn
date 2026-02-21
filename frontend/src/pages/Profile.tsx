@@ -383,6 +383,19 @@ export default function Profile() {
 
   const { campaign, stats } = data;
 
+  if (!campaign) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <Card className="p-8 text-center">
+          <p className="text-sm text-neutral-500">
+            Complete onboarding to set up your profile.
+          </p>
+        </Card>
+        <DeleteAccount getToken={getToken} signOut={signOut} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 animate-fade-in">
       <IdentitySummary

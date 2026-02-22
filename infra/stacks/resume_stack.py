@@ -65,7 +65,7 @@ class ResumeStack(cdk.Stack):
                 "EVIDENCE_VAULT_TABLE": tables["EvidenceVault"].table_name,
                 "MARKET_DATA_TABLE": tables["MarketData"].table_name,
                 "RESUME_BUCKET_NAME": self.bucket.bucket_name,
-                "BEDROCK_MODEL_ID": "us.amazon.nova-lite-v2:0",
+                "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
             },
             timeout=cdk.Duration.seconds(60),
             memory_size=256,
@@ -88,7 +88,7 @@ class ResumeStack(cdk.Stack):
             iam.PolicyStatement(
                 actions=["bedrock:InvokeModel"],
                 resources=[
-                    f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/us.amazon.nova-lite-v2:0",
+                    f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-lite-v1:0",
                 ],
             )
         )

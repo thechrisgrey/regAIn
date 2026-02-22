@@ -85,7 +85,7 @@ class VoicePracticeStack(cdk.Stack):
         env = {
             **self._table_env(),
             "VOICE_PRACTICE_BUCKET_NAME": self.bucket.bucket_name,
-            "BEDROCK_MODEL_ID": "us.amazon.nova-lite-v2:0",
+            "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
             "NOVA_SONIC_MODEL_ID": "amazon.nova-sonic-v1:0",
             "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",

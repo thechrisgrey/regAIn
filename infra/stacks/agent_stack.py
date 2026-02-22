@@ -9,7 +9,6 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
-    aws_s3 as s3,
 )
 from constructs import Construct
 
@@ -25,8 +24,8 @@ class AgentStack(cdk.Stack):
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
         coaching_lambda: _lambda.Function,
-        resume_lambda: _lambda.Function | None = None,
-        resume_bucket: s3.Bucket | None = None,
+        resume_lambda_arn: str | None = None,
+        resume_bucket_name: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -34,8 +33,8 @@ class AgentStack(cdk.Stack):
         self.user_pool = user_pool
         self.tables = tables
         self.coaching_lambda = coaching_lambda
-        self.resume_lambda = resume_lambda
-        self.resume_bucket = resume_bucket
+        self.resume_lambda_arn = resume_lambda_arn
+        self.resume_bucket_name = resume_bucket_name
         self.strands_layer = self._create_strands_layer()
 
         voice_lambda = self._create_voice_lambda()
@@ -180,17 +179,30 @@ class AgentStack(cdk.Stack):
         for table in self.tables.values():
             table.grant_read_write_data(self.coaching_lambda)
 
-        # Wire Resume Lambda + S3 bucket so coaching tools can invoke resume generation
-        if self.resume_lambda:
+        # Wire Resume Lambda + S3 bucket so coaching tools can invoke resume generation.
+        # Uses string ARNs and inline IAM policies (not construct references) to avoid
+        # a cyclic dependency: ResumeStack → ApiStack (for api) and ApiStack → ResumeStack.
+        if self.resume_lambda_arn:
             self.coaching_lambda.add_environment(
-                "RESUME_LAMBDA_ARN", self.resume_lambda.function_arn
+                "RESUME_LAMBDA_ARN", self.resume_lambda_arn
             )
-            self.resume_lambda.grant_invoke(self.coaching_lambda)
-        if self.resume_bucket:
+            self.coaching_lambda.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["lambda:InvokeFunction"],
+                    resources=[self.resume_lambda_arn],
+                )
+            )
+        if self.resume_bucket_name:
             self.coaching_lambda.add_environment(
-                "RESUME_BUCKET_NAME", self.resume_bucket.bucket_name
+                "RESUME_BUCKET_NAME", self.resume_bucket_name
             )
-            self.resume_bucket.grant_read(self.coaching_lambda)
+            bucket_arn = f"arn:aws:s3:::{self.resume_bucket_name}"
+            self.coaching_lambda.add_to_role_policy(
+                iam.PolicyStatement(
+                    actions=["s3:GetObject", "s3:GetBucketLocation", "s3:ListBucket"],
+                    resources=[bucket_arn, f"{bucket_arn}/*"],
+                )
+            )
 
     # ------------------------------------------------------------------
     # Chat Streaming (WebSocket text-based coaching)

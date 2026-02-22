@@ -53,14 +53,14 @@ cd frontend && npx vitest --run # Run tests (47 tests)
 cd frontend && npm run lint     # ESLint
 
 # Backend
-.venv/bin/pytest tests/ -x -q   # Run tests (~551 tests, ~8 min)
+.venv/bin/pytest tests/ -x -q   # Run tests (~606 tests, ~8 min)
 
 # Build Strands Lambda Layer (requires Docker)
 bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
 
 # CDK Deploy (all stacks in us-east-1, account 563170906428)
 cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval never
-# Stacks: RegainAuthStack, RegainDataStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack, RegainVoicePracticeStack
+# Stacks: RegainAuthStack, RegainDataStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack, RegainVoicePracticeStack, RegainResumeStack
 ```
 
 ## Key Decisions & Patterns
@@ -81,6 +81,10 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Thin handler pattern**: Each Lambda handler validates input, delegates to a service class, returns via `success_response`/`error_response` — no business logic in handlers
 - **Profile (delete account)**: `backend/handlers/profile/` — cascading hard delete across 4 DynamoDB tables + Cognito `AdminDeleteUser`. DynamoDB deletions first, Cognito last for recoverability
 - **Cascade deletion**: Uses `delete_all_by_partition_key()` with `batch_writer()` (25-item batches) for tables with composite keys (Campaigns, MissionHistory, EvidenceVault)
+- **Shared `get_user_id()`**: `backend/handlers/shared/auth.py` — extracted from 8 handler files. Import: `from backend.handlers.shared.auth import get_user_id`
+- **DynamoDB `query_all()`**: `DynamoDBClient.query_all()` follows `LastEvaluatedKey` pagination for complete results. Use for listings (dashboard, evidence, missions, cascade deletion). `query()` returns only the first 1MB page
+- **Atomic rate limiting pattern**: Resume rate limit (`_enforce_rate_limit()`) uses conditional DynamoDB updates — same pattern as mission rate limiting in `tools.py:337-382`. Two-step: reset date counter, then atomically increment with `< limit` condition
+- **Resume Lambda wiring**: Coaching Lambda has `RESUME_LAMBDA_ARN` and `RESUME_BUCKET_NAME` env vars + IAM permissions, set by AgentStack using plain string ARNs (not construct references) to avoid cyclic CDK dependency
 - **Strands Lambda Layer**: Each stack that needs it (ApiStack, AgentStack) creates its own inline `LayerVersion` from `infra/layer_build/`. No cross-stack layer reference — avoids CloudFormation export update failures when layer code changes
 - **Agent Gateway fallback**: `backend/agents/coaching/agent.py` checks `AGENTCORE_GATEWAY_ENDPOINT` — if `"pending-agentcore-deploy"` or empty, uses direct `@tool` functions from `tools.py` instead of `GatewayToolClient`. All imports are lazy to avoid circular dependencies
 - **Coaching chat streaming**: `useStreamingCoaching` hook connects via WebSocket (`VITE_CHAT_WS_URL`) for progressive text responses. `MarkdownMessage` component renders assistant markdown via `react-markdown` + `remark-gfm`
@@ -122,6 +126,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **`infra/layer_build/`** is gitignored — must be rebuilt locally via `bash infra/build_layer.sh` before `cdk deploy`
 - **Lambda Layer build must preserve `.dist-info`**: OpenTelemetry uses `importlib.metadata.entry_points()` which requires `.dist-info` directories. Only remove `__pycache__` in the build script, never `*.dist-info`
 - **Cross-stack Lambda Layer references break on update**: CloudFormation can't update an export when other stacks import it, and LayerVersion always creates a new physical resource. Solution: create the layer inline in each stack that needs it
+- **CDK cyclic dependency with cross-stack construct references**: When StackA owns a Lambda and StackB owns a resource, passing StackB's construct reference to modify StackA's Lambda env vars creates StackA → StackB dependency. If StackB already depends on StackA, this cycles. Solution: pass plain string ARNs/names (not construct references) and use inline `iam.PolicyStatement` instead of `grant_invoke()`/`grant_read()`. See `agent_stack.py` resume wiring for the pattern
 - **Voice audio: use ScriptProcessorNode, not AudioWorklet** — AudioWorklet fails silently in production (module loading issues) and falls back to ScriptProcessor anyway. Use ScriptProcessorNode directly; the deprecation warning is harmless. Reference implementation: `~/Desktop/altivum/elo/src/hooks/useAudioCapture.ts`
 - **Voice playback: continuous buffer, not scheduled AudioBufferSource** — Scheduling individual `AudioBufferSourceNode.start(time)` causes audible gaps between chunks. Use a single ScriptProcessorNode with a growing Float32Array buffer (read/write indices) for gapless playback. Reference: `~/Desktop/altivum/elo/src/hooks/useAudioPlayback.ts`
 - **Voice feedback prevention**: Auto-mute the mic track when AI is speaking (set `track.enabled = false`). Send silence frames instead of nothing to keep the Nova Sonic stream alive. Unmute when `isAgentSpeaking` goes false

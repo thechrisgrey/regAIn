@@ -52,8 +52,10 @@ agent_stack = AgentStack(
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
     coaching_lambda=api_stack.coaching_lambda,
-    resume_lambda=resume_stack.resume_lambda,
-    resume_bucket=resume_stack.bucket,
+    # Use plain strings (not construct references) to avoid cyclic dependency:
+    # ResumeStack → ApiStack (for api) would cycle with ApiStack → ResumeStack.
+    resume_lambda_arn=f"arn:aws:lambda:us-east-1:563170906428:function:RegainResume",
+    resume_bucket_name=f"regain-resume-563170906428",
     env=env,
 )
 

@@ -1,8 +1,10 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVoicePractice } from '../hooks/useVoicePractice';
 import { useVoiceSessions } from '../hooks/useVoiceSessions';
 import { Button, Card, Badge, SkeletonBlock } from '../components/ui';
+
+const AudioVisualizer = lazy(() => import('../components/voice/AudioVisualizer'));
 import type { VoicePracticeSessionType } from '../types';
 
 function formatDuration(seconds: number): string {
@@ -123,20 +125,21 @@ export default function VoicePracticePage() {
           <p className="text-sm text-neutral-600">{statusText}</p>
         </div>
 
-        {/* Voice indicator */}
-        <div className="flex justify-center py-6">
-          <div
-            className={`h-16 w-16 rounded-full ${
+        {/* Voice orb visualizer */}
+        <Suspense fallback={<div className="h-40 w-40 mx-auto my-2 rounded-full bg-neutral-200 animate-pulse" />}>
+          <AudioVisualizer
+            state={
               status === 'connecting'
-                ? 'bg-neutral-200 animate-pulse'
-                : isAgentSpeaking
-                  ? 'bg-primary-500 animate-voice-pulse'
-                  : isMuted
-                    ? 'bg-neutral-300'
-                    : 'bg-primary-400 animate-voice-breathe'
-            }`}
+                ? 'connecting'
+                : isMuted
+                  ? 'muted'
+                  : isAgentSpeaking
+                    ? 'speaking'
+                    : 'listening'
+            }
+            className="h-40 w-40 mx-auto my-2"
           />
-        </div>
+        </Suspense>
 
         {/* Transcript panel */}
         <div className="flex-1 overflow-y-auto py-4 space-y-3" role="log" aria-label="Voice practice conversation">

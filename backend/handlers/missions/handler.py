@@ -1,14 +1,16 @@
 """Missions Lambda handler.
 
-Thin handler for GET /missions and POST /missions/{missionId}/complete.
+Thin handler for GET /missions, POST /missions/{missionId}/complete,
+and POST /missions/generate.
 """
 
 import json
 import logging
+from datetime import datetime, timezone
 from typing import Any, Dict
 
 from backend.handlers.shared.responses import error_response, success_response
-from backend.handlers.missions.service import MissionsService
+from backend.handlers.missions.service import MissionsService, _GenerateRateLimitExceeded
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +46,12 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if http_method == "GET" and resource == "/missions":
             params = event.get("queryStringParameters") or {}
             missions = service.list_missions(user_id, status=params.get("status"))
-            return success_response({"missions": missions})
+            remaining = service.get_daily_remaining(user_id)
+            return success_response({"missions": missions, **remaining})
+
+        if http_method == "POST" and resource == "/missions/generate":
+            result = service.generate_mission(user_id)
+            return success_response(result)
 
         if http_method == "POST" and "/complete" in resource:
             mission_id = (event.get("pathParameters") or {}).get("missionId")
@@ -60,6 +67,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return success_response(result)
 
         return error_response("Not found", 404)
+
+    except _GenerateRateLimitExceeded:
+        tomorrow = datetime.now(timezone.utc).strftime("%Y-%m-%d") + "T00:00:00Z"
+        return error_response(
+            "Daily mission generation limit reached. Try again tomorrow.",
+            429,
+        )
 
     except Exception:
         logger.exception("Missions handler failed")

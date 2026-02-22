@@ -22,7 +22,7 @@ EXPECTED_LAMBDA_COUNT = 6
 # Derived from ApiStack._grant_permissions.
 ALLOWED_TABLES: dict[str, set[str]] = {
     "Onboarding": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"},
-    "Missions": {"MissionHistory", "EvidenceVault", "Campaigns"},
+    "Missions": {"MissionHistory", "EvidenceVault", "Campaigns", "UserProfiles", "MarketData"},
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},
     "Dashboard": {"Campaigns", "MissionHistory", "EvidenceVault"},

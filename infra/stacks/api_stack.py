@@ -136,10 +136,13 @@ class ApiStack(cdk.Stack):
         self.tables["EvidenceVault"].grant_read_data(lambdas["Onboarding"])
         self.tables["MarketData"].grant_read_data(lambdas["Onboarding"])
 
-        # Missions: read/write MissionHistory, write EvidenceVault, read Campaigns
+        # Missions: read/write MissionHistory, write EvidenceVault, read Campaigns,
+        # read/write UserProfiles (rate limiting), read MarketData (engine)
         self.tables["MissionHistory"].grant_read_write_data(lambdas["Missions"])
         self.tables["EvidenceVault"].grant_write_data(lambdas["Missions"])
         self.tables["Campaigns"].grant_read_data(lambdas["Missions"])
+        self.tables["UserProfiles"].grant_read_write_data(lambdas["Missions"])
+        self.tables["MarketData"].grant_read_data(lambdas["Missions"])
 
         # Evidence: read EvidenceVault
         self.tables["EvidenceVault"].grant_read_data(lambdas["Evidence"])
@@ -198,6 +201,14 @@ class ApiStack(cdk.Stack):
         missions = self.api.root.add_resource("missions")
         missions.add_method(
             "GET",
+            apigw.LambdaIntegration(lambdas["Missions"]),
+            **auth_kwargs,
+        )
+
+        # POST /missions/generate
+        generate = missions.add_resource("generate")
+        generate.add_method(
+            "POST",
             apigw.LambdaIntegration(lambdas["Missions"]),
             **auth_kwargs,
         )

@@ -4,6 +4,7 @@ import type {
   MissionsResponse,
   CompleteData,
   CompleteResponse,
+  GenerateResponse,
   EvidenceResponse,
   DashboardResponse,
   CoachingRequest,
@@ -76,6 +77,12 @@ export const api = {
       apiRequest<CompleteResponse>(
         `/missions/${missionId}/complete`,
         { method: 'POST', body: data },
+        token,
+      ),
+    generate: (token: string) =>
+      apiRequest<GenerateResponse>(
+        '/missions/generate',
+        { method: 'POST' },
         token,
       ),
   },

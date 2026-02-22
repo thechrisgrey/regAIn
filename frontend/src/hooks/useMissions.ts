@@ -1,11 +1,13 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 import { api } from '../services/api';
-import type { Mission, CompleteData, CompleteResponse } from '../types';
+import type { Mission, CompleteData, CompleteResponse, GenerateResponse } from '../types';
 
 export function useMissions() {
   const { getToken } = useAuth();
   const [missions, setMissions] = useState<Mission[]>([]);
+  const [dailyRemaining, setDailyRemaining] = useState<number | null>(null);
+  const [dailyLimit, setDailyLimit] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -16,6 +18,8 @@ export function useMissions() {
       const token = await getToken();
       const result = await api.missions.list(token);
       setMissions(result.missions);
+      setDailyRemaining(result.dailyRemaining);
+      setDailyLimit(result.dailyLimit);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
@@ -41,5 +45,34 @@ export function useMissions() {
     [getToken],
   );
 
-  return { missions, loading, error, fetchMissions, completeMission };
+  const generateMission = useCallback(async (): Promise<GenerateResponse | null> => {
+    setLoading(true);
+    setError(null);
+    try {
+      const token = await getToken();
+      const result = await api.missions.generate(token);
+      setDailyRemaining(result.dailyRemaining);
+      setDailyLimit(result.dailyLimit);
+      // Re-fetch full mission list to stay in sync.
+      const updated = await api.missions.list(token);
+      setMissions(updated.missions);
+      return result;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+      return null;
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken]);
+
+  return {
+    missions,
+    dailyRemaining,
+    dailyLimit,
+    loading,
+    error,
+    fetchMissions,
+    completeMission,
+    generateMission,
+  };
 }

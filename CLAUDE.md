@@ -88,6 +88,8 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Voice audio protocol**: Backend expects raw base64-encoded PCM 16-bit mono 16kHz in `event.body` (NOT JSON-wrapped). Backend sends JSON: `{"type": "audio", "data": "<base64>"}`, `{"type": "fallback", ...}`, `{"type": "clear_audio", ...}`
 - **Skill tag normalization**: `log_evidence` in `tools.py` normalizes skill tags via `taxonomy.normalize_skill()` before storage (e.g. "python" -> "Python Programming"). Unknown tags pass through as-is. `complete_mission` inherits this via its internal `log_evidence` call
 - **Prescribed skill tags**: `get_system_prompt()` in `prompts.py` accepts `valid_skill_tags` from the user's campaign `skillsFocus`. When present, the agent is instructed to use only those tags. `get_valid_skill_tags()` in `tools.py` queries the active campaign
+- **Mission generation endpoint**: `POST /missions/generate` in the Missions Lambda generates and persists a new mission via the engine pipeline. Uses independent rate limiting (`webMissionGenCount` / `lastWebMissionGenDate` on UserProfiles) with a 6/day limit, separate from the coaching agent's 3/day limit (`dailyMissionGenCount`)
+- **Day-change detection**: `Missions.tsx` uses `visibilitychange` listener + 60-second interval to detect UTC date rollover and auto-re-fetch missions. Avoids stale "all caught up" state
 
 ## DynamoDB Table Keys
 
@@ -109,7 +111,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **API Gateway CORS**: `default_cors_preflight_options` only handles OPTIONS — add `GatewayResponse` for `DEFAULT_4_XX`/`DEFAULT_5_XX` with CORS headers to cover error responses
 - **DynamoDB composite keys**: `get_item`/`update_item` on Campaigns requires `{userId, campaignId}`, on MissionHistory requires `{userId, missionId}` — moto mocks dispatch by table name only, so key bugs are invisible in tests
 - **Hosting**: AWS Amplify in **us-east-2** (app ID: `d2z52fw5cbbzo`, domain: regain.altivum.ai) — auto-deploys from git push to main
-- **Hardcoded Lambda/method counts in tests**: When adding a new Lambda or API route, update `EXPECTED_LAMBDA_COUNT` in `test_iam_least_privilege.py`, `test_lambda_env_config.py`, `test_lambda_runtime_consistency.py`, and `EXPECTED_METHOD_COUNT` in `test_api_authorization.py`
+- **Hardcoded Lambda/method counts in tests**: When adding a new Lambda or API route, update `EXPECTED_LAMBDA_COUNT` in `test_iam_least_privilege.py`, `test_lambda_env_config.py`, `test_lambda_runtime_consistency.py`, `EXPECTED_METHOD_COUNT` in `test_api_authorization.py`, and `ALLOWED_TABLES` in `test_iam_least_privilege.py` if permissions change
 - **Profile Lambda IAM**: Needs `cognito-idp:AdminDeleteUser` on user pool ARN + read/write on 4 DynamoDB tables. `USER_POOL_ID` env var is set via `_table_env()`
 - **Docker Desktop on macOS**: The `/usr/local/bin/docker` symlink may point to `/Volumes/Docker/` (stale) while the actual binary is at `/Applications/Docker.app/Contents/Resources/bin/docker`. The build script auto-detects this
 - **`infra/layer_build/`** is gitignored — must be rebuilt locally via `bash infra/build_layer.sh` before `cdk deploy`
@@ -121,3 +123,4 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Amplify env var timing**: Env vars are resolved at build **start** time. If you update env vars after a build triggers, the current build won't have them — trigger a fresh rebuild with `aws amplify start-job --job-type RETRY --job-id <latest>`
 - **Coaching tools test import order**: When mocking `backend.engine.generator.complete_mission` in tests, the `patch()` must be active **before** `_load_tools()` re-imports the tools module, because `from ... import ... as engine_complete_mission` captures a binding at import time. Use `with patch(...): tools = _load_tools(...)` not `tools = _load_tools(...); with patch(...):`
 - **Mission lifecycle transitions**: Missions must follow `pending -> in_progress -> completed`. Tests for `complete_mission` must seed missions with `status: "in_progress"`, not `"pending"`, or the engine rejects the transition
+- **ESLint hook naming**: Don't prefix plain utility functions with `use` (e.g. `useUtcDate`) — ESLint's `react-hooks/rules-of-hooks` rule will flag calls to them inside non-hook functions. Use `get`/`compute`/plain names instead

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMissions } from '../hooks/useMissions';
 import type { Mission, CompleteData } from '../types';
@@ -93,32 +93,79 @@ function MissionsError({
 }
 
 // ---------------------------------------------------------------------------
-// Empty state
+// Empty state — smart: generate more or show limit reached
 // ---------------------------------------------------------------------------
 
-function AllCaughtUp() {
+function AllCaughtUp({
+  dailyRemaining,
+  dailyLimit,
+  generating,
+  generateError,
+  onGenerate,
+}: {
+  dailyRemaining: number | null;
+  dailyLimit: number | null;
+  generating: boolean;
+  generateError: string | null;
+  onGenerate: () => void;
+}) {
+  const canGenerate = dailyRemaining !== null && dailyRemaining > 0;
+  const limitReached = dailyRemaining !== null && dailyRemaining <= 0;
+
   return (
     <Card className="p-8">
       <div className="flex flex-col items-center py-12 text-center">
         <p className="text-xl font-semibold text-neutral-900">All caught up</p>
-        <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
-          Your next mission arrives tomorrow. In the meantime, review your
-          evidence or check your dashboard.
-        </p>
-        <div className="mt-6 flex gap-6">
-          <Link
-            to="/evidence"
-            className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
-          >
-            View evidence<span className="ml-1">&rarr;</span>
-          </Link>
-          <Link
-            to="/dashboard"
-            className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
-          >
-            Dashboard<span className="ml-1">&rarr;</span>
-          </Link>
-        </div>
+
+        {canGenerate && (
+          <>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
+              Ready for more? Generate a new mission to keep building momentum.
+            </p>
+            {generateError && (
+              <p className="mt-3 text-sm text-error-600">{generateError}</p>
+            )}
+            <Button
+              onClick={onGenerate}
+              disabled={generating}
+              className="mt-6"
+            >
+              {generating ? 'Generating...' : 'Generate New Mission'}
+            </Button>
+            <p className="mt-3 text-xs text-neutral-400">
+              {dailyRemaining} of {dailyLimit ?? dailyRemaining} remaining today
+            </p>
+          </>
+        )}
+
+        {limitReached && (
+          <>
+            <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
+              You've reached today's mission limit. New missions will be
+              available after midnight UTC.
+            </p>
+            <div className="mt-6 flex gap-6">
+              <Link
+                to="/evidence"
+                className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+              >
+                View evidence<span className="ml-1">&rarr;</span>
+              </Link>
+              <Link
+                to="/dashboard"
+                className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+              >
+                Dashboard<span className="ml-1">&rarr;</span>
+              </Link>
+            </div>
+          </>
+        )}
+
+        {dailyRemaining === null && (
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
+            Check back soon for new missions.
+          </p>
+        )}
       </div>
     </Card>
   );
@@ -518,9 +565,25 @@ function MissionHistory({
 // Main
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Day-change detection helper
+// ---------------------------------------------------------------------------
+
+function getUtcDate(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 export default function Missions() {
-  const { missions, loading, error, fetchMissions, completeMission } =
-    useMissions();
+  const {
+    missions,
+    dailyRemaining,
+    dailyLimit,
+    loading,
+    error,
+    fetchMissions,
+    completeMission,
+    generateMission,
+  } = useMissions();
 
   const [completing, setCompleting] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
@@ -531,9 +594,39 @@ export default function Missions() {
   const [skippedIds, setSkippedIds] = useState<Set<string>>(new Set());
   const [primaryOverride, setPrimaryOverride] = useState<string | null>(null);
   const [showAllHistory, setShowAllHistory] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [generateError, setGenerateError] = useState<string | null>(null);
+
+  // Track the UTC date when the page was last fetched.
+  const lastDateRef = useRef(getUtcDate());
 
   useEffect(() => {
     void fetchMissions();
+  }, [fetchMissions]);
+
+  // Day-change detection: visibility change + 60s interval.
+  useEffect(() => {
+    function checkDayChange() {
+      const today = getUtcDate();
+      if (today !== lastDateRef.current) {
+        lastDateRef.current = today;
+        void fetchMissions();
+      }
+    }
+
+    function handleVisibility() {
+      if (document.visibilityState === 'visible') {
+        checkDayChange();
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibility);
+    const interval = setInterval(checkDayChange, 60_000);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
+      clearInterval(interval);
+    };
   }, [fetchMissions]);
 
   // Derive mission categories from flat list
@@ -609,6 +702,16 @@ export default function Missions() {
     setPrimaryOverride(missionId);
   }, []);
 
+  const handleGenerate = useCallback(async () => {
+    setGenerating(true);
+    setGenerateError(null);
+    const result = await generateMission();
+    setGenerating(false);
+    if (!result) {
+      setGenerateError('Could not generate a mission. Try again.');
+    }
+  }, [generateMission]);
+
   // Loading state (only when no missions loaded yet)
   if (loading && missions.length === 0) {
     return <Skeleton />;
@@ -635,7 +738,13 @@ export default function Missions() {
           completionError={completionError}
         />
       ) : (
-        <AllCaughtUp />
+        <AllCaughtUp
+          dailyRemaining={dailyRemaining}
+          dailyLimit={dailyLimit}
+          generating={generating}
+          generateError={generateError}
+          onGenerate={() => void handleGenerate()}
+        />
       )}
 
       {/* Section 2: Alternate missions (omitted entirely if none) */}

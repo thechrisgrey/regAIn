@@ -69,6 +69,14 @@ export interface OnboardingResponse {
 
 export interface MissionsResponse {
   missions: Mission[];
+  dailyRemaining: number;
+  dailyLimit: number;
+}
+
+export interface GenerateResponse {
+  mission: Mission;
+  dailyRemaining: number;
+  dailyLimit: number;
 }
 
 export interface CompleteResponse {

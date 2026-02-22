@@ -22,14 +22,13 @@ class ApiStack(cdk.Stack):
         *,
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
-        strands_layer: _lambda.LayerVersion | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
         self.user_pool = user_pool
         self.tables = tables
-        self.strands_layer = strands_layer
+        self.strands_layer = self._create_strands_layer()
 
         authorizer = self._create_cognito_authorizer()
         lambdas = self._create_lambda_functions()
@@ -41,6 +40,17 @@ class ApiStack(cdk.Stack):
         self.missions_lambda = lambdas["Missions"]
         self.evidence_lambda = lambdas["Evidence"]
         self.dashboard_lambda = lambdas["Dashboard"]
+
+    def _create_strands_layer(self) -> _lambda.LayerVersion:
+        """Create the Strands Agents Lambda Layer from the local build directory."""
+        layer_path = Path(__file__).resolve().parent.parent / "layer_build"
+        return _lambda.LayerVersion(
+            self,
+            "RegainStrandsAgentsLayer",
+            code=_lambda.Code.from_asset(str(layer_path)),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            description="Strands Agents SDK for REGAIN Coaching Lambda",
+        )
 
     def _create_cognito_authorizer(self) -> apigw.CognitoUserPoolsAuthorizer:
         """Create Cognito authorizer for API Gateway."""

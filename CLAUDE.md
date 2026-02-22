@@ -58,7 +58,7 @@ bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
 
 # CDK Deploy (all stacks in us-east-1, account 563170906428)
 cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval never
-# Stacks: RegainAuthStack, RegainDataStack, RegainLayerStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack
+# Stacks: RegainAuthStack, RegainDataStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack
 ```
 
 ## Key Decisions & Patterns
@@ -79,7 +79,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Thin handler pattern**: Each Lambda handler validates input, delegates to a service class, returns via `success_response`/`error_response` — no business logic in handlers
 - **Profile (delete account)**: `backend/handlers/profile/` — cascading hard delete across 4 DynamoDB tables + Cognito `AdminDeleteUser`. DynamoDB deletions first, Cognito last for recoverability
 - **Cascade deletion**: Uses `delete_all_by_partition_key()` with `batch_writer()` (25-item batches) for tables with composite keys (Campaigns, MissionHistory, EvidenceVault)
-- **Strands Lambda Layer**: `infra/stacks/layer_stack.py` provides a shared `LayerVersion` with `strands-agents` + `strands-agents-tools`. Attached to Coaching and Voice Lambdas via `strands_layer` kwarg (optional, `None` default so tests don't break)
+- **Strands Lambda Layer**: Each stack that needs it (ApiStack, AgentStack) creates its own inline `LayerVersion` from `infra/layer_build/`. No cross-stack layer reference — avoids CloudFormation export update failures when layer code changes
 - **Agent Gateway fallback**: `backend/agents/coaching/agent.py` checks `AGENTCORE_GATEWAY_ENDPOINT` — if `"pending-agentcore-deploy"` or empty, uses direct `@tool` functions from `tools.py` instead of `GatewayToolClient`. All imports are lazy to avoid circular dependencies
 
 ## DynamoDB Table Keys
@@ -104,6 +104,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Hosting**: AWS Amplify in **us-east-2** (app ID: `d2z52fw5cbbzo`, domain: regain.altivum.ai) — auto-deploys from git push to main
 - **Hardcoded Lambda/method counts in tests**: When adding a new Lambda or API route, update `EXPECTED_LAMBDA_COUNT` in `test_iam_least_privilege.py`, `test_lambda_env_config.py`, `test_lambda_runtime_consistency.py`, and `EXPECTED_METHOD_COUNT` in `test_api_authorization.py`
 - **Profile Lambda IAM**: Needs `cognito-idp:AdminDeleteUser` on user pool ARN + read/write on 4 DynamoDB tables. `USER_POOL_ID` env var is set via `_table_env()`
-- **CDK stack kwargs must be optional** when existing tests instantiate stacks without them — use `param: Type | None = None` defaults to avoid breaking test suites
-- **Docker Desktop on macOS**: The `/usr/local/bin/docker` symlink may point to `/Volumes/Docker/` (stale) while the actual binary is at `/Applications/Docker.app/Contents/Resources/bin/docker`. Add that to `PATH` when running Docker commands
-- **`infra/layer_build/`** is gitignored — must be rebuilt locally via `bash infra/build_layer.sh` before `cdk deploy RegainLayerStack`
+- **Docker Desktop on macOS**: The `/usr/local/bin/docker` symlink may point to `/Volumes/Docker/` (stale) while the actual binary is at `/Applications/Docker.app/Contents/Resources/bin/docker`. The build script auto-detects this
+- **`infra/layer_build/`** is gitignored — must be rebuilt locally via `bash infra/build_layer.sh` before `cdk deploy`
+- **Lambda Layer build must preserve `.dist-info`**: OpenTelemetry uses `importlib.metadata.entry_points()` which requires `.dist-info` directories. Only remove `__pycache__` in the build script, never `*.dist-info`
+- **Cross-stack Lambda Layer references break on update**: CloudFormation can't update an export when other stacks import it, and LayerVersion always creates a new physical resource. Solution: create the layer inline in each stack that needs it

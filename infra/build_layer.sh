@@ -19,7 +19,7 @@ $DOCKER run --rm \
   --platform linux/amd64 \
   -v "$(pwd)/infra/layer_build/python:/out" \
   python:3.12-slim \
-  bash -c "pip install strands-agents strands-agents-tools --target /out --no-cache-dir && rm -rf /out/*.dist-info /out/__pycache__"
+  bash -c "pip install strands-agents strands-agents-tools --target /out --no-cache-dir && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
 
 echo "Layer size: $(du -sh infra/layer_build/python | cut -f1)"
 echo "Done."

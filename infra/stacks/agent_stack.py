@@ -24,7 +24,6 @@ class AgentStack(cdk.Stack):
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
         coaching_lambda: _lambda.Function,
-        strands_layer: _lambda.LayerVersion | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -32,12 +31,23 @@ class AgentStack(cdk.Stack):
         self.user_pool = user_pool
         self.tables = tables
         self.coaching_lambda = coaching_lambda
-        self.strands_layer = strands_layer
+        self.strands_layer = self._create_strands_layer()
 
         voice_lambda = self._create_voice_lambda()
         self._create_websocket_api(voice_lambda)
         self._grant_voice_lambda_permissions(voice_lambda)
         self._upgrade_coaching_lambda_permissions()
+
+    def _create_strands_layer(self) -> _lambda.LayerVersion:
+        """Create the Strands Agents Lambda Layer from the local build directory."""
+        layer_path = Path(__file__).resolve().parent.parent / "layer_build"
+        return _lambda.LayerVersion(
+            self,
+            "RegainStrandsAgentsLayer",
+            code=_lambda.Code.from_asset(str(layer_path)),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            description="Strands Agents SDK for REGAIN Voice Lambda",
+        )
 
     def _table_env(self) -> dict[str, str]:
         """Return environment variables mapping for all DynamoDB table names."""
@@ -75,7 +85,7 @@ class AgentStack(cdk.Stack):
                 str(Path(__file__).resolve().parent.parent.parent),
                 exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
-            layers=[self.strands_layer] if self.strands_layer else [],
+            layers=[self.strands_layer],
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,

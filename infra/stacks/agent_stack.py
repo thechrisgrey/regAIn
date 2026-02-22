@@ -38,6 +38,10 @@ class AgentStack(cdk.Stack):
         self._grant_voice_lambda_permissions(voice_lambda)
         self._upgrade_coaching_lambda_permissions()
 
+        chat_stream_lambda = self._create_chat_stream_lambda()
+        self._create_chat_websocket_api(chat_stream_lambda)
+        self._grant_chat_stream_lambda_permissions(chat_stream_lambda)
+
     def _create_strands_layer(self) -> _lambda.LayerVersion:
         """Create the Strands Agents Lambda Layer from the local build directory."""
         layer_path = Path(__file__).resolve().parent.parent / "layer_build"
@@ -170,3 +174,77 @@ class AgentStack(cdk.Stack):
         # Grant read/write on all tables (upgrades from read-only on UserProfiles)
         for table in self.tables.values():
             table.grant_read_write_data(self.coaching_lambda)
+
+    # ------------------------------------------------------------------
+    # Chat Streaming (WebSocket text-based coaching)
+    # ------------------------------------------------------------------
+
+    def _create_chat_stream_lambda(self) -> _lambda.Function:
+        """Create the Chat Streaming Lambda for WebSocket text coaching."""
+        env = {**self._table_env(), **self._bedrock_env()}
+
+        return _lambda.Function(
+            self,
+            "RegainChatStreamFunction",
+            function_name="RegainChatStream",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="backend.handlers.coaching.stream_handler.lambda_handler",
+            code=_lambda.Code.from_asset(
+                str(Path(__file__).resolve().parent.parent.parent),
+                exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
+            ),
+            layers=[self.strands_layer],
+            environment=env,
+            timeout=cdk.Duration.seconds(120),
+            memory_size=512,
+        )
+
+    def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:
+        """Create WebSocket API Gateway for chat streaming sessions."""
+        integration = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainChatStreamIntegration",
+            handler=chat_stream_lambda,
+        )
+
+        self.chat_websocket_api = apigwv2.WebSocketApi(
+            self,
+            "RegainChatWebSocketApi",
+            api_name="RegainChatWebSocketApi",
+            connect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
+            default_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
+            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
+        )
+
+        self.chat_websocket_stage = apigwv2.WebSocketStage(
+            self,
+            "RegainChatProdStage",
+            web_socket_api=self.chat_websocket_api,
+            stage_name="prod",
+            auto_deploy=True,
+        )
+
+        cdk.CfnOutput(
+            self,
+            "ChatWebSocketApiUrl",
+            value=self.chat_websocket_stage.url,
+            export_name="RegainChatWebSocketApiUrl",
+        )
+
+    def _grant_chat_stream_lambda_permissions(self, chat_stream_lambda: _lambda.Function) -> None:
+        """Grant the Chat Stream Lambda Bedrock, DynamoDB, and WebSocket management permissions."""
+        chat_stream_lambda.add_to_role_policy(self._bedrock_policy())
+        chat_stream_lambda.add_to_role_policy(self._agentcore_memory_policy())
+
+        # Grant execute-api:ManageConnections so Lambda can call post_to_connection.
+        chat_stream_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["execute-api:ManageConnections"],
+                resources=[
+                    f"arn:aws:execute-api:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:"
+                    f"{self.chat_websocket_api.api_id}/prod/POST/@connections/*"
+                ],
+            )
+        )
+
+        for table in self.tables.values():
+            table.grant_read_write_data(chat_stream_lambda)

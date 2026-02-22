@@ -1,9 +1,11 @@
-import { useState, type KeyboardEvent } from 'react';
+import { useState, useCallback, type KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useAuth } from '../hooks/useAuth';
 import type { OnboardingData } from '../types';
+import { api } from '../services/api';
 import { Card, SectionLabel, Badge, Button, Input, Textarea, Select } from '../components/ui';
+import VoiceOnboarding from '../components/voice/VoiceOnboarding';
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -227,12 +229,18 @@ function SkillCategory({ label, skills }: { label: string; skills: string[] }) {
 // Main component
 // ---------------------------------------------------------------------------
 
+const VOICE_AVAILABLE =
+  !!import.meta.env.VITE_VOICE_WS_URL &&
+  typeof navigator !== 'undefined' &&
+  !!navigator.mediaDevices?.getUserMedia;
+
 export default function Onboarding() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, getToken } = useAuth();
   const { data, loading, error, submitOnboarding } = useOnboarding();
 
   const [step, setStep] = useState(1);
+  const [voiceMode, setVoiceMode] = useState(false);
 
   // Step 1
   const [name, setName] = useState('');
@@ -293,6 +301,16 @@ export default function Onboarding() {
     void submitOnboarding(buildPayload());
   };
 
+  const handleVoiceSessionEnd = useCallback(async () => {
+    try {
+      const token = await getToken();
+      await api.dashboard.get(token);
+      navigate('/dashboard');
+    } catch {
+      setVoiceMode(false);
+    }
+  }, [getToken, navigate]);
+
   // Experience summary for results
   const experienceParts = [
     currentRole,
@@ -318,30 +336,38 @@ export default function Onboarding() {
         {/* ================================================================ */}
         {/* STEP 1 — Tell us about your experience                           */}
         {/* ================================================================ */}
-        {step === 1 && (
+        {/* Voice onboarding — replaces the form when active */}
+        {voiceMode && step < 3 && (
+          <VoiceOnboarding
+            onSessionEnd={() => void handleVoiceSessionEnd()}
+            onError={() => setVoiceMode(false)}
+          />
+        )}
+
+        {step === 1 && !voiceMode && (
           <div className="space-y-6">
-            {/* Voice banner (non-functional) */}
-            <div className="flex items-center gap-3 rounded-[var(--radius-card)] border border-dashed border-neutral-300 bg-surface-2 px-5 py-4 opacity-70">
-              <svg
-                className="h-5 w-5 shrink-0 text-neutral-400"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
+            {/* Voice onboarding banner */}
+            {VOICE_AVAILABLE && (
+              <button
+                type="button"
+                onClick={() => setVoiceMode(true)}
+                className="group w-full flex items-center gap-4 rounded-[var(--radius-card)] border border-primary-200 bg-primary-50/50 px-5 py-4 transition-all duration-200 hover:bg-primary-50 hover:border-primary-300 hover:shadow-card text-left"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z"
-                />
-              </svg>
-              <div>
-                <p className="text-sm font-medium text-neutral-500">
-                  Prefer to talk? Tell your AI coach about your experience.
-                </p>
-                <p className="mt-0.5 text-xs text-neutral-400">Coming soon</p>
-              </div>
-            </div>
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary-100 text-primary-600 transition-colors group-hover:bg-primary-200">
+                  <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2 12h2m4-6v12m4-8v4m4-10v16m4-12v8" />
+                  </svg>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-neutral-700">
+                    Prefer to talk? Tell your AI coach about your experience using your voice.
+                  </p>
+                </div>
+                <svg className="h-5 w-5 shrink-0 text-neutral-400 transition-colors group-hover:text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+                </svg>
+              </button>
+            )}
 
             {/* Card */}
             <Card className="p-6 sm:p-8">
@@ -460,7 +486,7 @@ export default function Onboarding() {
         {/* ================================================================ */}
         {/* STEP 2 — Where do you want to go?                                */}
         {/* ================================================================ */}
-        {step === 2 && (
+        {step === 2 && !voiceMode && (
           <Card className="p-6 sm:p-8">
             <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
               Where do you want to go?
@@ -658,7 +684,7 @@ export default function Onboarding() {
       {/* ================================================================ */}
       {/* Navigation buttons (steps 1 & 2 only)                            */}
       {/* ================================================================ */}
-      {step < 3 && (
+      {step < 3 && !voiceMode && (
         <div className="mt-8 flex items-center justify-between">
           {step > 1 ? (
             <Button

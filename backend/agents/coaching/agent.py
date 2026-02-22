@@ -75,7 +75,11 @@ def _get_direct_tools() -> list:
     ]
 
 
-def create_coaching_agent(user_id: str, jwt_token: str) -> Agent:
+def create_coaching_agent(
+    user_id: str,
+    jwt_token: str,
+    callback_handler=None,
+) -> Agent:
     """Create a Coaching Agent with tools routed through Gateway or invoked directly.
 
     Detects Gateway availability via the AGENTCORE_GATEWAY_ENDPOINT env var.
@@ -86,6 +90,9 @@ def create_coaching_agent(user_id: str, jwt_token: str) -> Agent:
         user_id: The authenticated user's ID. Kept for future
             memory-namespace scoping.
         jwt_token: The user's Cognito JWT for Gateway authorization.
+        callback_handler: Optional callback for streaming text chunks.
+            When provided, the agent calls this function with each token
+            as it is generated. Used by the WebSocket streaming handler.
 
     Returns:
         A configured Strands Agent.
@@ -102,8 +109,12 @@ def create_coaching_agent(user_id: str, jwt_token: str) -> Agent:
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
     )
 
-    return Agent(
-        model=model,
-        system_prompt=get_system_prompt(),
-        tools=tools,
-    )
+    kwargs = {
+        "model": model,
+        "system_prompt": get_system_prompt(),
+        "tools": tools,
+    }
+    if callback_handler is not None:
+        kwargs["callback_handler"] = callback_handler
+
+    return Agent(**kwargs)

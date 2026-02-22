@@ -435,9 +435,11 @@ class TestProperty3Resilience:
         # Build mock responses: succeed or fail per role
         def mock_get(url: str, **kwargs: Any) -> MagicMock:
             resp = MagicMock()
-            # Determine which role this request is for
+            # Determine which role this request is for.
+            # Match by path segment after "occupations/" to avoid
+            # substring collisions (e.g. role "ski" matching "skills").
             for rid in role_ids:
-                if rid in url:
+                if f"occupations/{rid}" in url:
                     if rid in failing_ids:
                         resp.raise_for_status.side_effect = Exception(
                             f"API error for {rid}"

@@ -98,6 +98,11 @@
   --animate-slide-in-right: slide-in-right 0.35s ease-out;
   --animate-scale-in: scale-in 0.3s ease-out;
   --animate-shimmer: shimmer 1.8s ease-in-out infinite;
+
+  /* Voice indicator animations */
+  --animate-voice-pulse: voice-pulse 2.5s ease-in-out infinite;
+  --animate-voice-breathe: voice-breathe 3s ease-in-out infinite;
+  --animate-voice-ripple: voice-ripple 2s ease-out infinite backwards;
 }
 
 /* ------------------------------------------------------------------ */
@@ -138,6 +143,37 @@
   }
   100% {
     background-position: 200% 0;
+  }
+}
+
+@keyframes voice-pulse {
+  0%, 100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
+}
+
+@keyframes voice-breathe {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.4;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 0.15;
+  }
+}
+
+@keyframes voice-ripple {
+  from {
+    transform: scale(0.5);
+    opacity: 0.5;
+  }
+  to {
+    transform: scale(1.3);
+    opacity: 0;
   }
 }
 

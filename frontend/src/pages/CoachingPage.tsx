@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
-import { useCoaching } from '../hooks/useCoaching';
+import { useStreamingCoaching } from '../hooks/useStreamingCoaching';
 import { useVoiceSession } from '../hooks/useVoiceSession';
-import { Button } from '../components/ui';
+import { Button, MarkdownMessage } from '../components/ui';
 
 const SESSION_TYPES = [
   { value: 'onboarding', label: 'Onboarding' },
@@ -10,7 +10,7 @@ const SESSION_TYPES = [
 ] as const;
 
 export default function CoachingPage() {
-  const { messages, loading, error, sendMessage } = useCoaching();
+  const { messages, streaming, streamingText, error, sendMessage } = useStreamingCoaching();
   const { isActive: voiceActive, error: voiceError, fallbackToText, startSession, stopSession } = useVoiceSession();
 
   const [input, setInput] = useState('');
@@ -19,12 +19,12 @@ export default function CoachingPage() {
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  }, [messages, streamingText]);
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
-    if (!trimmed || loading) return;
+    if (!trimmed || streaming) return;
     setInput('');
     void sendMessage(trimmed, sessionType);
   };
@@ -61,7 +61,7 @@ export default function CoachingPage() {
 
       {/* Message History */}
       <div className="flex-1 overflow-y-auto py-4 space-y-3" role="log" aria-label="Coaching conversation">
-        {messages.length === 0 && (
+        {messages.length === 0 && !streaming && (
           <p className="text-center text-neutral-400 mt-12">
             Start a conversation with your coaching agent.
           </p>
@@ -72,17 +72,29 @@ export default function CoachingPage() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[75%] px-4 py-2 text-sm whitespace-pre-wrap animate-scale-in ${
+              className={`max-w-[75%] px-4 py-2 text-sm animate-scale-in ${
                 msg.role === 'user'
-                  ? 'bg-primary-500 text-white rounded-2xl rounded-br-sm'
+                  ? 'bg-primary-500 text-white rounded-2xl rounded-br-sm whitespace-pre-wrap'
                   : 'bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm'
               }`}
             >
-              {msg.content}
+              {msg.role === 'assistant' ? <MarkdownMessage content={msg.content} /> : msg.content}
             </div>
           </div>
         ))}
-        {loading && (
+
+        {/* Streaming bubble — shows text as it arrives */}
+        {streaming && streamingText && (
+          <div className="flex justify-start">
+            <div className="max-w-[75%] px-4 py-2 text-sm bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm">
+              <MarkdownMessage content={streamingText} />
+              <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse align-text-bottom" />
+            </div>
+          </div>
+        )}
+
+        {/* Loading dots — between send and first chunk */}
+        {streaming && !streamingText && (
           <div className="flex justify-start">
             <div className="bg-surface-3 text-neutral-500 rounded-2xl rounded-bl-sm px-4 py-3 text-sm flex items-center gap-1.5">
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" />
@@ -114,13 +126,13 @@ export default function CoachingPage() {
           value={input}
           onChange={(e) => setInput(e.target.value)}
           placeholder="Type a message..."
-          disabled={loading}
+          disabled={streaming}
           aria-label="Coaching message"
           className="flex-1 rounded-[var(--radius-card)] border border-neutral-200 px-4 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50"
         />
         <Button
           type="submit"
-          disabled={loading || !input.trim()}
+          disabled={streaming || !input.trim()}
           aria-label="Send message"
         >
           Send

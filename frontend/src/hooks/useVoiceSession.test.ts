@@ -104,7 +104,9 @@ describe('useVoiceSession', () => {
   });
 
   it('falls back when VITE_VOICE_WS_URL is not configured', async () => {
-    // env var is not set in test environment, so startSession should fallback
+    const saved = import.meta.env.VITE_VOICE_WS_URL;
+    delete import.meta.env.VITE_VOICE_WS_URL;
+
     const { result } = renderHook(() => useVoiceSession());
 
     await act(async () => {
@@ -114,6 +116,8 @@ describe('useVoiceSession', () => {
     expect(result.current.isActive).toBe(false);
     expect(result.current.fallbackToText).toBe(true);
     expect(result.current.error).toBe('Voice WebSocket URL not configured');
+
+    if (saved) import.meta.env.VITE_VOICE_WS_URL = saved;
   });
 
   it('establishes WebSocket and audio capture on startSession', async () => {

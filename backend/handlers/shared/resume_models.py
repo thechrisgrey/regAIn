@@ -5,7 +5,7 @@ for gathering input data, representing frontmatter fields, and
 returning generation results.
 """
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, List
 
 from backend.handlers.shared.models import Campaign, Evidence, Mission, UserProfile

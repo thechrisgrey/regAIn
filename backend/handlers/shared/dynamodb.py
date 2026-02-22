@@ -93,6 +93,40 @@ class DynamoDBClient:
         response = table.query(**kwargs)
         return response.get("Items", [])
 
+    def query_all(
+        self,
+        table_name: str,
+        key_condition: Any,
+        index_name: Optional[str] = None,
+        filter_expression: Any = None,
+    ) -> List[Dict[str, Any]]:
+        """Query a table or GSI, following pagination to retrieve ALL items.
+
+        Args:
+            table_name: Logical table name.
+            key_condition: A boto3 Key condition expression.
+            index_name: Optional GSI name to query.
+            filter_expression: Optional filter applied after key matching.
+
+        Returns:
+            List of all matching items across all pages.
+        """
+        table = self._get_table(table_name)
+        kwargs: Dict[str, Any] = {"KeyConditionExpression": key_condition}
+        if index_name:
+            kwargs["IndexName"] = index_name
+        if filter_expression is not None:
+            kwargs["FilterExpression"] = filter_expression
+
+        items: List[Dict[str, Any]] = []
+        while True:
+            response = table.query(**kwargs)
+            items.extend(response.get("Items", []))
+            if "LastEvaluatedKey" not in response:
+                break
+            kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+        return items
+
     def update_item(
         self,
         table_name: str,
@@ -167,7 +201,7 @@ class DynamoDBClient:
         Returns:
             Total number of items deleted.
         """
-        items = self.query(
+        items = self.query_all(
             table_name,
             Key(partition_key_name).eq(partition_key_value),
         )

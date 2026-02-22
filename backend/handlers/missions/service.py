@@ -114,13 +114,13 @@ class MissionsService:
             List of mission items.
         """
         if status:
-            return self.db.query(
+            return self.db.query_all(
                 "mission_history",
                 Key("status").eq(status) & Key("userId").eq(user_id),
                 index_name="status-index",
             )
 
-        return self.db.query(
+        return self.db.query_all(
             "mission_history",
             Key("userId").eq(user_id),
         )

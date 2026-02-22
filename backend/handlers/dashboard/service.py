@@ -25,28 +25,28 @@ class DashboardService:
         Returns:
             Dict with campaign info and stats.
         """
-        campaigns = self.db.query(
+        campaigns = self.db.query_all(
             "campaigns", Key("userId").eq(user_id)
         )
         active_campaign = next(
             (c for c in campaigns if c.get("status") == "active"), None
         )
 
-        missions = self.db.query(
+        missions = self.db.query_all(
             "mission_history", Key("userId").eq(user_id)
         )
         completed = [m for m in missions if m.get("status") == "completed"]
 
-        evidence = self.db.query(
+        evidence = self.db.query_all(
             "evidence_vault", Key("userId").eq(user_id)
         )
 
         return {
             "campaign": active_campaign,
             "stats": {
-                "missions_completed": len(completed),
-                "missions_total": len(missions),
-                "evidence_count": len(evidence),
-                "current_phase": active_campaign.get("phase") if active_campaign else None,
+                "missionsCompleted": len(completed),
+                "missionsTotal": len(missions),
+                "evidenceCount": len(evidence),
+                "currentPhase": active_campaign.get("phase") if active_campaign else None,
             },
         }

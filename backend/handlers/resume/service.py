@@ -84,12 +84,11 @@ class ResumeService:
             ResumeGenerationError: On data, synthesis, or storage failure.
             RateLimitError: If daily generation limit exceeded.
         """
-        self._check_rate_limit(user_id)
+        self._enforce_rate_limit(user_id)
         data = self._gather_data(user_id)
         content = self._synthesize(data)
         generated_at = datetime.now(timezone.utc).isoformat()
         storage = self._store(user_id, content, generated_at)
-        self._increment_daily_count(user_id)
 
         presigned_url = self.s3.generate_presigned_url(
             "get_object",
@@ -151,11 +150,10 @@ class ResumeService:
             presigned_url=presigned_url,
         )
 
-    def _check_rate_limit(self, user_id: str) -> None:
-        """Enforce 3-per-day manual generation limit.
+    def _enforce_rate_limit(self, user_id: str) -> None:
+        """Atomically enforce 3-per-day resume generation limit.
 
-        Reads dailyResumeGenCount and dailyResumeGenDate from
-        UserProfiles. Resets count on a new calendar day.
+        Uses conditional DynamoDB updates (same pattern as mission rate limiting).
 
         Args:
             user_id: The authenticated user's ID.
@@ -163,44 +161,32 @@ class ResumeService:
         Raises:
             RateLimitError: If the user has already generated 3 resumes today.
         """
-        profile_item = self.db.get_item("user_profiles", {"userId": user_id})
-        if not profile_item:
-            raise ResumeGenerationError("User not found", status_code=404)
-
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        gen_date = profile_item.get("dailyResumeGenDate", "")
-        gen_count = int(profile_item.get("dailyResumeGenCount", 0))
+        table = self.db._get_table("user_profiles")
 
-        if gen_date != today:
-            gen_count = 0
+        # Step 1: Reset counter if date changed
+        try:
+            table.update_item(
+                Key={"userId": user_id},
+                UpdateExpression="SET dailyResumeGenCount = :zero, dailyResumeGenDate = :today",
+                ConditionExpression=(
+                    "attribute_not_exists(dailyResumeGenDate) OR dailyResumeGenDate <> :today"
+                ),
+                ExpressionAttributeValues={":zero": 0, ":today": today},
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            pass
 
-        if gen_count >= MAX_DAILY_GENERATIONS:
+        # Step 2: Atomically increment, fail if >= 3
+        try:
+            table.update_item(
+                Key={"userId": user_id},
+                UpdateExpression="ADD dailyResumeGenCount :inc",
+                ConditionExpression="dailyResumeGenCount < :limit",
+                ExpressionAttributeValues={":inc": 1, ":limit": MAX_DAILY_GENERATIONS},
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
             raise RateLimitError()
-
-    def _increment_daily_count(self, user_id: str) -> None:
-        """Increment the daily resume generation counter.
-
-        Args:
-            user_id: The authenticated user's ID.
-        """
-        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        profile_item = self.db.get_item("user_profiles", {"userId": user_id})
-        gen_date = profile_item.get("dailyResumeGenDate", "") if profile_item else ""
-        current_count = int(profile_item.get("dailyResumeGenCount", 0)) if profile_item else 0
-
-        if gen_date != today:
-            new_count = 1
-        else:
-            new_count = current_count + 1
-
-        self.db.update_item(
-            "user_profiles",
-            {"userId": user_id},
-            {
-                "dailyResumeGenCount": new_count,
-                "dailyResumeGenDate": today,
-            },
-        )
 
     def _gather_data(self, user_id: str) -> ResumeData:
         """Gather all user data from DynamoDB tables in parallel.

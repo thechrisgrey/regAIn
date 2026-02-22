@@ -52,6 +52,8 @@ agent_stack = AgentStack(
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
     coaching_lambda=api_stack.coaching_lambda,
+    resume_lambda=resume_stack.resume_lambda,
+    resume_bucket=resume_stack.bucket,
     env=env,
 )
 

@@ -25,11 +25,11 @@ from boto3.dynamodb.conditions import Attr as boto3_attr, Key
 _dynamodb_mod = importlib.import_module("backend.handlers.shared.dynamodb")
 DynamoDBClient = _dynamodb_mod.DynamoDBClient
 
-from backend.engine.generator import (
+from backend.engine.generator import (  # noqa: E402
     generate_daily_mission as engine_generate_mission,
     complete_mission as engine_complete_mission,
 )
-from backend.engine.models import GenerationResult, CompletionResult
+from backend.engine.models import GenerationResult, CompletionResult  # noqa: E402, F401
 
 logger = logging.getLogger(__name__)
 
@@ -763,9 +763,6 @@ def get_alignment(user_id: str, target_role_id: str) -> dict[str, Any]:
 # AgentCore Memory tools
 # ---------------------------------------------------------------------------
 
-import os
-import boto3
-
 _memory_client = None
 
 
@@ -782,7 +779,7 @@ def _get_memory_client():
             _memory_client = boto3.client(
                 "bedrock-agent-runtime", region_name=region
             )
-        except Exception as exc:
+        except Exception:
             logger.exception("Failed to create bedrock-agent-runtime client")
             return None
     return _memory_client

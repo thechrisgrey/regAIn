@@ -35,6 +35,7 @@ table_name_strategy = st.text(
     mission_history=table_name_strategy,
     evidence_vault=table_name_strategy,
     market_data=table_name_strategy,
+    voice_sessions=table_name_strategy,
 )
 @settings(max_examples=100)
 def test_table_names_come_from_environment_variables(
@@ -43,6 +44,7 @@ def test_table_names_come_from_environment_variables(
     mission_history: str,
     evidence_vault: str,
     market_data: str,
+    voice_sessions: str,
 ) -> None:
     """For any set of table name strings provided via environment variables,
     the DynamoDBClient must use exactly those values when resolving tables.
@@ -55,6 +57,7 @@ def test_table_names_come_from_environment_variables(
         "MISSION_HISTORY_TABLE": mission_history,
         "EVIDENCE_VAULT_TABLE": evidence_vault,
         "MARKET_DATA_TABLE": market_data,
+        "VOICE_SESSIONS_TABLE": voice_sessions,
     }
 
     mock_resource = MagicMock()
@@ -73,7 +76,7 @@ def test_table_names_come_from_environment_variables(
 
     # Verify boto3.Table was called with each env-var-provided name
     expected_calls = {user_profiles, campaigns, mission_history,
-                     evidence_vault, market_data}
+                     evidence_vault, market_data, voice_sessions}
     actual_calls = {
         call.args[0] for call in mock_resource.Table.call_args_list
     }
@@ -95,6 +98,7 @@ def test_missing_env_var_raises_on_access(table_name_value: str) -> None:
         "MISSION_HISTORY_TABLE": "",
         "EVIDENCE_VAULT_TABLE": "",
         "MARKET_DATA_TABLE": "",
+        "VOICE_SESSIONS_TABLE": "",
     }
 
     mock_resource = MagicMock()

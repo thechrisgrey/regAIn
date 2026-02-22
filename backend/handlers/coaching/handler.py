@@ -7,18 +7,12 @@ import json
 import logging
 from typing import Any, Dict
 
+from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.responses import error_response, success_response
 from backend.handlers.coaching.service import CoachingService
 
 logger = logging.getLogger(__name__)
 
-
-def _get_user_id(event: Dict[str, Any]) -> str | None:
-    """Extract userId from Cognito authorizer claims."""
-    try:
-        return event["requestContext"]["authorizer"]["claims"]["sub"]
-    except (KeyError, TypeError):
-        return None
 
 def _get_jwt_token(event: Dict[str, Any]) -> str | None:
     """Extract JWT token from Authorization header.
@@ -49,7 +43,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway-compatible response.
     """
-    user_id = _get_user_id(event)
+    user_id = get_user_id(event)
     if not user_id:
         return error_response("Unauthorized", 401)
 

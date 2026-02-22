@@ -17,6 +17,7 @@ import yaml
 from hypothesis import given, settings, assume
 from hypothesis import strategies as st
 
+from backend.handlers.shared.dynamodb import DynamoDBClient
 from backend.handlers.shared.models import (
     Campaign,
     Evidence,
@@ -874,79 +875,102 @@ class TestProperty9StorageCompleteness:
 # ===========================================================================
 
 class TestProperty11RateLimitEnforcement:
-    """Property 11: 4th generation request on same day returns 429."""
+    """Property 11: 4th generation request on same day returns 429.
 
-    @given(user_id=st.text(min_size=5, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))))
-    @settings(max_examples=100)
-    def test_fourth_request_raises_rate_limit_error(self, user_id: str) -> None:
+    Uses moto-backed DynamoDB since _enforce_rate_limit uses conditional
+    updates directly on the table.
+    """
+
+    def test_fourth_request_raises_rate_limit_error(self, dynamodb_tables) -> None:
         """After 3 generations today, the 4th raises RateLimitError (429)."""
-        mock_db = MagicMock()
+        user_id = "ratelimit_user_001"
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        # Simulate user already at the limit
-        mock_db.get_item.return_value = {
+        # Seed user profile at the limit
+        dynamodb_tables["user_profiles"].put_item(Item={
             "userId": user_id,
             "dailyResumeGenDate": today,
             "dailyResumeGenCount": MAX_DAILY_GENERATIONS,
-        }
+        })
 
+        db = DynamoDBClient()
         service = ResumeService(
-            db_client=mock_db,
+            db_client=db,
             s3_client=MagicMock(),
             bedrock_client=MagicMock(),
         )
 
         with pytest.raises(RateLimitError) as exc_info:
-            service._check_rate_limit(user_id)
+            service._enforce_rate_limit(user_id)
 
         assert exc_info.value.status_code == 429
 
-    @given(
-        user_id=st.text(min_size=5, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))),
-        count=st.integers(min_value=0, max_value=2),
-    )
-    @settings(max_examples=100)
-    def test_under_limit_does_not_raise(self, user_id: str, count: int) -> None:
+    def test_under_limit_does_not_raise(self, dynamodb_tables) -> None:
         """Requests under the daily limit proceed without error."""
-        mock_db = MagicMock()
+        user_id = "ratelimit_user_002"
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-        mock_db.get_item.return_value = {
+        # Seed user with count under limit
+        dynamodb_tables["user_profiles"].put_item(Item={
             "userId": user_id,
             "dailyResumeGenDate": today,
-            "dailyResumeGenCount": count,
-        }
+            "dailyResumeGenCount": 1,
+        })
 
+        db = DynamoDBClient()
         service = ResumeService(
-            db_client=mock_db,
+            db_client=db,
             s3_client=MagicMock(),
             bedrock_client=MagicMock(),
         )
 
         # Should not raise
-        service._check_rate_limit(user_id)
+        service._enforce_rate_limit(user_id)
 
-    @given(user_id=st.text(min_size=5, max_size=20, alphabet=st.characters(whitelist_categories=("L", "N"))))
-    @settings(max_examples=100)
-    def test_new_day_resets_count(self, user_id: str) -> None:
+    def test_new_day_resets_count(self, dynamodb_tables) -> None:
         """Count from a previous day does not block today's requests."""
-        mock_db = MagicMock()
+        user_id = "ratelimit_user_003"
 
-        # Simulate count from yesterday
-        mock_db.get_item.return_value = {
+        # Seed user with count from yesterday
+        dynamodb_tables["user_profiles"].put_item(Item={
             "userId": user_id,
             "dailyResumeGenDate": "2020-01-01",
             "dailyResumeGenCount": 99,
-        }
+        })
 
+        db = DynamoDBClient()
         service = ResumeService(
-            db_client=mock_db,
+            db_client=db,
             s3_client=MagicMock(),
             bedrock_client=MagicMock(),
         )
 
-        # Should not raise — old date means count resets
-        service._check_rate_limit(user_id)
+        # Should not raise -- old date means count resets
+        service._enforce_rate_limit(user_id)
+
+    def test_atomic_increment_prevents_over_limit(self, dynamodb_tables) -> None:
+        """Three sequential calls succeed, fourth raises RateLimitError."""
+        user_id = "ratelimit_user_004"
+
+        # Seed fresh user profile
+        dynamodb_tables["user_profiles"].put_item(Item={
+            "userId": user_id,
+        })
+
+        db = DynamoDBClient()
+        service = ResumeService(
+            db_client=db,
+            s3_client=MagicMock(),
+            bedrock_client=MagicMock(),
+        )
+
+        # First 3 calls should succeed
+        for _ in range(MAX_DAILY_GENERATIONS):
+            service._enforce_rate_limit(user_id)
+
+        # 4th call should fail
+        with pytest.raises(RateLimitError):
+            service._enforce_rate_limit(user_id)
 
 
 # ===========================================================================

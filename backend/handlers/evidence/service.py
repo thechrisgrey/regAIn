@@ -29,13 +29,13 @@ class EvidenceService:
             List of evidence items belonging to the user.
         """
         if skill_tag:
-            return self.db.query(
+            return self.db.query_all(
                 "evidence_vault",
                 Key("userId").eq(user_id),
                 filter_expression=Attr("skillTag").eq(skill_tag),
             )
 
-        return self.db.query(
+        return self.db.query_all(
             "evidence_vault",
             Key("userId").eq(user_id),
         )

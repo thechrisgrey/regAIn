@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_s3 as s3,
 )
 from constructs import Construct
 
@@ -24,6 +25,8 @@ class AgentStack(cdk.Stack):
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
         coaching_lambda: _lambda.Function,
+        resume_lambda: _lambda.Function | None = None,
+        resume_bucket: s3.Bucket | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -31,6 +34,8 @@ class AgentStack(cdk.Stack):
         self.user_pool = user_pool
         self.tables = tables
         self.coaching_lambda = coaching_lambda
+        self.resume_lambda = resume_lambda
+        self.resume_bucket = resume_bucket
         self.strands_layer = self._create_strands_layer()
 
         voice_lambda = self._create_voice_lambda()
@@ -174,6 +179,18 @@ class AgentStack(cdk.Stack):
         # Grant read/write on all tables (upgrades from read-only on UserProfiles)
         for table in self.tables.values():
             table.grant_read_write_data(self.coaching_lambda)
+
+        # Wire Resume Lambda + S3 bucket so coaching tools can invoke resume generation
+        if self.resume_lambda:
+            self.coaching_lambda.add_environment(
+                "RESUME_LAMBDA_ARN", self.resume_lambda.function_arn
+            )
+            self.resume_lambda.grant_invoke(self.coaching_lambda)
+        if self.resume_bucket:
+            self.coaching_lambda.add_environment(
+                "RESUME_BUCKET_NAME", self.resume_bucket.bucket_name
+            )
+            self.resume_bucket.grant_read(self.coaching_lambda)
 
     # ------------------------------------------------------------------
     # Chat Streaming (WebSocket text-based coaching)

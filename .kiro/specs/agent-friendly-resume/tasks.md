@@ -142,29 +142,29 @@ Implement the Agent-Friendly Resume feature in dependency order: CDK infrastruct
     - **Property 12: API and tool responses contain required fields** — Verify responses from generate_resume and get_resume contain content, generatedAt, version, and downloadUrl
     - **Validates: Requirements 7.3, 8.1, 8.3**
 
-- [-] 7. Checkpoint — Ensure backend integration tests pass
+- [x] 7. Checkpoint — Ensure backend integration tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 8. Implement frontend Resume feature
-  - [ ] 8.1 Add Resume types to `frontend/src/types/`
+- [x] 8. Implement frontend Resume feature
+  - [x] 8.1 Add Resume types to `frontend/src/types/`
     - Define `ResumeResponse` interface (content, generatedAt, version, downloadUrl, frontmatter)
     - Define `ResumeFrontmatter` interface (schema_version, name, target_role, skills array, campaign_phase, etc.)
     - Define `ResumeSkill` interface (skill_name, evidence_count, strongest_evidence_summary, proficiency_indicator)
     - _Requirements: 1.2, 1.3, 8.1_
 
-  - [ ] 8.2 Extend API client in `frontend/src/services/api.ts`
+  - [x] 8.2 Extend API client in `frontend/src/services/api.ts`
     - Add `resume.get(token)` → GET /resume
     - Add `resume.generate(token)` → POST /resume/generate
     - _Requirements: 8.1, 8.3_
 
-  - [ ] 8.3 Create `frontend/src/hooks/useResume.ts` custom hook
+  - [x] 8.3 Create `frontend/src/hooks/useResume.ts` custom hook
     - State: resume data, loading, regenerating, error
     - `fetchResume()`: call GET /resume, handle 404 as empty state
     - `regenerateResume()`: call POST /resume/generate, handle 429 with rate limit message, update state on success
     - Follow the existing `useEvidence` hook pattern
     - _Requirements: 8.1, 8.2, 8.3, 8.4, 8.5, 9.8, 9.9_
 
-  - [ ] 8.4 Create `frontend/src/pages/ResumePage.tsx`
+  - [x] 8.4 Create `frontend/src/pages/ResumePage.tsx`
     - Render frontmatter fields as structured metadata above the markdown body (not raw YAML)
     - Render markdown body using existing `MarkdownMessage` component
     - "Download .md" button using presigned URL
@@ -174,12 +174,12 @@ Implement the Agent-Friendly Resume feature in dependency order: CDK infrastruct
     - Loading indicator while fetching resume data
     - _Requirements: 9.2, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9_
 
-  - [ ] 8.5 Update navigation in `frontend/src/components/Layout.tsx`
+  - [x] 8.5 Update navigation in `frontend/src/components/Layout.tsx`
     - Add Resume nav item between Evidence and Profile
     - Add route for /resume pointing to ResumePage
     - _Requirements: 9.1_
 
-  - [ ] 8.6 Write frontend unit tests
+  - [x] 8.6 Write frontend unit tests
     - Test navigation includes Resume between Evidence and Profile (Req 9.1)
     - Test Resume page renders frontmatter as structured metadata (Req 9.3)
     - Test Download button present (Req 9.4)
@@ -190,12 +190,12 @@ Implement the Agent-Friendly Resume feature in dependency order: CDK infrastruct
     - Test Regenerate button disabled during regeneration (Req 9.9)
     - _Requirements: 9.1, 9.3, 9.4, 9.5, 9.6, 9.7, 9.8, 9.9_
 
-  - [ ] 8.7 Write frontend property test for response shape
+  - [x] 8.7 Write frontend property test for response shape
     - Create `frontend/src/hooks/useResume.pbt.test.ts` using fast-check
     - **Property 12 (frontend): API response contains required fields** — Generate random API response shapes, verify hook exposes content, generatedAt, version, downloadUrl
     - **Validates: Requirements 8.1, 8.3**
 
-- [ ] 9. Final checkpoint — Ensure all tests pass
+- [x] 9. Final checkpoint — Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
 ## Notes

@@ -13,7 +13,6 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 import boto3
-import yaml
 from boto3.dynamodb.conditions import Attr, Key
 
 from backend.handlers.shared.dynamodb import DynamoDBClient
@@ -480,16 +479,13 @@ MARKDOWN BODY SECTIONS (use ## headers, in this exact order):
         if len(parts) < 3:
             return False
 
-        # Validate YAML is parseable
-        yaml_content = parts[1].strip()
-        if not yaml_content:
+        # Validate frontmatter block is non-empty and has at least one key: value line
+        fm_content = parts[1].strip()
+        if not fm_content:
             return False
 
-        try:
-            parsed = yaml.safe_load(yaml_content)
-            if not isinstance(parsed, dict):
-                return False
-        except yaml.YAMLError:
+        has_kv = any(":" in line for line in fm_content.splitlines() if line.strip())
+        if not has_kv:
             return False
 
         # Validate all 5 section headers present in order

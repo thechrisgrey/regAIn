@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import { useResume } from '../hooks/useResume';
 import type { ResumeFrontmatter } from '../types/resume';
 import { Card, SectionLabel, Button, Badge, ProgressBar, SkeletonBlock, MarkdownMessage } from '../components/ui';
@@ -94,35 +93,19 @@ function ResumeError({
 // Empty state
 // ---------------------------------------------------------------------------
 
-function EmptyResume() {
+function EmptyResume({ onGenerate, generating }: { onGenerate: () => void; generating: boolean }) {
   return (
     <Card className="p-8">
       <div className="flex flex-col items-center py-12 text-center">
         <p className="text-xl font-semibold text-neutral-900">No resume yet</p>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
-          Complete your first mission to generate your resume. Your resume is
-          built from real evidence and updates automatically as you progress.
+          Generate your resume from completed missions and logged evidence.
+          It updates automatically as you progress through your campaign.
         </p>
         <div className="mt-6">
-          <Link
-            to="/missions"
-            className="inline-flex items-center gap-2 rounded-[var(--radius-button)] bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600 transition-colors"
-          >
-            Go to Missions
-            <svg
-              className="h-3.5 w-3.5"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={2}
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3"
-              />
-            </svg>
-          </Link>
+          <Button onClick={onGenerate} disabled={generating}>
+            {generating ? 'Generating...' : 'Generate Resume'}
+          </Button>
         </div>
       </div>
     </Card>
@@ -261,7 +244,7 @@ export default function ResumePage() {
   if (!resume) {
     return (
       <div className="animate-fade-in">
-        <EmptyResume />
+        <EmptyResume onGenerate={() => void regenerateResume()} generating={regenerating} />
       </div>
     );
   }

@@ -140,7 +140,7 @@ class ApiStack(cdk.Stack):
         # Missions: read/write MissionHistory, write EvidenceVault, read Campaigns,
         # read/write UserProfiles (rate limiting), read MarketData (engine)
         self.tables["MissionHistory"].grant_read_write_data(lambdas["Missions"])
-        self.tables["EvidenceVault"].grant_write_data(lambdas["Missions"])
+        self.tables["EvidenceVault"].grant_read_write_data(lambdas["Missions"])
         self.tables["Campaigns"].grant_read_data(lambdas["Missions"])
         self.tables["UserProfiles"].grant_read_write_data(lambdas["Missions"])
         self.tables["MarketData"].grant_read_data(lambdas["Missions"])

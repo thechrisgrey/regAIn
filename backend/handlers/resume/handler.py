@@ -9,8 +9,6 @@ Thin handler that routes by event shape:
 import logging
 from typing import Any, Dict
 
-import yaml
-
 from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.responses import error_response, success_response
 from backend.handlers.resume.service import (
@@ -28,7 +26,9 @@ def _is_api_gateway_event(event: Dict[str, Any]) -> bool:
 
 
 def _parse_frontmatter(content: str) -> Dict[str, Any] | None:
-    """Parse YAML frontmatter from resume markdown content.
+    """Parse YAML-style frontmatter from resume markdown content.
+
+    Handles simple ``key: value`` pairs (no nested structures).
 
     Args:
         content: Full resume markdown with YAML frontmatter.
@@ -42,8 +42,17 @@ def _parse_frontmatter(content: str) -> Dict[str, Any] | None:
     if len(parts) < 3:
         return None
     try:
-        return yaml.safe_load(parts[1].strip())
-    except yaml.YAMLError:
+        result: Dict[str, Any] = {}
+        for line in parts[1].strip().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            key, _, value = line.partition(":")
+            if not _:
+                continue
+            result[key.strip()] = value.strip()
+        return result if result else None
+    except Exception:
         return None
 
 

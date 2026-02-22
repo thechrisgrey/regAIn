@@ -222,6 +222,46 @@ class VoicePracticeStack(cdk.Stack):
                 ),
             )
 
+        # CORS OPTIONS methods for L1 resources (not covered by default_cors_preflight_options)
+        cors_response_params = {
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+            "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
+            "method.response.header.Access-Control-Allow-Origin": "'*'",
+        }
+        cors_method_response_params = {
+            "method.response.header.Access-Control-Allow-Headers": True,
+            "method.response.header.Access-Control-Allow-Methods": True,
+            "method.response.header.Access-Control-Allow-Origin": True,
+        }
+        for options_id, resource_id in [
+            ("VoiceSessionsOptionsMethod", sessions_resource.ref),
+            ("VoiceSessionIdOptionsMethod", session_id_resource.ref),
+        ]:
+            apigw.CfnMethod(
+                self,
+                options_id,
+                rest_api_id=rest_api_id,
+                resource_id=resource_id,
+                http_method="OPTIONS",
+                authorization_type="NONE",
+                integration=apigw.CfnMethod.IntegrationProperty(
+                    type="MOCK",
+                    request_templates={"application/json": '{"statusCode": 200}'},
+                    integration_responses=[
+                        apigw.CfnMethod.IntegrationResponseProperty(
+                            status_code="200",
+                            response_parameters=cors_response_params,
+                        )
+                    ],
+                ),
+                method_responses=[
+                    apigw.CfnMethod.MethodResponseProperty(
+                        status_code="200",
+                        response_parameters=cors_method_response_params,
+                    )
+                ],
+            )
+
     def _grant_permissions(self) -> None:
         """Grant least-privilege IAM permissions to the WS and REST Lambdas."""
         # WS Lambda: Bedrock

@@ -1,8 +1,10 @@
 import { useRef, useMemo } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, extend } from '@react-three/fiber';
 import CustomShaderMaterial from 'three-custom-shader-material/vanilla';
 import type { ReactNode } from 'react';
 import * as THREE from 'three';
+
+extend({ CustomShaderMaterial });
 
 // ---------------------------------------------------------------------------
 // Types

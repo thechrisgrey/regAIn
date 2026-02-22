@@ -40,6 +40,7 @@ class ApiStack(cdk.Stack):
         self.missions_lambda = lambdas["Missions"]
         self.evidence_lambda = lambdas["Evidence"]
         self.dashboard_lambda = lambdas["Dashboard"]
+        self.profile_lambda = lambdas["Profile"]
 
     def _create_strands_layer(self) -> _lambda.LayerVersion:
         """Create the Strands Agents Lambda Layer from the local build directory."""

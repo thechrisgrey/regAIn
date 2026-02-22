@@ -12,7 +12,7 @@ from hypothesis import given, settings, strategies as st
 
 from infra.stacks.data_stack import DataStack
 
-EXPECTED_TABLE_COUNT = 5
+EXPECTED_TABLE_COUNT = 6
 
 
 def _synth_data_stack_template() -> dict:
@@ -67,7 +67,7 @@ def test_every_table_has_name_and_arn_outputs(table_index: int) -> None:
     # Derive the domain table name from the logical ID by stripping the CDK hash suffix.
     # CDK logical IDs look like "RegainUserProfilesABC123" — the resource construct ID
     # is "Regain<TableName>", so we match against known table names.
-    known_tables = ["UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"]
+    known_tables = ["UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions"]
     matched_table = None
     for name in known_tables:
         if logical_id.startswith(f"Regain{name}"):

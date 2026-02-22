@@ -12,7 +12,7 @@ from hypothesis import given, settings, strategies as st
 
 from infra.stacks.data_stack import DataStack
 
-EXPECTED_TABLE_COUNT = 5
+EXPECTED_TABLE_COUNT = 6
 
 
 def _synth_data_stack_template() -> dict:

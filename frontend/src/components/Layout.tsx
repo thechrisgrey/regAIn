@@ -5,8 +5,10 @@ import NavIcon from './ui/NavIcon';
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
   { to: '/coaching', label: 'Coaching', icon: 'coaching' },
+  { to: '/voice-practice', label: 'Voice Practice', icon: 'voice-practice' },
   { to: '/missions', label: 'Missions', icon: 'missions' },
   { to: '/evidence', label: 'Evidence', icon: 'evidence' },
+  { to: '/resume', label: 'Resume', icon: 'resume' },
   { to: '/onboarding', label: 'Onboarding', icon: 'onboarding' },
   { to: '/profile', label: 'Profile', icon: 'profile' },
 ];

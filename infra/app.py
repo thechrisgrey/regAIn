@@ -7,6 +7,8 @@ from stacks.api_stack import ApiStack
 from stacks.agent_stack import AgentStack
 from stacks.agentcore_stack import AgentCoreStack
 from stacks.market_intel_stack import MarketIntelStack
+from stacks.resume_stack import ResumeStack
+from stacks.voice_practice_stack import VoicePracticeStack
 
 app = cdk.App()
 
@@ -22,6 +24,25 @@ api_stack = ApiStack(
     "RegainApiStack",
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
+    env=env,
+)
+
+resume_stack = ResumeStack(
+    app,
+    "RegainResumeStack",
+    user_pool=auth_stack.user_pool,
+    tables=data_stack.tables,
+    api=api_stack.api,
+    env=env,
+)
+
+voice_practice_stack = VoicePracticeStack(
+    app,
+    "RegainVoicePracticeStack",
+    user_pool=auth_stack.user_pool,
+    tables=data_stack.tables,
+    api=api_stack.api,
+    profile_lambda=api_stack.profile_lambda,
     env=env,
 )
 

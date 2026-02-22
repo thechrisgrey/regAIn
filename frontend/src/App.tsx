@@ -7,8 +7,11 @@ import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Missions from './pages/Missions';
 import Evidence from './pages/Evidence';
+import ResumePage from './pages/ResumePage';
 import Profile from './pages/Profile';
 import CoachingPage from './pages/CoachingPage';
+import VoicePracticePage from './pages/VoicePracticePage';
+import VoiceSessionDetailPage from './pages/VoiceSessionDetailPage';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -29,8 +32,11 @@ function App() {
             <Route path="onboarding" element={<Onboarding />} />
             <Route path="dashboard" element={<Dashboard />} />
             <Route path="coaching" element={<CoachingPage />} />
+            <Route path="voice-practice" element={<VoicePracticePage />} />
+            <Route path="voice-practice/:sessionId" element={<VoiceSessionDetailPage />} />
             <Route path="missions" element={<Missions />} />
             <Route path="evidence" element={<Evidence />} />
+            <Route path="resume" element={<ResumePage />} />
             <Route path="profile" element={<Profile />} />
           </Route>
           <Route path="*" element={<NotFound />} />

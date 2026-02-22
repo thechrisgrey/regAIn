@@ -27,6 +27,7 @@ class DynamoDBClient:
         "mission_history": "MISSION_HISTORY_TABLE",
         "evidence_vault": "EVIDENCE_VAULT_TABLE",
         "market_data": "MARKET_DATA_TABLE",
+        "voice_sessions": "VOICE_SESSIONS_TABLE",
     }
 
     def __init__(self) -> None:

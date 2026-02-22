@@ -109,3 +109,60 @@ export interface CoachingResponse {
   userId: string;
 }
 
+// Voice Practice types
+
+export type VoicePracticeSessionType = 'interview' | 'mission_discussion';
+
+export interface VoicePracticeSession {
+  userId: string;
+  sessionId: string;
+  sessionType: VoicePracticeSessionType;
+  status: 'active' | 'completed' | 'failed';
+  createdAt: string;
+  completedAt?: string;
+  durationSeconds: number;
+  s3TranscriptKey: string;
+  s3AssessmentKey: string;
+  assessmentSummary: string;
+  overallScore: number;
+  turnCount: number;
+  targetRole: string;
+}
+
+export interface VoicePracticeTranscriptEntry {
+  role: 'user' | 'assistant';
+  text: string;
+  timestamp: string;
+}
+
+export interface VoicePracticeTranscript {
+  sessionId: string;
+  sessionType: VoicePracticeSessionType;
+  turns: VoicePracticeTranscriptEntry[];
+}
+
+export interface AssessmentSection {
+  title: string;
+  score: number;
+  feedback: string;
+  suggestions: string[];
+}
+
+export interface VoicePracticeAssessment {
+  overallScore: number;
+  sections: AssessmentSection[];
+  strengths: string[];
+  areasForImprovement: string[];
+  summary: string;
+}
+
+export interface VoiceSessionsResponse {
+  sessions: VoicePracticeSession[];
+}
+
+export interface VoiceSessionDetailResponse {
+  session: VoicePracticeSession;
+  transcript: VoicePracticeTranscript | null;
+  assessment: VoicePracticeAssessment | null;
+}
+

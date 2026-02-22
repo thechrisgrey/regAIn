@@ -1,0 +1,162 @@
+"""Resume Lambda handler.
+
+Thin handler that routes by event shape:
+- API Gateway GET /resume → get_resume
+- API Gateway POST /resume/generate → generate_resume
+- Async event (Lambda.invoke Event) → generate_resume
+"""
+
+import logging
+from typing import Any, Dict
+
+import yaml
+
+from backend.handlers.shared.responses import error_response, success_response
+from backend.handlers.resume.service import (
+    ResumeGenerationError,
+    ResumeResult,
+    ResumeService,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _get_user_id(event: Dict[str, Any]) -> str | None:
+    """Extract userId from Cognito authorizer claims."""
+    try:
+        return event["requestContext"]["authorizer"]["claims"]["sub"]
+    except (KeyError, TypeError):
+        return None
+
+
+def _is_api_gateway_event(event: Dict[str, Any]) -> bool:
+    """Check if the event originated from API Gateway."""
+    return "httpMethod" in event and "requestContext" in event
+
+
+def _parse_frontmatter(content: str) -> Dict[str, Any] | None:
+    """Parse YAML frontmatter from resume markdown content.
+
+    Args:
+        content: Full resume markdown with YAML frontmatter.
+
+    Returns:
+        Parsed frontmatter dict, or None if parsing fails.
+    """
+    if not content.startswith("---"):
+        return None
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return None
+    try:
+        return yaml.safe_load(parts[1].strip())
+    except yaml.YAMLError:
+        return None
+
+
+def _format_resume_response(result: ResumeResult) -> Dict[str, Any]:
+    """Format a ResumeResult into the API response shape.
+
+    Args:
+        result: The resume generation or retrieval result.
+
+    Returns:
+        Dict with content, generatedAt, version, downloadUrl,
+        and parsed frontmatter.
+    """
+    response: Dict[str, Any] = {
+        "content": result.content,
+        "generatedAt": result.generated_at,
+        "version": result.version,
+        "downloadUrl": result.presigned_url,
+    }
+    frontmatter = _parse_frontmatter(result.content)
+    if frontmatter:
+        response["frontmatter"] = frontmatter
+    return response
+
+
+def _handle_get(user_id: str, service: ResumeService) -> Dict[str, Any]:
+    """Handle GET /resume — retrieve latest resume.
+
+    Args:
+        user_id: The authenticated user's ID.
+        service: ResumeService instance.
+
+    Returns:
+        API Gateway-compatible response.
+    """
+    result = service.get_resume(user_id)
+    return success_response(_format_resume_response(result))
+
+
+def _handle_post(user_id: str, service: ResumeService) -> Dict[str, Any]:
+    """Handle POST /resume/generate — on-demand generation.
+
+    Args:
+        user_id: The authenticated user's ID.
+        service: ResumeService instance.
+
+    Returns:
+        API Gateway-compatible response.
+    """
+    result = service.generate_resume(user_id)
+    return success_response(_format_resume_response(result))
+
+
+def _handle_async(user_id: str, service: ResumeService) -> Dict[str, Any]:
+    """Handle async invocation from mission completion or phase advancement.
+
+    Args:
+        user_id: The user ID from the async event payload.
+        service: ResumeService instance.
+
+    Returns:
+        Simple dict for Lambda runtime (no API Gateway format needed).
+    """
+    service.generate_resume(user_id)
+    return {"status": "ok"}
+
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """Route to GET (fetch), POST (generate), or async (generate).
+
+    Args:
+        event: Lambda event — API Gateway or async invocation payload.
+        context: Lambda context.
+
+    Returns:
+        API Gateway-compatible response or simple dict for async.
+    """
+    service = ResumeService()
+
+    # Async event: has user_id and trigger, no httpMethod
+    if not _is_api_gateway_event(event):
+        user_id = event.get("user_id")
+        if not user_id:
+            logger.error("Async event missing user_id: %s", event)
+            return {"status": "error", "message": "Missing user_id"}
+        try:
+            return _handle_async(user_id, service)
+        except Exception:
+            logger.exception("Async resume generation failed for user %s", user_id)
+            return {"status": "error", "message": "Generation failed"}
+
+    # API Gateway event: extract user from Cognito claims
+    user_id = _get_user_id(event)
+    if not user_id:
+        return error_response("Unauthorized", 401)
+
+    http_method = event.get("httpMethod", "")
+
+    try:
+        if http_method == "GET":
+            return _handle_get(user_id, service)
+        if http_method == "POST":
+            return _handle_post(user_id, service)
+        return error_response("Method not allowed", 400)
+    except ResumeGenerationError as exc:
+        return error_response(str(exc), exc.status_code)
+    except Exception:
+        logger.exception("Resume handler failed")
+        return error_response("Internal server error", 500)

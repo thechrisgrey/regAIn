@@ -17,6 +17,7 @@ class DataStack(cdk.Stack):
         self._create_mission_history_table()
         self._create_evidence_vault_table()
         self._create_market_data_table()
+        self._create_voice_sessions_table()
 
         self._create_outputs()
 
@@ -142,6 +143,32 @@ class DataStack(cdk.Stack):
             ),
         )
         self.tables["MarketData"] = table
+
+    def _create_voice_sessions_table(self) -> None:
+        """Create VoiceSessions table (PK: userId, SK: sessionId) with type-date GSI."""
+        table = dynamodb.Table(
+            self,
+            "RegainVoiceSessions",
+            table_name="RegainVoiceSessions",
+            partition_key=dynamodb.Attribute(
+                name="userId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="sessionId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=cdk.RemovalPolicy.DESTROY,
+        )
+        table.add_global_secondary_index(
+            index_name="type-date-index",
+            partition_key=dynamodb.Attribute(
+                name="sessionType", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="createdAt", type=dynamodb.AttributeType.STRING
+            ),
+        )
+        self.tables["VoiceSessions"] = table
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs for all table names and ARNs."""

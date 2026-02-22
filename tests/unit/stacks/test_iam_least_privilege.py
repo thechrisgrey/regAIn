@@ -26,10 +26,10 @@ ALLOWED_TABLES: dict[str, set[str]] = {
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},
     "Dashboard": {"Campaigns", "MissionHistory", "EvidenceVault"},
-    "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault"},
+    "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
 }
 
-ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"}
+ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions"}
 
 
 def _synth_api_template() -> dict:

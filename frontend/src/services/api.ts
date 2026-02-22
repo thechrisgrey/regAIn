@@ -9,7 +9,10 @@ import type {
   DashboardResponse,
   CoachingRequest,
   CoachingResponse,
+  VoiceSessionsResponse,
+  VoiceSessionDetailResponse,
 } from '../types';
+import type { ResumeResponse } from '../types/resume';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL;
 
@@ -107,6 +110,34 @@ export const api = {
       apiRequest<CoachingResponse>(
         '/coaching/checkin',
         { method: 'POST', body: data },
+        token,
+      ),
+  },
+  resume: {
+    get: (token: string) =>
+      apiRequest<ResumeResponse>(
+        '/resume',
+        { method: 'GET' },
+        token,
+      ),
+    generate: (token: string) =>
+      apiRequest<ResumeResponse>(
+        '/resume/generate',
+        { method: 'POST' },
+        token,
+      ),
+  },
+  voicePractice: {
+    listSessions: (token: string) =>
+      apiRequest<VoiceSessionsResponse>(
+        '/voice-sessions',
+        { method: 'GET' },
+        token,
+      ),
+    getSession: (sessionId: string, token: string) =>
+      apiRequest<VoiceSessionDetailResponse>(
+        `/voice-sessions/${sessionId}`,
+        { method: 'GET' },
         token,
       ),
   },

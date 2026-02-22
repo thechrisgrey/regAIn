@@ -8,10 +8,14 @@ dicts — never free text.
 
 import dataclasses
 import importlib
+import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone
 from typing import Any
+
+import boto3
 
 from strands import tool
 
@@ -524,6 +528,35 @@ def log_evidence(
         return {"error": "write_failed", "message": str(exc)}
 
 
+# Phase transitions that should trigger resume regeneration.
+_RESUME_PHASE_TRIGGERS = {"expansion", "launch"}
+
+
+def _trigger_resume_generation(user_id: str, trigger: str) -> None:
+    """Fire-and-forget invocation of the Resume Lambda.
+
+    Silently returns on any failure so the calling code path is never
+    blocked by resume generation issues.
+    """
+    arn = os.environ.get("RESUME_LAMBDA_ARN")
+    if not arn:
+        return
+    try:
+        lambda_client = boto3.client("lambda")
+        lambda_client.invoke(
+            FunctionName=arn,
+            InvocationType="Event",
+            Payload=json.dumps({"user_id": user_id, "trigger": trigger}),
+        )
+    except Exception:
+        logger.warning(
+            "Async resume generation failed for user %s (trigger=%s)",
+            user_id,
+            trigger,
+            exc_info=True,
+        )
+
+
 @tool
 def complete_mission(
     user_id: str,
@@ -585,6 +618,14 @@ def complete_mission(
         completion_dict["skill_evidence_count"] = evidence_result.get(
             "skill_evidence_count", 0
         )
+
+        # --- Async resume triggers (fire-and-forget) ---
+        _trigger_resume_generation(user_id, "mission_completion")
+
+        gate = completion_dict.get("gate_result") or {}
+        if gate.get("passed") and gate.get("next_phase") in _RESUME_PHASE_TRIGGERS:
+            _trigger_resume_generation(user_id, "phase_advancement")
+
         return completion_dict
     except Exception as exc:
         logger.exception("Failed to complete mission %s for %s", mission_id, user_id)
@@ -839,3 +880,111 @@ def store_memory(user_id: str, content: str) -> dict[str, Any]:
             "status": "unavailable",
             "message": f"Memory service unavailable: {exc}",
         }
+
+
+@tool
+def generate_resume(user_id: str) -> dict[str, Any]:
+    """Generate a fresh resume for the user and return it immediately.
+
+    Invokes the Resume Generation Lambda synchronously to gather all
+    platform data (profile, campaign, missions, evidence, market
+    alignment), synthesize a professionally written markdown resume
+    with YAML frontmatter via Nova Lite, and store it in S3.
+
+    Use this tool when the user explicitly asks to create, regenerate,
+    or update their resume during a coaching session. Do NOT use this
+    for simply viewing an existing resume — use get_resume instead.
+
+    Args:
+        user_id: The authenticated user's ID.
+
+    Returns:
+        A dict with keys content (markdown string), generatedAt
+        (ISO 8601 timestamp), version (integer), and downloadUrl
+        (presigned S3 URL valid for 1 hour). Returns an error dict
+        with key "error" on failure.
+    """
+    arn = os.environ.get("RESUME_LAMBDA_ARN")
+    if not arn:
+        return {"error": "resume_unavailable", "message": "Resume service is not configured."}
+
+    try:
+        lambda_client = boto3.client("lambda")
+        response = lambda_client.invoke(
+            FunctionName=arn,
+            InvocationType="RequestResponse",
+            Payload=json.dumps({"user_id": user_id, "trigger": "on_demand"}),
+        )
+        result = json.loads(response["Payload"].read())
+        body = json.loads(result["body"])
+
+        if result.get("statusCode", 200) != 200:
+            return {
+                "error": "generation_failed",
+                "message": body.get("error", "Resume generation failed."),
+            }
+
+        return {
+            "content": body["content"],
+            "generatedAt": body["generatedAt"],
+            "version": body["version"],
+            "downloadUrl": body["downloadUrl"],
+        }
+    except Exception as exc:
+        logger.exception("generate_resume tool failed for user %s", user_id)
+        return {"error": "generation_failed", "message": str(exc)}
+
+
+@tool
+def get_resume(user_id: str) -> dict[str, Any]:
+    """Retrieve the user's latest resume without regenerating it.
+
+    Reads the resume pointer from UserProfiles, fetches the markdown
+    content from S3, and generates a fresh presigned download URL.
+    Returns the full resume content and metadata.
+
+    Use this tool when the user wants to view, review, or discuss
+    their existing resume. If no resume exists yet, returns a
+    message prompting the user to complete a mission first.
+
+    Args:
+        user_id: The authenticated user's ID.
+
+    Returns:
+        A dict with keys content (markdown string), generatedAt
+        (ISO 8601 timestamp), version (integer), and downloadUrl
+        (presigned S3 URL valid for 1 hour). Returns a message dict
+        if no resume exists, or an error dict on failure.
+    """
+    try:
+        profile = db.get_item("user_profiles", {"userId": user_id})
+        if not profile:
+            return {"error": "not_found", "message": "User profile not found."}
+
+        s3_key = profile.get("resumeS3Key")
+        if not s3_key:
+            return {
+                "message": "No resume exists yet. Complete your first mission to generate one."
+            }
+
+        bucket = os.environ.get("RESUME_BUCKET_NAME", "")
+        s3_client = boto3.client("s3")
+
+        obj = s3_client.get_object(Bucket=bucket, Key=s3_key)
+        content = obj["Body"].read().decode("utf-8")
+
+        download_url = s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": bucket, "Key": s3_key},
+            ExpiresIn=3600,
+        )
+
+        return {
+            "content": content,
+            "generatedAt": profile.get("lastResumeGeneratedAt", ""),
+            "version": profile.get("resumeVersion", 0),
+            "downloadUrl": download_url,
+        }
+    except Exception as exc:
+        logger.exception("get_resume tool failed for user %s", user_id)
+        return {"error": "retrieval_failed", "message": str(exc)}

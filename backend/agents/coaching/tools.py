@@ -31,6 +31,31 @@ logger = logging.getLogger(__name__)
 
 db = DynamoDBClient()
 
+# Lazy-load taxonomy normalization
+_taxonomy_mod = importlib.import_module("backend.handlers.market_intel.taxonomy")
+_normalize_skill = _taxonomy_mod.normalize_skill
+
+
+def get_valid_skill_tags(user_id: str) -> list[str]:
+    """Return canonical skill tags for the user's active campaign.
+
+    Reads the active campaign's ``skillsFocus`` list, which contains the
+    curated subset of skills the agent should tag evidence with.  Returns
+    an empty list when no active campaign exists or on any error.
+    """
+    try:
+        campaigns = db.query(
+            "campaigns",
+            key_condition=Key("userId").eq(user_id),
+            filter_expression=boto3_attr("status").eq("active"),
+        )
+        if campaigns:
+            return campaigns[0].get("skillsFocus", [])
+        return []
+    except Exception:
+        logger.warning("Could not load skill tags for %s", user_id)
+        return []
+
 
 @tool
 def read_user_profile(user_id: str) -> dict[str, Any]:
@@ -459,6 +484,11 @@ def log_evidence(
     except Exception as exc:
         logger.exception("Failed to check campaign status for %s", user_id)
         return {"error": "read_failed", "message": str(exc)}
+
+    # Normalize the skill tag to a canonical name when possible.
+    normalized = _normalize_skill(skill_tag)
+    if normalized:
+        skill_tag = normalized
 
     evidence_id = f"evidence-{uuid.uuid4()}"
     item: dict[str, Any] = {

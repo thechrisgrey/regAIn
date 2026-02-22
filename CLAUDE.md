@@ -33,6 +33,7 @@
 
 ### Shared Utilities
 - `utils/campaign.ts` — `phaseIndex`, `phaseLabel`, `phaseProgress`, `daysActive`, `formatDate`
+- `utils/evidence.ts` — `computeSkillStats()` (used by Evidence.tsx and Profile.tsx)
 
 ### Animation System (CSS-only, no Framer Motion)
 - `animate-fade-in` — page root transitions
@@ -48,11 +49,11 @@
 # Frontend
 cd frontend && npm run dev      # Dev server
 cd frontend && npm run build    # tsc + vite build
-cd frontend && npx vitest --run # Run tests (30 tests)
+cd frontend && npx vitest --run # Run tests (36 tests)
 cd frontend && npm run lint     # ESLint
 
 # Backend
-.venv/bin/pytest tests/ -x -q   # Run tests (~525 tests, ~3 min)
+.venv/bin/pytest tests/ -x -q   # Run tests (~551 tests, ~8 min)
 
 # Build Strands Lambda Layer (requires Docker)
 bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
@@ -85,6 +86,8 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Coaching chat streaming**: `useStreamingCoaching` hook connects via WebSocket (`VITE_CHAT_WS_URL`) for progressive text responses. `MarkdownMessage` component renders assistant markdown via `react-markdown` + `remark-gfm`
 - **Voice onboarding**: `useVoiceOnboarding` hook handles Nova Sonic bidirectional audio via WebSocket (`VITE_VOICE_WS_URL`). Uses ScriptProcessorNode for capture (intentional — better browser support than AudioWorklet), continuous-buffer ScriptProcessorNode for playback, auto-mutes mic during AI speaking to prevent feedback loop
 - **Voice audio protocol**: Backend expects raw base64-encoded PCM 16-bit mono 16kHz in `event.body` (NOT JSON-wrapped). Backend sends JSON: `{"type": "audio", "data": "<base64>"}`, `{"type": "fallback", ...}`, `{"type": "clear_audio", ...}`
+- **Skill tag normalization**: `log_evidence` in `tools.py` normalizes skill tags via `taxonomy.normalize_skill()` before storage (e.g. "python" -> "Python Programming"). Unknown tags pass through as-is. `complete_mission` inherits this via its internal `log_evidence` call
+- **Prescribed skill tags**: `get_system_prompt()` in `prompts.py` accepts `valid_skill_tags` from the user's campaign `skillsFocus`. When present, the agent is instructed to use only those tags. `get_valid_skill_tags()` in `tools.py` queries the active campaign
 
 ## DynamoDB Table Keys
 
@@ -116,3 +119,5 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Voice playback: continuous buffer, not scheduled AudioBufferSource** — Scheduling individual `AudioBufferSourceNode.start(time)` causes audible gaps between chunks. Use a single ScriptProcessorNode with a growing Float32Array buffer (read/write indices) for gapless playback. Reference: `~/Desktop/altivum/elo/src/hooks/useAudioPlayback.ts`
 - **Voice feedback prevention**: Auto-mute the mic track when AI is speaking (set `track.enabled = false`). Send silence frames instead of nothing to keep the Nova Sonic stream alive. Unmute when `isAgentSpeaking` goes false
 - **Amplify env var timing**: Env vars are resolved at build **start** time. If you update env vars after a build triggers, the current build won't have them — trigger a fresh rebuild with `aws amplify start-job --job-type RETRY --job-id <latest>`
+- **Coaching tools test import order**: When mocking `backend.engine.generator.complete_mission` in tests, the `patch()` must be active **before** `_load_tools()` re-imports the tools module, because `from ... import ... as engine_complete_mission` captures a binding at import time. Use `with patch(...): tools = _load_tools(...)` not `tools = _load_tools(...); with patch(...):`
+- **Mission lifecycle transitions**: Missions must follow `pending -> in_progress -> completed`. Tests for `complete_mission` must seed missions with `status: "in_progress"`, not `"pending"`, or the engine rejects the transition

@@ -104,6 +104,13 @@ def create_coaching_agent(
         logger.info("Gateway not provisioned, using direct tool invocation")
         tools = _get_direct_tools()
 
+    # Inject the user's campaign skill tags into the system prompt so
+    # the agent uses prescribed tags when logging evidence.
+    from backend.agents.coaching.tools import get_valid_skill_tags
+
+    valid_tags = get_valid_skill_tags(user_id)
+    system_prompt = get_system_prompt(valid_skill_tags=valid_tags)
+
     model = BedrockModel(
         model_id=os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"),
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
@@ -111,7 +118,7 @@ def create_coaching_agent(
 
     kwargs = {
         "model": model,
-        "system_prompt": get_system_prompt(),
+        "system_prompt": system_prompt,
         "tools": tools,
     }
     if callback_handler is not None:

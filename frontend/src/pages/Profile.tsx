@@ -1,10 +1,12 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboard } from '../hooks/useDashboard';
+import { useEvidence } from '../hooks/useEvidence';
 import { api } from '../services/api';
 import type { Campaign } from '../types';
 import { DISPLAY_PHASES, phaseIndex, phaseProgress, daysActive, formatDate } from '../utils/campaign';
+import { computeSkillStats } from '../utils/evidence';
 import { Card, SectionLabel, Badge, ProgressBar, Button, Input, SkeletonBlock } from '../components/ui';
 
 // ---------------------------------------------------------------------------
@@ -264,6 +266,110 @@ function CampaignJourney({ campaign }: { campaign: Campaign }) {
 }
 
 // ---------------------------------------------------------------------------
+// Section 3.5: Skill Development Chart
+// ---------------------------------------------------------------------------
+
+function SkillDevelopmentChart() {
+  const { evidence, loading, fetchEvidence } = useEvidence();
+
+  useEffect(() => {
+    void fetchEvidence();
+  }, [fetchEvidence]);
+
+  const skillStats = useMemo(() => computeSkillStats(evidence), [evidence]);
+  const topSkills = skillStats.slice(0, 8);
+
+  if (loading && evidence.length === 0) {
+    return (
+      <Card className="p-6">
+        <SectionLabel>Skill Development</SectionLabel>
+        <div className="mt-5 space-y-4">
+          {[1, 2, 3].map(i => (
+            <div key={i} className="flex items-center gap-4">
+              <SkeletonBlock className="h-3 w-24" />
+              <SkeletonBlock className="h-1.5 flex-1" />
+              <SkeletonBlock className="h-3 w-6" />
+            </div>
+          ))}
+        </div>
+      </Card>
+    );
+  }
+
+  if (evidence.length === 0) {
+    return (
+      <Card className="p-6">
+        <SectionLabel>Skill Development</SectionLabel>
+        <div className="mt-5">
+          <p className="text-sm leading-relaxed text-neutral-500">
+            Complete missions to start tracking skill development. Each piece
+            of evidence strengthens your demonstrated capabilities.
+          </p>
+          <div className="mt-4">
+            <Link
+              to="/missions"
+              className="text-sm font-medium text-neutral-600 hover:text-neutral-900 transition-colors"
+            >
+              Go to missions
+              <span className="ml-1">&rarr;</span>
+            </Link>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="p-6">
+      <SectionLabel>Skill Development</SectionLabel>
+
+      <div className="mt-5 space-y-3">
+        {topSkills.map((stat, i) => {
+          let barClass = 'bg-primary-500/20';
+          if (stat.count >= 5) barClass = 'bg-primary-500';
+          else if (stat.count >= 3) barClass = 'bg-primary-500/50';
+
+          return (
+            <div
+              key={stat.skill}
+              className="flex items-center gap-4 animate-fade-in-up"
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <span className="w-32 shrink-0 truncate text-sm text-neutral-600">
+                {stat.skill}
+              </span>
+              <ProgressBar
+                value={Math.max(stat.ratio * 100, 4)}
+                className="flex-1"
+                barClassName={barClass}
+              />
+              <span className="w-6 text-right text-xs font-mono tabular-nums text-neutral-400">
+                {stat.count}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="mt-6 flex gap-12">
+        <div>
+          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+            {evidence.length}
+          </p>
+          <p className="mt-0.5 text-xs text-neutral-400">total evidence</p>
+        </div>
+        <div>
+          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+            {skillStats.length}
+          </p>
+          <p className="mt-0.5 text-xs text-neutral-400">skills covered</p>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Section 4: Delete Account
 // ---------------------------------------------------------------------------
 
@@ -405,6 +511,8 @@ export default function Profile() {
       />
 
       <SkillsInventory skills={campaign.skillsFocus} />
+
+      <SkillDevelopmentChart />
 
       <CampaignJourney campaign={campaign} />
 

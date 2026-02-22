@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useEvidence } from '../hooks/useEvidence';
 import type { Evidence as EvidenceType } from '../types';
 import { Card, SectionLabel, Button, Badge, ProgressBar, SkeletonBlock } from '../components/ui';
+import { computeSkillStats, type SkillStat } from '../utils/evidence';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -35,16 +36,6 @@ function relativeTime(dateStr: string): string {
     day: 'numeric',
     year: 'numeric',
   });
-}
-
-// ---------------------------------------------------------------------------
-// Types
-// ---------------------------------------------------------------------------
-
-interface SkillStat {
-  skill: string;
-  count: number;
-  ratio: number;
 }
 
 // ---------------------------------------------------------------------------
@@ -325,21 +316,10 @@ export default function Evidence() {
   }, [fetchEvidence]);
 
   // Compute skill stats from evidence
-  const skillStats = useMemo<SkillStat[]>(() => {
-    const counts = new Map<string, number>();
-    for (const e of evidence) {
-      counts.set(e.skillTag, (counts.get(e.skillTag) ?? 0) + 1);
-    }
-    const sorted = [...counts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .map(([skill, count]) => ({ skill, count, ratio: 0 }));
-
-    const max = sorted.length > 0 ? sorted[0].count : 1;
-    for (const stat of sorted) {
-      stat.ratio = stat.count / max;
-    }
-    return sorted;
-  }, [evidence]);
+  const skillStats = useMemo<SkillStat[]>(
+    () => computeSkillStats(evidence),
+    [evidence],
+  );
 
   // Map skill -> intensity for card tag styling
   const skillIntensityMap = useMemo(() => {

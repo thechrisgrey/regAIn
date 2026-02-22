@@ -588,11 +588,12 @@ def _build_substitutions(
         else (profile.get("skills", ["general"])[0] if profile.get("skills") else "general")
     )
 
-    # Pick a representative skill from the user's existing skills
+    # Pick a representative skill from the user's existing skills,
+    # falling back to the first priority skill before using "general".
     skill = (
-        profile.get("skills", ["general"])[0]
+        profile.get("skills", [])[0]
         if profile.get("skills")
-        else "general"
+        else (skill_gaps.priority_skills[0] if skill_gaps.priority_skills else "general")
     )
 
     # Pick the most recent company from experience

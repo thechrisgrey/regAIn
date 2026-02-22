@@ -2,8 +2,11 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from './useAuth';
 
 const VOICE_WS_URL = import.meta.env.VITE_VOICE_WS_URL as string | undefined;
-const SAMPLE_RATE = 16000;
-const BUFFER_SIZE = 4096;
+const INPUT_SAMPLE_RATE = 16000;
+const OUTPUT_SAMPLE_RATE = 16000; // Regain backend requests 16kHz output from Nova Sonic
+const CAPTURE_BUFFER_SIZE = 4096;
+const PLAYBACK_BUFFER_SIZE = 4096;
+const CHUNK_INTERVAL_MS = 100;
 
 export type VoiceStatus = 'idle' | 'connecting' | 'active' | 'ending' | 'error';
 
@@ -24,34 +27,44 @@ interface VoiceState {
 // Audio helpers
 // ---------------------------------------------------------------------------
 
-function float32ToInt16(float32: Float32Array): Int16Array {
-  const int16 = new Int16Array(float32.length);
-  for (let i = 0; i < float32.length; i++) {
-    const clamped = Math.max(-1, Math.min(1, float32[i]));
-    int16[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7fff;
-  }
-  return int16;
-}
-
-function downsample(
-  buffer: Float32Array,
-  sourceSampleRate: number,
-  targetSampleRate: number,
+/** Resample using linear interpolation (higher quality than nearest-neighbor). */
+function resampleAudio(
+  input: Float32Array,
+  inputRate: number,
+  outputRate: number,
 ): Float32Array {
-  if (sourceSampleRate === targetSampleRate) return buffer;
-  const ratio = sourceSampleRate / targetSampleRate;
-  const newLength = Math.round(buffer.length / ratio);
-  const result = new Float32Array(newLength);
-  for (let i = 0; i < newLength; i++) {
-    result[i] = buffer[Math.round(i * ratio)];
+  if (inputRate === outputRate) return input;
+  const ratio = inputRate / outputRate;
+  const outputLength = Math.floor(input.length / ratio);
+  const output = new Float32Array(outputLength);
+  for (let i = 0; i < outputLength; i++) {
+    const srcIndex = i * ratio;
+    const index = Math.floor(srcIndex);
+    const fraction = srcIndex - index;
+    if (index + 1 < input.length) {
+      output[i] = input[index] * (1 - fraction) + input[index + 1] * fraction;
+    } else {
+      output[i] = input[index];
+    }
   }
-  return result;
+  return output;
 }
 
-function int16ToBase64(int16: Int16Array): string {
-  const bytes = new Uint8Array(int16.buffer);
+/** Convert float samples [-1,1] to PCM 16-bit. */
+function floatTo16BitPCM(input: Float32Array): Int16Array {
+  const output = new Int16Array(input.length);
+  for (let i = 0; i < input.length; i++) {
+    const s = Math.max(-1, Math.min(1, input[i]));
+    output[i] = s < 0 ? s * 0x8000 : s * 0x7fff;
+  }
+  return output;
+}
+
+/** Convert an ArrayBuffer of PCM bytes to a base64 string. */
+function arrayBufferToBase64(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
   let binary = '';
-  for (let i = 0; i < bytes.length; i++) {
+  for (let i = 0; i < bytes.byteLength; i++) {
     binary += String.fromCharCode(bytes[i]);
   }
   return btoa(binary);
@@ -71,32 +84,163 @@ export function useVoiceOnboarding() {
     transcript: [],
   });
 
+  // Refs — WebSocket & lifecycle
   const wsRef = useRef<WebSocket | null>(null);
+  const intentionalCloseRef = useRef(false);
+  const stateRef = useRef<VoiceStatus>('idle');
+
+  // Refs — Capture
   const captureCtxRef = useRef<AudioContext | null>(null);
-  const playbackCtxRef = useRef<AudioContext | null>(null);
+  const captureProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
-  const workletNodeRef = useRef<AudioWorkletNode | null>(null);
-  const processorRef = useRef<ScriptProcessorNode | null>(null);
   const mutedRef = useRef(false);
-  const nextPlayTimeRef = useRef(0);
-  const agentSpeakingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
-    undefined,
+
+  // Refs — Playback (continuous buffer approach from elo)
+  const playbackCtxRef = useRef<AudioContext | null>(null);
+  const playbackProcessorRef = useRef<ScriptProcessorNode | null>(null);
+  const playbackBufferRef = useRef<Float32Array>(new Float32Array(0));
+  const readIndexRef = useRef(0);
+  const writeIndexRef = useRef(0);
+
+  // Keep stateRef in sync for use inside audio callbacks.
+  useEffect(() => {
+    stateRef.current = state.status;
+  }, [state.status]);
+
+  // -----------------------------------------------------------------------
+  // State updater
+  // -----------------------------------------------------------------------
+
+  const updateState = useCallback(
+    (patch: Partial<VoiceState>) => {
+      setState((prev) => ({ ...prev, ...patch }));
+    },
+    [],
   );
 
   // -----------------------------------------------------------------------
-  // Cleanup
+  // Playback — continuous buffer with ScriptProcessorNode
   // -----------------------------------------------------------------------
 
-  const cleanup = useCallback(() => {
-    clearTimeout(agentSpeakingTimerRef.current);
-
-    if (workletNodeRef.current) {
-      workletNodeRef.current.disconnect();
-      workletNodeRef.current = null;
+  const ensurePlaybackCapacity = useCallback((additional: number) => {
+    const buf = playbackBufferRef.current;
+    const needed = writeIndexRef.current + additional;
+    if (needed > buf.length) {
+      const newSize = Math.max(buf.length * 2, needed + OUTPUT_SAMPLE_RATE);
+      const newBuf = new Float32Array(newSize);
+      newBuf.set(buf);
+      playbackBufferRef.current = newBuf;
     }
-    if (processorRef.current) {
-      processorRef.current.disconnect();
-      processorRef.current = null;
+  }, []);
+
+  const compactPlaybackBuffer = useCallback(() => {
+    const buf = playbackBufferRef.current;
+    const ri = readIndexRef.current;
+    const wi = writeIndexRef.current;
+    const unread = wi - ri;
+    if (ri > 0 && unread > 0) {
+      buf.copyWithin(0, ri, wi);
+      readIndexRef.current = 0;
+      writeIndexRef.current = unread;
+    } else if (unread <= 0) {
+      readIndexRef.current = 0;
+      writeIndexRef.current = 0;
+    }
+  }, []);
+
+  const initPlayback = useCallback(() => {
+    if (playbackCtxRef.current) return;
+
+    const ctx = new AudioContext({ sampleRate: OUTPUT_SAMPLE_RATE });
+    playbackCtxRef.current = ctx;
+
+    const processor = ctx.createScriptProcessor(PLAYBACK_BUFFER_SIZE, 1, 1);
+    playbackProcessorRef.current = processor;
+
+    processor.onaudioprocess = (event: AudioProcessingEvent) => {
+      const output = event.outputBuffer.getChannelData(0);
+      const buf = playbackBufferRef.current;
+      const ri = readIndexRef.current;
+      const wi = writeIndexRef.current;
+      const available = wi - ri;
+
+      if (available >= output.length) {
+        output.set(buf.subarray(ri, ri + output.length));
+        readIndexRef.current = ri + output.length;
+        // Compact periodically to prevent unbounded growth.
+        if (readIndexRef.current > OUTPUT_SAMPLE_RATE * 2) {
+          compactPlaybackBuffer();
+        }
+      } else if (available > 0) {
+        output.set(buf.subarray(ri, wi));
+        output.fill(0, available);
+        readIndexRef.current = wi;
+      } else {
+        output.fill(0);
+      }
+    };
+
+    processor.connect(ctx.destination);
+  }, [compactPlaybackBuffer]);
+
+  /** Queue decoded audio into the playback buffer. */
+  const queueAudio = useCallback(
+    (base64Audio: string) => {
+      initPlayback();
+      try {
+        const binaryStr = atob(base64Audio);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        const pcm = new Int16Array(bytes.buffer);
+        const floats = new Float32Array(pcm.length);
+        for (let i = 0; i < pcm.length; i++) {
+          floats[i] = pcm[i] / 32768.0;
+        }
+
+        ensurePlaybackCapacity(floats.length);
+        playbackBufferRef.current.set(floats, writeIndexRef.current);
+        writeIndexRef.current += floats.length;
+
+        // Mark agent as speaking.
+        updateState({ isAgentSpeaking: true });
+      } catch {
+        // Invalid base64 — ignore silently.
+      }
+    },
+    [initPlayback, ensurePlaybackCapacity, updateState],
+  );
+
+  /** Immediately clear pending playback audio (barge-in). */
+  const clearPlaybackQueue = useCallback(() => {
+    readIndexRef.current = 0;
+    writeIndexRef.current = 0;
+    playbackBufferRef.current = new Float32Array(OUTPUT_SAMPLE_RATE * 2);
+  }, []);
+
+  const stopPlayback = useCallback(() => {
+    readIndexRef.current = 0;
+    writeIndexRef.current = 0;
+    playbackBufferRef.current = new Float32Array(0);
+    if (playbackProcessorRef.current) {
+      playbackProcessorRef.current.disconnect();
+      playbackProcessorRef.current = null;
+    }
+    if (playbackCtxRef.current) {
+      playbackCtxRef.current.close().catch(() => {});
+      playbackCtxRef.current = null;
+    }
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Capture — ScriptProcessorNode (intentional; best browser support)
+  // -----------------------------------------------------------------------
+
+  const stopCapture = useCallback(() => {
+    if (captureProcessorRef.current) {
+      captureProcessorRef.current.disconnect();
+      captureProcessorRef.current = null;
     }
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach((t) => t.stop());
@@ -106,125 +250,121 @@ export function useVoiceOnboarding() {
       captureCtxRef.current.close().catch(() => {});
       captureCtxRef.current = null;
     }
-    if (playbackCtxRef.current) {
-      playbackCtxRef.current.close().catch(() => {});
-      playbackCtxRef.current = null;
-    }
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
   }, []);
 
-  // -----------------------------------------------------------------------
-  // Send audio to backend (raw base64 PCM — matches backend protocol)
-  // -----------------------------------------------------------------------
+  const startCapture = useCallback(async () => {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        sampleRate: { ideal: INPUT_SAMPLE_RATE },
+        channelCount: 1,
+        echoCancellation: true,
+        noiseSuppression: true,
+        autoGainControl: true,
+      },
+    });
+    mediaStreamRef.current = stream;
 
-  const sendAudio = useCallback(
-    (float32Data: Float32Array, sourceSampleRate: number) => {
-      if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-      if (mutedRef.current) return;
+    const ctx = new AudioContext({ sampleRate: INPUT_SAMPLE_RATE });
+    captureCtxRef.current = ctx;
+    const nativeRate = ctx.sampleRate;
 
-      const downsampled = downsample(float32Data, sourceSampleRate, SAMPLE_RATE);
-      const pcm = float32ToInt16(downsampled);
-      const encoded = int16ToBase64(pcm);
-      wsRef.current.send(encoded);
-    },
-    [],
-  );
+    const source = ctx.createMediaStreamSource(stream);
+    const processor = ctx.createScriptProcessor(CAPTURE_BUFFER_SIZE, 1, 1);
+    captureProcessorRef.current = processor;
 
-  // -----------------------------------------------------------------------
-  // Playback — queued for gapless audio
-  // -----------------------------------------------------------------------
+    let audioBuffer: Float32Array[] = [];
+    let lastSendTime = Date.now();
 
-  const playAudio = useCallback((base64Audio: string) => {
-    const ctx = playbackCtxRef.current;
-    if (!ctx) return;
+    processor.onaudioprocess = (event: AudioProcessingEvent) => {
+      const inputData = event.inputBuffer.getChannelData(0);
 
-    const binary = atob(base64Audio);
-    const bytes = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      bytes[i] = binary.charCodeAt(i);
-    }
-    const int16 = new Int16Array(bytes.buffer);
-    const float32 = new Float32Array(int16.length);
-    for (let i = 0; i < int16.length; i++) {
-      float32[i] = int16[i] / 0x8000;
-    }
-
-    const audioBuffer = ctx.createBuffer(1, float32.length, SAMPLE_RATE);
-    audioBuffer.getChannelData(0).set(float32);
-
-    const source = ctx.createBufferSource();
-    source.buffer = audioBuffer;
-    source.connect(ctx.destination);
-
-    const startTime = Math.max(ctx.currentTime, nextPlayTimeRef.current);
-    source.start(startTime);
-    nextPlayTimeRef.current = startTime + audioBuffer.duration;
-
-    // Mark agent as speaking while audio is playing.
-    setState((prev) => ({ ...prev, isAgentSpeaking: true }));
-    clearTimeout(agentSpeakingTimerRef.current);
-    agentSpeakingTimerRef.current = setTimeout(() => {
-      setState((prev) => ({ ...prev, isAgentSpeaking: false }));
-    }, 1500);
-  }, []);
-
-  // -----------------------------------------------------------------------
-  // Audio capture setup (AudioWorklet → ScriptProcessorNode fallback)
-  // -----------------------------------------------------------------------
-
-  const setupAudioCapture = useCallback(
-    async (ws: WebSocket) => {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaStreamRef.current = stream;
-
-      const audioCtx = new AudioContext();
-      captureCtxRef.current = audioCtx;
-
-      const sourceNode = audioCtx.createMediaStreamSource(stream);
-      const nativeSampleRate = audioCtx.sampleRate;
-
-      try {
-        await audioCtx.audioWorklet.addModule('/audio-capture-processor.js');
-        const workletNode = new AudioWorkletNode(audioCtx, 'audio-capture-processor');
-        workletNodeRef.current = workletNode;
-
-        workletNode.port.onmessage = (event: MessageEvent) => {
-          sendAudio(event.data as Float32Array, nativeSampleRate);
-        };
-
-        sourceNode.connect(workletNode);
-
-        // Keep the worklet in the active audio graph without audible output.
-        const silentGain = audioCtx.createGain();
-        silentGain.gain.value = 0;
-        workletNode.connect(silentGain);
-        silentGain.connect(audioCtx.destination);
-      } catch {
-        // AudioWorklet unavailable — fall back to ScriptProcessorNode.
-        console.warn(
-          'AudioWorklet not supported, falling back to ScriptProcessorNode',
-        );
-        const processor = audioCtx.createScriptProcessor(BUFFER_SIZE, 1, 1);
-        processorRef.current = processor;
-
-        processor.onaudioprocess = (e: AudioProcessingEvent) => {
-          if (ws.readyState !== WebSocket.OPEN) return;
-          sendAudio(new Float32Array(e.inputBuffer.getChannelData(0)), nativeSampleRate);
-        };
-
-        sourceNode.connect(processor);
-        processor.connect(audioCtx.destination);
+      // Don't send audio while the agent is speaking (prevents feedback loop).
+      // When muted, send silence to keep the Nova Sonic stream alive.
+      if (stateRef.current === 'active' && mutedRef.current) {
+        audioBuffer.push(new Float32Array(inputData.length)); // silence
+      } else if (stateRef.current === 'active') {
+        audioBuffer.push(new Float32Array(inputData));
+      } else {
+        return;
       }
 
-      // Separate playback context at the target sample rate.
-      playbackCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
-      nextPlayTimeRef.current = 0;
-    },
-    [sendAudio],
+      // Batch into ~100ms chunks for network efficiency.
+      const now = Date.now();
+      if (
+        now - lastSendTime >= CHUNK_INTERVAL_MS &&
+        wsRef.current?.readyState === WebSocket.OPEN
+      ) {
+        const totalLen = audioBuffer.reduce((s, a) => s + a.length, 0);
+        const combined = new Float32Array(totalLen);
+        let offset = 0;
+        for (const arr of audioBuffer) {
+          combined.set(arr, offset);
+          offset += arr.length;
+        }
+
+        const resampled = resampleAudio(combined, nativeRate, INPUT_SAMPLE_RATE);
+        const pcm = floatTo16BitPCM(resampled);
+        const encoded = arrayBufferToBase64(pcm.buffer as ArrayBuffer);
+        // Backend expects raw base64 PCM in event.body (not JSON-wrapped).
+        wsRef.current.send(encoded);
+
+        audioBuffer = [];
+        lastSendTime = now;
+      }
+    };
+
+    source.connect(processor);
+    processor.connect(ctx.destination);
+  }, []);
+
+  // -----------------------------------------------------------------------
+  // Auto-mute microphone while agent is speaking (prevents feedback loop)
+  // -----------------------------------------------------------------------
+
+  useEffect(() => {
+    if (state.isAgentSpeaking) {
+      mutedRef.current = true;
+      setState((prev) => (prev.isMuted ? prev : { ...prev, isMuted: true }));
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = false;
+        });
+      }
+    } else if (state.status === 'active') {
+      mutedRef.current = false;
+      setState((prev) => (!prev.isMuted ? prev : { ...prev, isMuted: false }));
+      if (mediaStreamRef.current) {
+        mediaStreamRef.current.getAudioTracks().forEach((t) => {
+          t.enabled = true;
+        });
+      }
+    }
+  }, [state.isAgentSpeaking, state.status]);
+
+  // Detect when agent stops speaking (no audio queued for 1.5s).
+  const speakingTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(
+    undefined,
   );
+  const resetSpeakingTimer = useCallback(() => {
+    clearTimeout(speakingTimerRef.current);
+    speakingTimerRef.current = setTimeout(() => {
+      updateState({ isAgentSpeaking: false });
+    }, 1500);
+  }, [updateState]);
+
+  // -----------------------------------------------------------------------
+  // Cleanup
+  // -----------------------------------------------------------------------
+
+  const cleanup = useCallback(() => {
+    clearTimeout(speakingTimerRef.current);
+    stopCapture();
+    stopPlayback();
+    if (wsRef.current) {
+      wsRef.current.close(1000, 'cleanup');
+      wsRef.current = null;
+    }
+  }, [stopCapture, stopPlayback]);
 
   // -----------------------------------------------------------------------
   // Session lifecycle
@@ -243,6 +383,7 @@ export function useVoiceOnboarding() {
     }
 
     setState((prev) => ({ ...prev, status: 'connecting', error: null }));
+    intentionalCloseRef.current = false;
 
     try {
       const token = await getToken();
@@ -253,16 +394,14 @@ export function useVoiceOnboarding() {
 
       ws.onopen = async () => {
         try {
-          await setupAudioCapture(ws);
+          await startCapture();
           setState((prev) => ({ ...prev, status: 'active' }));
         } catch (err) {
           cleanup();
           setState({
             status: 'error',
             error:
-              err instanceof Error
-                ? err.message
-                : 'Microphone access denied',
+              err instanceof Error ? err.message : 'Microphone access denied',
             isMuted: false,
             isAgentSpeaking: false,
             transcript: [],
@@ -272,32 +411,111 @@ export function useVoiceOnboarding() {
 
       ws.onmessage = (event: MessageEvent) => {
         try {
-          const msg = JSON.parse(event.data as string) as Record<string, unknown>;
+          const msg = JSON.parse(event.data as string) as Record<
+            string,
+            unknown
+          >;
 
-          if (msg.type === 'audio' && typeof msg.data === 'string') {
-            playAudio(msg.data);
-          } else if (msg.type === 'fallback') {
-            cleanup();
-            setState({
-              status: 'error',
-              error:
-                typeof msg.message === 'string'
-                  ? msg.message
-                  : 'Voice session could not be established.',
-              isMuted: false,
-              isAgentSpeaking: false,
-              transcript: [],
-            });
-          } else if (msg.type === 'transcript' && typeof msg.text === 'string') {
-            const role =
-              msg.role === 'user' ? ('user' as const) : ('assistant' as const);
-            setState((prev) => ({
-              ...prev,
-              transcript: [
-                ...prev.transcript,
-                { role, text: msg.text as string },
-              ],
-            }));
+          switch (msg.type) {
+            case 'audio': {
+              // Backend sends: {"type": "audio", "data": "<base64>"}
+              const audioData =
+                typeof msg.data === 'string'
+                  ? msg.data
+                  : typeof (msg.data as Record<string, unknown>)?.content ===
+                      'string'
+                    ? ((msg.data as Record<string, unknown>).content as string)
+                    : null;
+              if (audioData) {
+                queueAudio(audioData);
+                resetSpeakingTimer();
+              }
+              break;
+            }
+
+            case 'clear_audio':
+              // Barge-in: immediately stop pending playback.
+              clearPlaybackQueue();
+              updateState({ isAgentSpeaking: false });
+              break;
+
+            case 'state': {
+              // State updates from backend (listening, thinking, speaking).
+              const serverState = (msg.data as Record<string, unknown>)
+                ?.state as string | undefined;
+              if (serverState === 'speaking') {
+                updateState({ isAgentSpeaking: true });
+              } else if (
+                serverState === 'listening' ||
+                serverState === 'thinking'
+              ) {
+                updateState({ isAgentSpeaking: false });
+              }
+              break;
+            }
+
+            case 'transcript': {
+              const data = msg.data as Record<string, unknown> | undefined;
+              const text =
+                typeof msg.text === 'string'
+                  ? msg.text
+                  : typeof data?.content === 'string'
+                    ? (data.content as string)
+                    : null;
+              if (text) {
+                const role =
+                  (msg.role ?? data?.role) === 'user'
+                    ? ('user' as const)
+                    : ('assistant' as const);
+                setState((prev) => ({
+                  ...prev,
+                  transcript: [...prev.transcript, { role, text }],
+                }));
+              }
+              break;
+            }
+
+            case 'fallback':
+              cleanup();
+              setState({
+                status: 'error',
+                error:
+                  typeof msg.message === 'string'
+                    ? msg.message
+                    : 'Voice session could not be established.',
+                isMuted: false,
+                isAgentSpeaking: false,
+                transcript: [],
+              });
+              break;
+
+            case 'session_ended':
+              intentionalCloseRef.current = true;
+              cleanup();
+              setState((prev) => ({
+                ...prev,
+                status: 'ending',
+                isAgentSpeaking: false,
+              }));
+              break;
+
+            case 'error':
+              cleanup();
+              setState({
+                status: 'error',
+                error:
+                  typeof (msg.data as Record<string, unknown>)?.message ===
+                  'string'
+                    ? ((msg.data as Record<string, unknown>).message as string)
+                    : 'Voice session error.',
+                isMuted: false,
+                isAgentSpeaking: false,
+                transcript: [],
+              });
+              break;
+
+            default:
+              break;
           }
         } catch {
           // Non-JSON or malformed — ignore.
@@ -316,9 +534,8 @@ export function useVoiceOnboarding() {
       };
 
       ws.onclose = (event: CloseEvent) => {
-        const wasConnected = wsRef.current !== null;
         wsRef.current = null;
-        if (wasConnected) {
+        if (!intentionalCloseRef.current) {
           cleanup();
           setState((prev) => {
             if (prev.status === 'ending') return prev;
@@ -330,7 +547,11 @@ export function useVoiceOnboarding() {
                 isAgentSpeaking: false,
               };
             }
-            return { ...prev, status: 'ending' as const, isAgentSpeaking: false };
+            return {
+              ...prev,
+              status: 'ending' as const,
+              isAgentSpeaking: false,
+            };
           });
         }
       };
@@ -339,17 +560,24 @@ export function useVoiceOnboarding() {
       setState({
         status: 'error',
         error:
-          err instanceof Error
-            ? err.message
-            : 'Failed to start voice session',
+          err instanceof Error ? err.message : 'Failed to start voice session',
         isMuted: false,
         isAgentSpeaking: false,
         transcript: [],
       });
     }
-  }, [getToken, setupAudioCapture, playAudio, cleanup]);
+  }, [
+    getToken,
+    startCapture,
+    cleanup,
+    queueAudio,
+    clearPlaybackQueue,
+    resetSpeakingTimer,
+    updateState,
+  ]);
 
   const stopSession = useCallback(() => {
+    intentionalCloseRef.current = true;
     setState((prev) => ({
       ...prev,
       status: 'ending',
@@ -359,12 +587,12 @@ export function useVoiceOnboarding() {
   }, [cleanup]);
 
   const toggleMute = useCallback(() => {
-    mutedRef.current = !mutedRef.current;
-    setState((prev) => ({ ...prev, isMuted: !prev.isMuted }));
-
+    const newMuted = !mutedRef.current;
+    mutedRef.current = newMuted;
+    setState((prev) => ({ ...prev, isMuted: newMuted }));
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getAudioTracks().forEach((track) => {
-        track.enabled = !mutedRef.current;
+        track.enabled = !newMuted;
       });
     }
   }, []);
@@ -372,9 +600,17 @@ export function useVoiceOnboarding() {
   // Cleanup on unmount.
   useEffect(() => {
     return () => {
-      cleanup();
+      intentionalCloseRef.current = true;
+      clearTimeout(speakingTimerRef.current);
+      stopCapture();
+      stopPlayback();
+      if (wsRef.current) {
+        wsRef.current.close(1000, 'Unmount cleanup');
+        wsRef.current = null;
+      }
     };
-  }, [cleanup]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return {
     status: state.status,

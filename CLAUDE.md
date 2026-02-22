@@ -39,6 +39,7 @@
 - `animate-fade-in-up` — staggered card/list items (use `style={{ animationDelay }}`)
 - `animate-scale-in` — chat messages, modals
 - `animate-shimmer` — skeleton loading states
+- `animate-voice-pulse`, `animate-voice-breathe`, `animate-voice-ripple` — voice session visual indicators
 - All keyframes defined in `index.css`; animations use `backwards` fill mode
 
 ## Commands
@@ -81,6 +82,9 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Cascade deletion**: Uses `delete_all_by_partition_key()` with `batch_writer()` (25-item batches) for tables with composite keys (Campaigns, MissionHistory, EvidenceVault)
 - **Strands Lambda Layer**: Each stack that needs it (ApiStack, AgentStack) creates its own inline `LayerVersion` from `infra/layer_build/`. No cross-stack layer reference — avoids CloudFormation export update failures when layer code changes
 - **Agent Gateway fallback**: `backend/agents/coaching/agent.py` checks `AGENTCORE_GATEWAY_ENDPOINT` — if `"pending-agentcore-deploy"` or empty, uses direct `@tool` functions from `tools.py` instead of `GatewayToolClient`. All imports are lazy to avoid circular dependencies
+- **Coaching chat streaming**: `useStreamingCoaching` hook connects via WebSocket (`VITE_CHAT_WS_URL`) for progressive text responses. `MarkdownMessage` component renders assistant markdown via `react-markdown` + `remark-gfm`
+- **Voice onboarding**: `useVoiceOnboarding` hook handles Nova Sonic bidirectional audio via WebSocket (`VITE_VOICE_WS_URL`). Uses ScriptProcessorNode for capture (intentional — better browser support than AudioWorklet), continuous-buffer ScriptProcessorNode for playback, auto-mutes mic during AI speaking to prevent feedback loop
+- **Voice audio protocol**: Backend expects raw base64-encoded PCM 16-bit mono 16kHz in `event.body` (NOT JSON-wrapped). Backend sends JSON: `{"type": "audio", "data": "<base64>"}`, `{"type": "fallback", ...}`, `{"type": "clear_audio", ...}`
 
 ## DynamoDB Table Keys
 
@@ -108,3 +112,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **`infra/layer_build/`** is gitignored — must be rebuilt locally via `bash infra/build_layer.sh` before `cdk deploy`
 - **Lambda Layer build must preserve `.dist-info`**: OpenTelemetry uses `importlib.metadata.entry_points()` which requires `.dist-info` directories. Only remove `__pycache__` in the build script, never `*.dist-info`
 - **Cross-stack Lambda Layer references break on update**: CloudFormation can't update an export when other stacks import it, and LayerVersion always creates a new physical resource. Solution: create the layer inline in each stack that needs it
+- **Voice audio: use ScriptProcessorNode, not AudioWorklet** — AudioWorklet fails silently in production (module loading issues) and falls back to ScriptProcessor anyway. Use ScriptProcessorNode directly; the deprecation warning is harmless. Reference implementation: `~/Desktop/altivum/elo/src/hooks/useAudioCapture.ts`
+- **Voice playback: continuous buffer, not scheduled AudioBufferSource** — Scheduling individual `AudioBufferSourceNode.start(time)` causes audible gaps between chunks. Use a single ScriptProcessorNode with a growing Float32Array buffer (read/write indices) for gapless playback. Reference: `~/Desktop/altivum/elo/src/hooks/useAudioPlayback.ts`
+- **Voice feedback prevention**: Auto-mute the mic track when AI is speaking (set `track.enabled = false`). Send silence frames instead of nothing to keep the Nova Sonic stream alive. Unmute when `isAgentSpeaking` goes false
+- **Amplify env var timing**: Env vars are resolved at build **start** time. If you update env vars after a build triggers, the current build won't have them — trigger a fresh rebuild with `aws amplify start-job --job-type RETRY --job-id <latest>`

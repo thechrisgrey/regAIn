@@ -19,6 +19,14 @@ const EXPERIENCE_RANGES = [
   { value: '16+', label: '16+ years' },
 ];
 
+const TIME_IN_ROLE_RANGES = [
+  { value: '<1', label: 'Less than 1 year' },
+  { value: '1-2', label: '1 \u2013 2 years' },
+  { value: '3-5', label: '3 \u2013 5 years' },
+  { value: '6-10', label: '6 \u2013 10 years' },
+  { value: '10+', label: '10+ years' },
+];
+
 const TRANSITION_TYPES = [
   { value: 'laid_off', label: 'Laid off / Role eliminated', persona: 'ai_displaced' as const },
   { value: 'voluntary', label: 'Voluntary career change', persona: 'career_pivoter' as const },
@@ -243,10 +251,14 @@ export default function Onboarding() {
   const [voiceMode, setVoiceMode] = useState(false);
 
   // Step 1
-  const [name, setName] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [currentRole, setCurrentRole] = useState('');
+  const [company, setCompany] = useState('');
   const [industry, setIndustry] = useState('');
+  const [yearsInRole, setYearsInRole] = useState('');
   const [yearsExperience, setYearsExperience] = useState('');
+  const [highestPosition, setHighestPosition] = useState('');
   const [story, setStory] = useState('');
   const [transitionType, setTransitionType] = useState('');
 
@@ -257,7 +269,7 @@ export default function Onboarding() {
   const [coachNotes, setCoachNotes] = useState('');
 
   // Validation
-  const canProceed1 = name.trim() && currentRole.trim() && transitionType;
+  const canProceed1 = firstName.trim() && lastName.trim() && currentRole.trim() && transitionType;
   const canProceed2 = targetRole.trim();
 
   // Skill management
@@ -281,10 +293,19 @@ export default function Onboarding() {
       TRANSITION_TYPES.find(t => t.value === transitionType)?.persona ?? 'career_pivoter';
     return {
       email: user?.username ?? '',
-      name: name.trim(),
+      firstName: firstName.trim(),
+      lastName: lastName.trim(),
       persona,
+      currentRole: currentRole.trim(),
+      company: company.trim() || undefined,
+      industry: industry.trim() || undefined,
+      yearsExperience: yearsExperience || undefined,
+      yearsInRole: yearsInRole || undefined,
+      highestPosition: highestPosition.trim() || undefined,
+      story: story.trim() || undefined,
       targetRole: targetRole.trim(),
       skills: selectedSkills.length > 0 ? selectedSkills : undefined,
+      coachNotes: coachNotes.trim() || undefined,
     };
   };
 
@@ -312,8 +333,11 @@ export default function Onboarding() {
   }, [getToken, navigate]);
 
   // Experience summary for results
+  const roleWithCompany = company
+    ? `${currentRole} at ${company}`
+    : currentRole;
   const experienceParts = [
-    currentRole,
+    roleWithCompany,
     industry && `in ${industry}`,
     yearsExperience && `with ${yearsExperience} years of experience`,
   ].filter(Boolean);
@@ -380,16 +404,25 @@ export default function Onboarding() {
               </p>
 
               <div className="mt-8 space-y-6">
-                {/* Name */}
-                <Input
-                  id="onb-name"
-                  label="Your name"
-                  value={name}
-                  onChange={e => setName(e.target.value)}
-                  placeholder="First and last name"
-                />
+                {/* First & Last Name (side by side) */}
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <Input
+                    id="onb-first-name"
+                    label="First name"
+                    value={firstName}
+                    onChange={e => setFirstName(e.target.value)}
+                    placeholder="Jane"
+                  />
+                  <Input
+                    id="onb-last-name"
+                    label="Last name"
+                    value={lastName}
+                    onChange={e => setLastName(e.target.value)}
+                    placeholder="Doe"
+                  />
+                </div>
 
-                {/* Role & Industry (side by side on desktop) */}
+                {/* Role & Company (side by side) */}
                 <div className="grid gap-6 sm:grid-cols-2">
                   <Input
                     id="onb-role"
@@ -399,33 +432,66 @@ export default function Onboarding() {
                     placeholder="e.g. Software QA Lead"
                   />
                   <Input
+                    id="onb-company"
+                    label="Company name"
+                    value={company}
+                    onChange={e => setCompany(e.target.value)}
+                    placeholder="e.g. Acme Corp"
+                  />
+                </div>
+
+                {/* Industry & Time in Role (side by side) */}
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <Input
                     id="onb-industry"
                     label="Industry"
                     value={industry}
                     onChange={e => setIndustry(e.target.value)}
                     placeholder="e.g. Technology"
                   />
+                  <Select
+                    id="onb-years-in-role"
+                    label="Time in role"
+                    value={yearsInRole}
+                    onChange={e => setYearsInRole(e.target.value)}
+                  >
+                    <option value="">Select a range</option>
+                    {TIME_IN_ROLE_RANGES.map(r => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
                 </div>
 
-                {/* Years of experience */}
-                <Select
-                  id="onb-years"
-                  label="Years of experience"
-                  value={yearsExperience}
-                  onChange={e => setYearsExperience(e.target.value)}
-                >
-                  <option value="">Select a range</option>
-                  {EXPERIENCE_RANGES.map(r => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </Select>
+                {/* Total Experience & Highest Position (side by side) */}
+                <div className="grid gap-6 sm:grid-cols-2">
+                  <Select
+                    id="onb-years"
+                    label="Total years of experience"
+                    value={yearsExperience}
+                    onChange={e => setYearsExperience(e.target.value)}
+                  >
+                    <option value="">Select a range</option>
+                    {EXPERIENCE_RANGES.map(r => (
+                      <option key={r.value} value={r.value}>
+                        {r.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    id="onb-highest-position"
+                    label="Highest position held"
+                    value={highestPosition}
+                    onChange={e => setHighestPosition(e.target.value)}
+                    placeholder="e.g. VP of Engineering"
+                  />
+                </div>
 
-                {/* What happened? */}
+                {/* What led to your transition? */}
                 <Textarea
                   id="onb-story"
-                  label="What happened?"
+                  label="What led to your transition?"
                   hint="Share as much or as little as you're comfortable with."
                   value={story}
                   onChange={e => setStory(e.target.value)}
@@ -606,6 +672,12 @@ export default function Onboarding() {
                   <p className="mt-2 text-[15px] leading-relaxed text-neutral-700">
                     {experienceSummary}
                   </p>
+                  {highestPosition && highestPosition.trim().toLowerCase() !== currentRole.trim().toLowerCase() && (
+                    <p className="mt-1 text-[15px] text-neutral-700">
+                      Highest position held:{' '}
+                      <span className="font-medium text-neutral-900">{highestPosition}</span>
+                    </p>
+                  )}
                   {(data.profile.targetRole || targetRole) && (
                     <p className="mt-1 text-[15px] text-neutral-700">
                       Targeting a transition into{' '}

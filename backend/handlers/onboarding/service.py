@@ -64,15 +64,38 @@ class OnboardingService:
         campaign_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc).isoformat()
 
+        first_name = data.get("first_name", "")
+        last_name = data.get("last_name", "")
+        name = f"{first_name} {last_name}".strip() or data.get("name", "")
+
+        # Build experience list for template engine (profile["experience"][0]["company"])
+        experience = None
+        if data.get("company") or data.get("current_role"):
+            experience = [{
+                "company": data.get("company", ""),
+                "role": data.get("current_role", ""),
+            }]
+
         profile = UserProfile(
             user_id=user_id,
             email=data["email"],
-            name=data["name"],
+            name=name,
             persona=data["persona"],
             onboarding_completed=True,
             created_at=now,
             target_role=data.get("target_role"),
             skills=data.get("skills", []),
+            first_name=first_name or None,
+            last_name=last_name or None,
+            current_role=data.get("current_role"),
+            company=data.get("company"),
+            industry=data.get("industry"),
+            years_experience=data.get("years_experience"),
+            years_in_role=data.get("years_in_role"),
+            highest_position=data.get("highest_position"),
+            story=data.get("story"),
+            coach_notes=data.get("coach_notes"),
+            experience=experience,
         )
 
         campaign = Campaign(

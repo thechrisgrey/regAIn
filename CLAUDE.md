@@ -57,7 +57,7 @@ cd frontend && npx vitest --run # Run tests (47 tests)
 cd frontend && npm run lint     # ESLint
 
 # Backend
-.venv/bin/pytest tests/ -x -q   # Run tests (~606 tests, ~8 min)
+.venv/bin/pytest tests/ -x -q   # Run tests (~635 tests, ~8 min)
 
 # Build Strands Lambda Layer (requires Docker)
 bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
@@ -87,6 +87,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 
 - **Handlers**: `backend/handlers/` (NOT `backend/lambda/` — `lambda` is a Python reserved keyword and causes `SyntaxError` on Lambda runtime)
 - **DynamoDB attribute names**: All tables use **camelCase** keys (`targetRole`, `campaignId`, `skillsFocus`) — match this in any code that reads from DynamoDB
+- **Onboarding enriched fields**: Frontend sends `firstName`, `lastName`, `currentRole`, `company`, `industry`, `yearsExperience`, `yearsInRole`, `highestPosition`, `story`, `coachNotes`. Service builds `name` from `first_name + " " + last_name` for backward compat. Also builds `experience` list (`[{company, role}]`) so the mission template engine can read `profile["experience"][0]["company"]`
 - **Mission seeding**: `OnboardingService._seed_first_missions()` calls `generate_daily_mission()` during onboarding so users have missions from day 1
 - **MarketData GSI**: `role-title-index` on `roleTitle` allows lookup by human-readable role name
 - **Thin handler pattern**: Each Lambda handler validates input, delegates to a service class, returns via `success_response`/`error_response` — no business logic in handlers

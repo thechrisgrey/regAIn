@@ -106,9 +106,11 @@ def update_user_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]
     Args:
         user_id: The unique identifier of the user whose profile to update.
         updates: A dict of field names to new values. Valid fields include
-            skills, target_role, persona, onboarding_completed, and any
-            Transition Profile fields (transferable_skills, technical_skills,
-            domain_knowledge, experience_years, industry, role_history).
+            skills, target_role, persona, onboarding_completed, first_name,
+            last_name, current_role, company, years_in_role, highest_position,
+            story, coach_notes, experience, and Transition Profile fields
+            (transferable_skills, technical_skills, domain_knowledge,
+            experience_years, industry, role_history).
 
     Returns:
         A dict containing the full updated profile (all attributes after

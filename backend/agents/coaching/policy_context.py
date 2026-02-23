@@ -21,6 +21,14 @@ ALLOWED_PROFILE_FIELDS: frozenset[str] = frozenset({
     "persona",
     "onboarding_completed",
     "target_role",
+    "first_name",
+    "last_name",
+    "current_role",
+    "company",
+    "years_in_role",
+    "highest_position",
+    "story",
+    "coach_notes",
 })
 
 RESTRICTED_PROFILE_FIELDS: frozenset[str] = frozenset({

@@ -20,10 +20,21 @@ class UserProfile:
     created_at: str
     target_role: Optional[str] = None
     skills: List[str] = field(default_factory=list)
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
+    current_role: Optional[str] = None
+    company: Optional[str] = None
+    industry: Optional[str] = None
+    years_experience: Optional[str] = None
+    years_in_role: Optional[str] = None
+    highest_position: Optional[str] = None
+    story: Optional[str] = None
+    coach_notes: Optional[str] = None
+    experience: Optional[List[Dict[str, str]]] = None
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
-        return {
+        item: Dict[str, Any] = {
             "userId": self.user_id,
             "email": self.email,
             "name": self.name,
@@ -33,6 +44,29 @@ class UserProfile:
             "targetRole": self.target_role,
             "skills": self.skills,
         }
+        if self.first_name is not None:
+            item["firstName"] = self.first_name
+        if self.last_name is not None:
+            item["lastName"] = self.last_name
+        if self.current_role is not None:
+            item["currentRole"] = self.current_role
+        if self.company is not None:
+            item["company"] = self.company
+        if self.industry is not None:
+            item["industry"] = self.industry
+        if self.years_experience is not None:
+            item["yearsExperience"] = self.years_experience
+        if self.years_in_role is not None:
+            item["yearsInRole"] = self.years_in_role
+        if self.highest_position is not None:
+            item["highestPosition"] = self.highest_position
+        if self.story is not None:
+            item["story"] = self.story
+        if self.coach_notes is not None:
+            item["coachNotes"] = self.coach_notes
+        if self.experience is not None:
+            item["experience"] = self.experience
+        return item
 
     @classmethod
     def from_dynamodb_item(cls, item: Dict[str, Any]) -> "UserProfile":
@@ -46,6 +80,17 @@ class UserProfile:
             created_at=item["createdAt"],
             target_role=item.get("targetRole"),
             skills=item.get("skills", []),
+            first_name=item.get("firstName"),
+            last_name=item.get("lastName"),
+            current_role=item.get("currentRole"),
+            company=item.get("company"),
+            industry=item.get("industry"),
+            years_experience=item.get("yearsExperience"),
+            years_in_role=item.get("yearsInRole"),
+            highest_position=item.get("highestPosition"),
+            story=item.get("story"),
+            coach_notes=item.get("coachNotes"),
+            experience=item.get("experience"),
         )
 
 

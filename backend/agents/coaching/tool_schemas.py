@@ -72,7 +72,9 @@ _UPDATE_USER_PROFILE: dict[str, Any] = {
         "Update fields on a user's profile. Pass only the fields that "
         "need to change; existing fields are preserved. Valid fields "
         "include skills, target_role, persona, onboarding_completed, "
-        "and Transition Profile fields (transferable_skills, "
+        "first_name, last_name, current_role, company, years_in_role, "
+        "highest_position, story, coach_notes, experience, and "
+        "Transition Profile fields (transferable_skills, "
         "technical_skills, domain_knowledge, experience_years, "
         "industry, role_history)."
     ),

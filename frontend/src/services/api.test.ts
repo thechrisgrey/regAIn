@@ -84,7 +84,7 @@ describe('API service', () => {
 
   describe('typed API functions', () => {
     it('calls POST /onboarding for onboarding.create', async () => {
-      const data = { email: 'test@example.com', name: 'Test', persona: 'veteran' as const, targetRole: 'Engineer' };
+      const data = { email: 'test@example.com', firstName: 'Test', lastName: 'User', persona: 'veteran' as const, currentRole: 'QA Lead', targetRole: 'Engineer' };
       globalThis.fetch = mockFetchResponse({ userId: '123' });
 
       await api.onboarding.create(data, MOCK_TOKEN);

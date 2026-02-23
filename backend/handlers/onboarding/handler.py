@@ -14,12 +14,19 @@ from backend.handlers.onboarding.service import OnboardingService
 
 logger = logging.getLogger(__name__)
 
-REQUIRED_FIELDS = ["email", "name", "persona", "target_role"]
+REQUIRED_FIELDS = ["email", "first_name", "last_name", "persona", "target_role"]
 VALID_PERSONAS = {"veteran", "ai_displaced", "career_pivoter"}
 
 # Frontend sends camelCase; backend uses snake_case.
 _CAMEL_TO_SNAKE = {
     "targetRole": "target_role",
+    "firstName": "first_name",
+    "lastName": "last_name",
+    "currentRole": "current_role",
+    "yearsExperience": "years_experience",
+    "yearsInRole": "years_in_role",
+    "highestPosition": "highest_position",
+    "coachNotes": "coach_notes",
 }
 
 

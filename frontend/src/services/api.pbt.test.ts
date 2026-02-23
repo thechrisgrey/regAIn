@@ -40,7 +40,7 @@ describe('Property 12: API Request Authentication', () => {
       fc.asyncProperty(arbToken, async (token) => {
         const calls = mockFetch();
         await api.onboarding.create(
-          { email: 'a@b.c', name: 'X', persona: 'veteran', targetRole: 'Dev' },
+          { email: 'a@b.c', firstName: 'X', lastName: 'Y', persona: 'veteran', currentRole: 'QA', targetRole: 'Dev' },
           token,
         );
         expect(calls).toHaveLength(1);

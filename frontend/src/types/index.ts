@@ -4,10 +4,20 @@ export interface UserProfile {
   userId: string;
   email: string;
   name: string;
+  firstName?: string;
+  lastName?: string;
   persona: 'veteran' | 'ai_displaced' | 'career_pivoter';
   onboardingCompleted: boolean;
   createdAt: string;
   targetRole?: string;
+  currentRole?: string;
+  company?: string;
+  industry?: string;
+  yearsExperience?: string;
+  yearsInRole?: string;
+  highestPosition?: string;
+  story?: string;
+  coachNotes?: string;
   skills?: string[];
 }
 
@@ -47,10 +57,19 @@ export interface Evidence {
 
 export interface OnboardingData {
   email: string;
-  name: string;
+  firstName: string;
+  lastName: string;
   persona: UserProfile['persona'];
+  currentRole: string;
+  company?: string;
+  industry?: string;
+  yearsExperience?: string;
+  yearsInRole?: string;
+  highestPosition?: string;
+  story?: string;
   targetRole: string;
   skills?: string[];
+  coachNotes?: string;
 }
 
 export interface CompleteData {

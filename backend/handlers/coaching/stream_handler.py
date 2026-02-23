@@ -3,14 +3,15 @@
 Handles WebSocket lifecycle events ($connect, $default, $disconnect)
 for text-based coaching with progressive token streaming. Uses the
 Strands SDK callback_handler to push text chunks to the client as
-they are generated.
+they are generated, and Strands hooks to send tool execution status.
 """
 
 import base64
 import json
 import logging
 import os
-from typing import Any, Dict, Optional
+import threading
+from typing import Any, Callable, Dict, Optional
 
 import boto3
 
@@ -28,6 +29,10 @@ _connections: Dict[str, Dict[str, str]] = {}  # connection_id -> {user_id, jwt_t
 
 # Lazy-initialized API Gateway management client cache.
 _apigw_clients: Dict[str, Any] = {}
+
+# Lambda timeout minus safety margin (seconds).
+_LAMBDA_TIMEOUT = int(os.environ.get("LAMBDA_TIMEOUT_SECONDS", "120"))
+_SAFETY_MARGIN = 10
 
 
 def _get_apigw_client(domain_name: str, stage: str):
@@ -61,6 +66,33 @@ def _post_to_connection(
         )
     except Exception:
         logger.exception("Failed to post to connection %s", connection_id)
+
+
+class _StreamingToolHooks:
+    """Strands HookProvider that sends WebSocket messages during tool execution.
+
+    This keeps the frontend informed when the agent is calling tools (reading
+    profile, checking missions, etc.) so it can display a "thinking" indicator
+    instead of appearing stuck.
+    """
+
+    def __init__(self, send_fn: Callable[[Dict[str, Any]], None]) -> None:
+        self._send = send_fn
+
+    def register_hooks(self, registry: Any, **kwargs: Any) -> None:
+        from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent
+
+        registry.add_callback(BeforeToolCallEvent, self._on_before_tool)
+        registry.add_callback(AfterToolCallEvent, self._on_after_tool)
+
+    def _on_before_tool(self, event: Any) -> None:
+        tool_name = event.tool_use.get("name", "")
+        logger.info("Agent calling tool: %s", tool_name)
+        self._send({"type": "thinking", "tool": tool_name})
+
+    def _on_after_tool(self, event: Any) -> None:
+        tool_name = event.tool_use.get("name", "")
+        logger.info("Tool completed: %s", tool_name)
 
 
 def _validate_cognito_token(token: str) -> Optional[str]:
@@ -162,37 +194,57 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     if body.get("token"):
         jwt_token = body["token"]
 
+    # Helper that captures event/connection_id for WebSocket sends.
+    def send_ws(data: Dict[str, Any]) -> None:
+        _post_to_connection(event, connection_id, data)
+
     # Build a streaming callback that pushes delta chunks to the client.
     def stream_callback(**kwargs):
         if "data" in kwargs:
-            _post_to_connection(event, connection_id, {
-                "type": "delta",
-                "text": kwargs["data"],
-            })
+            send_ws({"type": "delta", "text": kwargs["data"]})
+
+    # Safety timer: send an error before Lambda is killed by timeout.
+    timed_out = threading.Event()
+
+    def _on_timeout():
+        timed_out.set()
+        logger.warning("Safety timeout fired for user %s", user_id)
+        send_ws({
+            "type": "error",
+            "message": "Response took too long. Please try a simpler question.",
+        })
+
+    safety_timer = threading.Timer(_LAMBDA_TIMEOUT - _SAFETY_MARGIN, _on_timeout)
+    safety_timer.daemon = True
+    safety_timer.start()
 
     try:
         from backend.agents.coaching.agent import create_coaching_agent
+
+        tool_hooks = _StreamingToolHooks(send_fn=send_ws)
 
         agent = create_coaching_agent(
             user_id=user_id,
             jwt_token=jwt_token,
             callback_handler=stream_callback,
+            hooks=[tool_hooks],
         )
         result = agent(
             f"[session_type={session_type}] [user_id={user_id}] {message}"
         )
 
-        # Send final done message with the complete response.
-        _post_to_connection(event, connection_id, {
-            "type": "done",
-            "text": str(result),
-        })
+        # Only send done if we haven't already sent a timeout error.
+        if not timed_out.is_set():
+            send_ws({"type": "done", "text": str(result)})
     except Exception:
         logger.exception("Chat stream failed for user %s", user_id)
-        _post_to_connection(event, connection_id, {
-            "type": "error",
-            "message": "Coaching agent is temporarily unavailable. Please try again.",
-        })
+        if not timed_out.is_set():
+            send_ws({
+                "type": "error",
+                "message": "Coaching agent is temporarily unavailable. Please try again.",
+            })
+    finally:
+        safety_timer.cancel()
 
     return {"statusCode": 200}
 

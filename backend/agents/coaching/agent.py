@@ -79,6 +79,7 @@ def create_coaching_agent(
     user_id: str,
     jwt_token: str,
     callback_handler=None,
+    hooks: list | None = None,
 ) -> Agent:
     """Create a Coaching Agent with tools routed through Gateway or invoked directly.
 
@@ -93,6 +94,9 @@ def create_coaching_agent(
         callback_handler: Optional callback for streaming text chunks.
             When provided, the agent calls this function with each token
             as it is generated. Used by the WebSocket streaming handler.
+        hooks: Optional list of HookProvider instances for lifecycle events.
+            Used by the WebSocket streaming handler to send tool execution
+            status to the client.
 
     Returns:
         A configured Strands Agent.
@@ -116,12 +120,14 @@ def create_coaching_agent(
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
     )
 
-    kwargs = {
+    kwargs: dict = {
         "model": model,
         "system_prompt": system_prompt,
         "tools": tools,
     }
     if callback_handler is not None:
         kwargs["callback_handler"] = callback_handler
+    if hooks:
+        kwargs["hooks"] = hooks
 
     return Agent(**kwargs)

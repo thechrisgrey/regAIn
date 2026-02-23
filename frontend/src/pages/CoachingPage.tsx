@@ -10,7 +10,7 @@ const SESSION_TYPES = [
 ] as const;
 
 export default function CoachingPage() {
-  const { messages, streaming, streamingText, error, sendMessage } = useStreamingCoaching();
+  const { messages, streaming, streamingText, thinking, thinkingLabel, error, sendMessage } = useStreamingCoaching();
   const { isActive: voiceActive, error: voiceError, fallbackToText, startSession, stopSession } = useVoiceSession();
 
   const [input, setInput] = useState('');
@@ -101,18 +101,32 @@ export default function CoachingPage() {
           <div className="flex justify-start">
             <div className="max-w-[75%] px-4 py-2 text-sm bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm">
               <MarkdownMessage content={streamingText} />
-              <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse align-text-bottom" />
+              {thinking ? (
+                <span className="block mt-2 text-xs text-neutral-400 italic animate-pulse">
+                  {thinkingLabel || 'Thinking'}...
+                </span>
+              ) : (
+                <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse align-text-bottom" />
+              )}
             </div>
           </div>
         )}
 
-        {/* Loading dots — between send and first chunk */}
+        {/* Loading / thinking indicator — between send and first chunk */}
         {streaming && !streamingText && (
           <div className="flex justify-start">
             <div className="bg-surface-3 text-neutral-500 rounded-2xl rounded-bl-sm px-4 py-3 text-sm flex items-center gap-1.5">
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" />
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '150ms' }} />
-              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+              {thinking ? (
+                <span className="text-xs text-neutral-500 italic animate-pulse">
+                  {thinkingLabel || 'Thinking'}...
+                </span>
+              ) : (
+                <>
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" />
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '300ms' }} />
+                </>
+              )}
             </div>
           </div>
         )}

@@ -1,6 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useAuth } from './useAuth';
 import type { VoicePracticeSessionType } from '../types';
+import type { ToolStep } from './useStreamingCoaching';
+import { TOOL_LABELS } from './useStreamingCoaching';
 
 const VOICE_PRACTICE_WS_URL = import.meta.env.VITE_VOICE_PRACTICE_WS_URL as string | undefined;
 const INPUT_SAMPLE_RATE = 16000;
@@ -22,6 +24,7 @@ interface VoiceState {
   isMuted: boolean;
   isAgentSpeaking: boolean;
   transcript: TranscriptEntry[];
+  toolSteps: ToolStep[];
   sessionType: VoicePracticeSessionType | null;
 }
 
@@ -81,6 +84,7 @@ export function useVoicePractice() {
     isMuted: false,
     isAgentSpeaking: false,
     transcript: [],
+    toolSteps: [],
     sessionType: null,
   });
 
@@ -94,6 +98,10 @@ export function useVoicePractice() {
   const captureProcessorRef = useRef<ScriptProcessorNode | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const mutedRef = useRef(false);
+
+  // Refs -- Tool step tracking
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hasStepsRef = useRef(false);
 
   // Refs -- Playback (continuous buffer approach)
   const playbackCtxRef = useRef<AudioContext | null>(null);
@@ -368,6 +376,7 @@ export function useVoicePractice() {
         isMuted: false,
         isAgentSpeaking: false,
         transcript: [],
+        toolSteps: [],
         sessionType: null,
       });
       return;
@@ -378,6 +387,7 @@ export function useVoicePractice() {
       status: 'connecting',
       error: null,
       transcript: [],
+      toolSteps: [],
       sessionType,
     }));
     intentionalCloseRef.current = false;
@@ -402,6 +412,7 @@ export function useVoicePractice() {
             isMuted: false,
             isAgentSpeaking: false,
             transcript: [],
+            toolSteps: [],
             sessionType: null,
           });
         }
@@ -426,7 +437,44 @@ export function useVoicePractice() {
               if (audioData) {
                 queueAudio(audioData);
                 resetSpeakingTimer();
+                // Mark all active tool steps as done and start fade timer.
+                if (hasStepsRef.current && !fadeTimerRef.current) {
+                  hasStepsRef.current = false;
+                  setState(prev => ({
+                    ...prev,
+                    toolSteps: prev.toolSteps.map(s =>
+                      s.status === 'active' ? { ...s, status: 'done' as const } : s
+                    ),
+                  }));
+                  fadeTimerRef.current = setTimeout(() => {
+                    setState(prev => ({ ...prev, toolSteps: [] }));
+                    fadeTimerRef.current = undefined;
+                  }, 600);
+                }
               }
+              break;
+            }
+
+            case 'thinking': {
+              const toolName = typeof msg.tool === 'string' ? msg.tool : '';
+              const label = TOOL_LABELS[toolName] || 'Thinking';
+              setState(prev => ({
+                ...prev,
+                toolSteps: [...prev.toolSteps, { tool: toolName, label, status: 'active' as const }],
+              }));
+              hasStepsRef.current = true;
+              break;
+            }
+
+            case 'thinking_complete': {
+              const toolName = typeof msg.tool === 'string' ? msg.tool : '';
+              setState(prev => {
+                const idx = prev.toolSteps.findIndex(s => s.tool === toolName && s.status === 'active');
+                if (idx === -1) return prev;
+                const next = [...prev.toolSteps];
+                next[idx] = { ...next[idx], status: 'done' };
+                return { ...prev, toolSteps: next };
+              });
               break;
             }
 
@@ -483,6 +531,9 @@ export function useVoicePractice() {
 
             case 'fallback':
               cleanup();
+              hasStepsRef.current = false;
+              clearTimeout(fadeTimerRef.current);
+              fadeTimerRef.current = undefined;
               setState({
                 status: 'error',
                 error:
@@ -492,6 +543,7 @@ export function useVoicePractice() {
                 isMuted: false,
                 isAgentSpeaking: false,
                 transcript: [],
+                toolSteps: [],
                 sessionType: null,
               });
               break;
@@ -508,6 +560,9 @@ export function useVoicePractice() {
 
             case 'error':
               cleanup();
+              hasStepsRef.current = false;
+              clearTimeout(fadeTimerRef.current);
+              fadeTimerRef.current = undefined;
               setState({
                 status: 'error',
                 error:
@@ -518,6 +573,7 @@ export function useVoicePractice() {
                 isMuted: false,
                 isAgentSpeaking: false,
                 transcript: [],
+                toolSteps: [],
                 sessionType: null,
               });
               break;
@@ -532,12 +588,16 @@ export function useVoicePractice() {
 
       ws.onerror = () => {
         cleanup();
+        hasStepsRef.current = false;
+        clearTimeout(fadeTimerRef.current);
+        fadeTimerRef.current = undefined;
         setState({
           status: 'error',
           error: 'Voice connection error. Please try again.',
           isMuted: false,
           isAgentSpeaking: false,
           transcript: [],
+          toolSteps: [],
           sessionType: null,
         });
       };
@@ -567,6 +627,9 @@ export function useVoicePractice() {
       };
     } catch (err) {
       cleanup();
+      hasStepsRef.current = false;
+      clearTimeout(fadeTimerRef.current);
+      fadeTimerRef.current = undefined;
       setState({
         status: 'error',
         error:
@@ -574,6 +637,7 @@ export function useVoicePractice() {
         isMuted: false,
         isAgentSpeaking: false,
         transcript: [],
+        toolSteps: [],
         sessionType: null,
       });
     }
@@ -613,6 +677,7 @@ export function useVoicePractice() {
     return () => {
       intentionalCloseRef.current = true;
       clearTimeout(speakingTimerRef.current);
+      clearTimeout(fadeTimerRef.current);
       stopCapture();
       stopPlayback();
       if (wsRef.current) {
@@ -629,6 +694,7 @@ export function useVoicePractice() {
     isMuted: state.isMuted,
     isAgentSpeaking: state.isAgentSpeaking,
     transcript: state.transcript,
+    toolSteps: state.toolSteps,
     sessionType: state.sessionType,
     startSession,
     stopSession,

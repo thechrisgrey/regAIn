@@ -20,7 +20,7 @@ interface StreamEvent {
 }
 
 /** Human-readable labels for tool names sent by the backend. */
-const TOOL_LABELS: Record<string, string> = {
+export const TOOL_LABELS: Record<string, string> = {
   read_user_profile: 'Reviewing your profile',
   update_user_profile: 'Updating profile',
   get_campaign_status: 'Checking campaign status',

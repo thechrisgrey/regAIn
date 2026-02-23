@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVoicePractice } from '../hooks/useVoicePractice';
 import { useVoiceSessions } from '../hooks/useVoiceSessions';
-import { Button, Card, Badge, SkeletonBlock } from '../components/ui';
+import { Button, Card, Badge, SkeletonBlock, AgentActivityFeed } from '../components/ui';
 
 const AudioVisualizer = lazy(() => import('../components/voice/AudioVisualizer'));
 import type { VoicePracticeSessionType } from '../types';
@@ -31,6 +31,7 @@ export default function VoicePracticePage() {
     isMuted,
     isAgentSpeaking,
     transcript,
+    toolSteps,
     startSession,
     stopSession,
     toggleMute,
@@ -164,6 +165,9 @@ export default function VoicePracticePage() {
               </div>
             </div>
           ))}
+          {toolSteps.length > 0 && (
+            <AgentActivityFeed steps={toolSteps} visible={!isAgentSpeaking} />
+          )}
           <div ref={transcriptEndRef} />
         </div>
 

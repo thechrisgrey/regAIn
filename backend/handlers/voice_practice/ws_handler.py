@@ -331,7 +331,14 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             def on_tool_use(
                 tool_name: str, tool_use_id: str, args: dict
             ) -> Any:
-                return _execute_tool(user_id, tool_name, tool_use_id, args)
+                _post_to_connection(event, connection_id, {
+                    "type": "thinking", "tool": tool_name,
+                })
+                result = _execute_tool(user_id, tool_name, tool_use_id, args)
+                _post_to_connection(event, connection_id, {
+                    "type": "thinking_complete", "tool": tool_name,
+                })
+                return result
 
             def on_state(state: str) -> None:
                 if state == "interrupted":

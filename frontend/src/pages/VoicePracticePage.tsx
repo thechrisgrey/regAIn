@@ -166,7 +166,7 @@ export default function VoicePracticePage() {
             </div>
           ))}
           {toolSteps.length > 0 && (
-            <AgentActivityFeed steps={toolSteps} visible={!isAgentSpeaking} />
+            <AgentActivityFeed steps={toolSteps} visible={toolSteps.some(s => s.status === 'active')} />
           )}
           <div ref={transcriptEndRef} />
         </div>

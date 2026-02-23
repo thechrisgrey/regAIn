@@ -449,7 +449,7 @@ export function useVoicePractice() {
                   fadeTimerRef.current = setTimeout(() => {
                     setState(prev => ({ ...prev, toolSteps: [] }));
                     fadeTimerRef.current = undefined;
-                  }, 600);
+                  }, 2000);
                 }
               }
               break;

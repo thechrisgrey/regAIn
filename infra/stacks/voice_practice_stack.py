@@ -110,18 +110,25 @@ class VoicePracticeStack(cdk.Stack):
 
     def _create_ws_api(self) -> None:
         """Create WebSocket API Gateway for voice practice sessions."""
-        integration = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainVoicePracticeIntegration",
-            handler=self.ws_lambda,
+        # Each route needs its own integration instance so CDK grants
+        # API Gateway lambda:InvokeFunction permission for every route.
+        connect_integration = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainVPConnectIntegration", handler=self.ws_lambda,
+        )
+        default_integration = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainVPDefaultIntegration", handler=self.ws_lambda,
+        )
+        disconnect_integration = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainVPDisconnectIntegration", handler=self.ws_lambda,
         )
 
         self.websocket_api = apigwv2.WebSocketApi(
             self,
             "RegainVoicePracticeWebSocketApi",
             api_name="RegainVoicePracticeWebSocketApi",
-            connect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
-            default_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
-            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
+            connect_route_options=apigwv2.WebSocketRouteOptions(integration=connect_integration),
+            default_route_options=apigwv2.WebSocketRouteOptions(integration=default_integration),
+            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=disconnect_integration),
         )
 
         self.websocket_stage = apigwv2.WebSocketStage(

@@ -238,10 +238,10 @@ const fragmentShader = /* glsl */ `
 
   void main() {
     vec3 viewDir = normalize(cameraPosition - vPositionW);
-    vec3 normal = normalize(vNormalW);
+    vec3 nW = normalize(vNormalW);
 
     // Fresnel rim
-    float fresnel = pow(1.0 - max(dot(viewDir, normal), 0.0), uFresnelPower);
+    float fresnel = pow(1.0 - max(dot(viewDir, nW), 0.0), uFresnelPower);
     fresnel *= uFresnelIntensity;
 
     // Mix base → accent by displacement, then add Fresnel rim

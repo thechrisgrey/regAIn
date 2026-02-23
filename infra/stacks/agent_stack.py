@@ -101,18 +101,25 @@ class AgentStack(cdk.Stack):
 
     def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
         """Create WebSocket API Gateway for voice sessions."""
-        integration = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainVoiceIntegration",
-            handler=voice_lambda,
+        # Each route needs its own integration instance so CDK grants
+        # API Gateway lambda:InvokeFunction permission for every route.
+        connect_int = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainVoiceConnectInt", handler=voice_lambda,
+        )
+        default_int = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainVoiceDefaultInt", handler=voice_lambda,
+        )
+        disconnect_int = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainVoiceDisconnectInt", handler=voice_lambda,
         )
 
         self.websocket_api = apigwv2.WebSocketApi(
             self,
             "RegainVoiceWebSocketApi",
             api_name="RegainVoiceWebSocketApi",
-            connect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
-            default_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
-            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
+            connect_route_options=apigwv2.WebSocketRouteOptions(integration=connect_int),
+            default_route_options=apigwv2.WebSocketRouteOptions(integration=default_int),
+            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=disconnect_int),
         )
 
         self.websocket_stage = apigwv2.WebSocketStage(
@@ -230,18 +237,23 @@ class AgentStack(cdk.Stack):
 
     def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:
         """Create WebSocket API Gateway for chat streaming sessions."""
-        integration = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainChatStreamIntegration",
-            handler=chat_stream_lambda,
+        chat_connect_int = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainChatConnectInt", handler=chat_stream_lambda,
+        )
+        chat_default_int = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainChatDefaultInt", handler=chat_stream_lambda,
+        )
+        chat_disconnect_int = apigwv2_integrations.WebSocketLambdaIntegration(
+            "RegainChatDisconnectInt", handler=chat_stream_lambda,
         )
 
         self.chat_websocket_api = apigwv2.WebSocketApi(
             self,
             "RegainChatWebSocketApi",
             api_name="RegainChatWebSocketApi",
-            connect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
-            default_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
-            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=integration),
+            connect_route_options=apigwv2.WebSocketRouteOptions(integration=chat_connect_int),
+            default_route_options=apigwv2.WebSocketRouteOptions(integration=chat_default_int),
+            disconnect_route_options=apigwv2.WebSocketRouteOptions(integration=chat_disconnect_int),
         )
 
         self.chat_websocket_stage = apigwv2.WebSocketStage(

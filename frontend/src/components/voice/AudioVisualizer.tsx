@@ -1,10 +1,9 @@
 import { useRef, useMemo } from 'react';
-import { Canvas, useFrame, extend } from '@react-three/fiber';
-import CustomShaderMaterial from 'three-custom-shader-material/vanilla';
+import { Canvas, useFrame } from '@react-three/fiber';
+import CustomShaderMaterial from 'three-custom-shader-material';
+import CustomShaderMaterialImpl from 'three-custom-shader-material/vanilla';
 import type { ReactNode } from 'react';
 import * as THREE from 'three';
-
-extend({ CustomShaderMaterial });
 
 // ---------------------------------------------------------------------------
 // Types
@@ -281,7 +280,7 @@ function lerpVec3(
 
 function Orb({ state }: { state: OrbState }) {
   const meshRef = useRef<THREE.Mesh>(null);
-  const materialRef = useRef<CustomShaderMaterial>(null);
+  const materialRef = useRef<CustomShaderMaterialImpl>(null);
 
   // Current interpolated values (mutated every frame)
   const current = useRef<StateConfig>({ ...STATE_CONFIGS[state] });
@@ -363,7 +362,7 @@ function Orb({ state }: { state: OrbState }) {
   return (
     <mesh ref={meshRef}>
       <icosahedronGeometry args={[1, 64]} />
-      <customShaderMaterial
+      <CustomShaderMaterial
         ref={materialRef}
         baseMaterial={THREE.MeshStandardMaterial}
         vertexShader={vertexShader}
@@ -391,22 +390,6 @@ function Scene({ state }: { state: OrbState }) {
       <Orb state={state} />
     </>
   );
-}
-
-// ---------------------------------------------------------------------------
-// R3F JSX intrinsic element declaration
-// ---------------------------------------------------------------------------
-
-declare module '@react-three/fiber' {
-  interface ThreeElements {
-    customShaderMaterial: ThreeElements['meshStandardMaterial'] & {
-      ref?: React.Ref<CustomShaderMaterial>;
-      baseMaterial?: typeof THREE.MeshStandardMaterial;
-      vertexShader?: string;
-      fragmentShader?: string;
-      uniforms?: Record<string, { value: unknown }>;
-    };
-  }
 }
 
 // ---------------------------------------------------------------------------

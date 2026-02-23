@@ -65,6 +65,7 @@ class AgentStack(cdk.Stack):
             "MISSION_HISTORY_TABLE": self.tables["MissionHistory"].table_name,
             "EVIDENCE_VAULT_TABLE": self.tables["EvidenceVault"].table_name,
             "MARKET_DATA_TABLE": self.tables["MarketData"].table_name,
+            "WS_CONNECTIONS_TABLE": self.tables["WebSocketConnections"].table_name,
         }
 
     def _bedrock_env(self) -> dict[str, str]:

@@ -26,6 +26,11 @@ from backend.handlers.shared.nova_sonic import (
     ensure_event_loop,
     run_async,
 )
+from backend.handlers.shared.ws_connections import (
+    delete_connection,
+    load_connection,
+    store_connection,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -255,11 +260,14 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         )
         return {"statusCode": 400}
 
-    _connections[connection_id] = {
+    conn_data = {
         "user_id": user_id,
         "jwt_token": token,
         "session_type": session_type,
     }
+    _connections[connection_id] = conn_data
+    store_connection(connection_id, conn_data)
+
     logger.info(
         "Connection %s established for user %s, type %s",
         connection_id,
@@ -283,6 +291,13 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.get(connection_id)
+
+    if not conn_info:
+        # $default may hit a different Lambda container than $connect.
+        # Fall back to DynamoDB for cross-container state.
+        conn_info = load_connection(connection_id)
+        if conn_info:
+            _connections[connection_id] = conn_info
 
     if not conn_info:
         logger.warning("No user mapping for connection %s", connection_id)
@@ -398,6 +413,10 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.pop(connection_id, None)
     session_data = _sessions.pop(connection_id, None)
+
+    if not conn_info:
+        conn_info = load_connection(connection_id)
+    delete_connection(connection_id)
 
     # Close the Nova Sonic streaming session.
     if session_data:

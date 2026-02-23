@@ -29,7 +29,7 @@ ALLOWED_TABLES: dict[str, set[str]] = {
     "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
 }
 
-ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions"}
+ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections"}
 
 
 def _synth_api_template() -> dict:

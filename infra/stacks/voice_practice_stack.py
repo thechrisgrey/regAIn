@@ -55,6 +55,7 @@ class VoicePracticeStack(cdk.Stack):
             "EVIDENCE_VAULT_TABLE": self.tables["EvidenceVault"].table_name,
             "MARKET_DATA_TABLE": self.tables["MarketData"].table_name,
             "VOICE_SESSIONS_TABLE": self.tables["VoiceSessions"].table_name,
+            "WS_CONNECTIONS_TABLE": self.tables["WebSocketConnections"].table_name,
         }
 
     def _create_bucket(self) -> s3.Bucket:
@@ -298,6 +299,7 @@ class VoicePracticeStack(cdk.Stack):
         self.bucket.grant_read_write(self.ws_lambda)
 
         # WS Lambda: DynamoDB permissions
+        self.tables["WebSocketConnections"].grant_read_write_data(self.ws_lambda)
         self.tables["VoiceSessions"].grant_read_write_data(self.ws_lambda)
         self.tables["UserProfiles"].grant_read_data(self.ws_lambda)
         self.tables["Campaigns"].grant_read_data(self.ws_lambda)

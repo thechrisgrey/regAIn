@@ -18,6 +18,7 @@ class DataStack(cdk.Stack):
         self._create_evidence_vault_table()
         self._create_market_data_table()
         self._create_voice_sessions_table()
+        self._create_ws_connections_table()
 
         self._create_outputs()
 
@@ -169,6 +170,25 @@ class DataStack(cdk.Stack):
             ),
         )
         self.tables["VoiceSessions"] = table
+
+    def _create_ws_connections_table(self) -> None:
+        """Create WebSocketConnections table (PK: connectionId) with TTL.
+
+        Stores transient WebSocket connection metadata so that Lambda
+        containers handling $default/$disconnect can look up the user
+        authenticated during $connect.
+        """
+        self.tables["WebSocketConnections"] = dynamodb.Table(
+            self,
+            "RegainWebSocketConnections",
+            table_name="RegainWebSocketConnections",
+            partition_key=dynamodb.Attribute(
+                name="connectionId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=cdk.RemovalPolicy.DESTROY,
+            time_to_live_attribute="ttl",
+        )
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs for all table names and ARNs."""

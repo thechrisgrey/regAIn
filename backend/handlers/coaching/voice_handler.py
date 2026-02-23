@@ -22,6 +22,11 @@ from backend.handlers.shared.nova_sonic import (
     ensure_event_loop,
     run_async,
 )
+from backend.handlers.shared.ws_connections import (
+    delete_connection,
+    load_connection,
+    store_connection,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -190,7 +195,10 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Auth failed for connection %s", connection_id)
         return {"statusCode": 401}
 
-    _connections[connection_id] = {"user_id": user_id, "jwt_token": token}
+    conn_data = {"user_id": user_id, "jwt_token": token}
+    _connections[connection_id] = conn_data
+    store_connection(connection_id, conn_data)
+
     logger.info(
         "Connection %s established for user %s", connection_id, user_id
     )
@@ -211,6 +219,11 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.get(connection_id)
+
+    if not conn_info:
+        conn_info = load_connection(connection_id)
+        if conn_info:
+            _connections[connection_id] = conn_info
 
     if not conn_info:
         logger.warning("No user mapping for connection %s", connection_id)
@@ -314,6 +327,11 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.pop(connection_id, None)
     session_data = _sessions.pop(connection_id, None)
+
+    if not conn_info:
+        conn_info = load_connection(connection_id)
+    delete_connection(connection_id)
+
     user_id = conn_info["user_id"] if conn_info else None
 
     # Close the Nova Sonic streaming session.

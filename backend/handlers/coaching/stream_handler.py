@@ -14,6 +14,12 @@ from typing import Any, Dict, Optional
 
 import boto3
 
+from backend.handlers.shared.ws_connections import (
+    delete_connection,
+    load_connection,
+    store_connection,
+)
+
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
@@ -92,7 +98,10 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Auth failed for chat connection %s", connection_id)
         return {"statusCode": 401}
 
-    _connections[connection_id] = {"user_id": user_id, "jwt_token": token}
+    conn_data = {"user_id": user_id, "jwt_token": token}
+    _connections[connection_id] = conn_data
+    store_connection(connection_id, conn_data)
+
     logger.info("Chat connection %s established for user %s", connection_id, user_id)
     return {"statusCode": 200}
 
@@ -101,6 +110,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     """Clean up on WebSocket disconnect."""
     connection_id = event["requestContext"]["connectionId"]
     _connections.pop(connection_id, None)
+    delete_connection(connection_id)
     logger.info("Chat connection %s disconnected", connection_id)
     return {"statusCode": 200}
 
@@ -115,6 +125,11 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.get(connection_id)
+
+    if not conn_info:
+        conn_info = load_connection(connection_id)
+        if conn_info:
+            _connections[connection_id] = conn_info
 
     if not conn_info:
         logger.warning("No user mapping for chat connection %s", connection_id)

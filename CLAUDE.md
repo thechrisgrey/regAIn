@@ -120,6 +120,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 | EvidenceVault | `userId` | `evidenceId` | `skill-index` (PK: skillTag, SK: createdAt) |
 | MarketData | `sector` | `timestamp` | `role-title-index` (PK: roleTitle) |
 | VoiceSessions | `userId` | `sessionId` | `type-date-index` (PK: sessionType, SK: createdAt) |
+| WebSocketConnections | `connectionId` | — | — (TTL on `ttl` attribute) |
 
 ## Gotchas
 
@@ -153,3 +154,4 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **`three-custom-shader-material` v6 + R3F**: Do NOT use the `vanilla` import with `extend()` — R3F calls `new CustomShaderMaterial()` with no args, but v6's constructor destructures its first arg, causing `Cannot destructure property 'baseMaterial' of 'undefined'`. Use the default React import (`from 'three-custom-shader-material'`) which is a proper React component that handles construction internally
 - **CSM fragment shader `normal` redefinition**: Three.js MeshStandardMaterial declares `vec3 normal` in its built-in fragment shader. CSM injects custom code into the existing shader, so using `normal` as a variable name in the custom fragment causes `'normal' : redefinition`. Use a different name (e.g. `nW`)
 - **CDK WebSocketLambdaIntegration shared instance = missing permissions**: When a single `WebSocketLambdaIntegration` instance is shared across `connect_route_options`, `default_route_options`, and `disconnect_route_options`, CDK only adds `lambda:InvokeFunction` permission for the first route (`$connect`). API Gateway silently drops messages for `$default` and `$disconnect`. Fix: create separate integration instances per route
+- **WebSocket Lambda has no instance affinity**: API Gateway WebSocket routes (`$connect`, `$default`, `$disconnect`) can each hit different Lambda containers. Module-level Python dicts (`_connections`, `_sessions`) are NOT shared across containers. Fix: persist connection metadata (userId, sessionType, jwtToken) in the `WebSocketConnections` DynamoDB table on `$connect`, load it on `$default`/`$disconnect`. Shared module: `backend/handlers/shared/ws_connections.py`. In-memory `_sessions` (live Nova Sonic streams) are still module-level — they're created on first `$default` after loading connection info from DynamoDB

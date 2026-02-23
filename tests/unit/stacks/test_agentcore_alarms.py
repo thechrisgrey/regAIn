@@ -22,7 +22,7 @@ def _get_template() -> dict:
 
     dummy_code = _lambda.Code.from_inline("def handler(e,c): pass")
     lambdas = {}
-    for name in ("coaching", "missions", "evidence", "dashboard", "market_intel"):
+    for name in ("coaching", "missions", "evidence", "dashboard", "market_intel", "profile"):
         lambdas[name] = _lambda.Function(
             support,
             f"{name}Lambda",
@@ -39,6 +39,7 @@ def _get_template() -> dict:
         evidence_lambda=lambdas["evidence"],
         dashboard_lambda=lambdas["dashboard"],
         market_intel_lambda=lambdas["market_intel"],
+        profile_lambda=lambdas["profile"],
         user_pool=user_pool,
     )
 

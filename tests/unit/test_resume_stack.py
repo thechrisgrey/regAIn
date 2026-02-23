@@ -33,6 +33,7 @@ def _synth_resume_template() -> dict:
         user_pool=auth_stack.user_pool,
         tables=data_stack.tables,
         api=api_stack.api,
+        profile_lambda=api_stack.profile_lambda,
     )
     assembly = app.synth()
     return assembly.get_stack_by_name("RegainResumeStack").template

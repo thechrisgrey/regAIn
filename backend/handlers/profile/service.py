@@ -90,7 +90,25 @@ class ProfileService:
             logger.warning("VOICE_PRACTICE_BUCKET_NAME not set; skipping S3 cleanup")
             deleted["voice_practice_s3"] = 0
 
-        # 7. Cognito — delete user so the email can be re-registered
+        # 7. Resume S3 cleanup — delete all resume objects under user's prefix
+        resume_bucket = os.environ.get("RESUME_BUCKET_NAME", "")
+        if resume_bucket:
+            s3_deleted = self._delete_s3_prefix(resume_bucket, f"{user_id}/resume/")
+            deleted["resume_s3"] = s3_deleted
+        else:
+            logger.warning("RESUME_BUCKET_NAME not set; skipping resume S3 cleanup")
+            deleted["resume_s3"] = 0
+
+        # 8. Code interpreter S3 cleanup — delete any user-prefixed objects
+        code_interp_bucket = os.environ.get("CODE_INTERPRETER_BUCKET_NAME", "")
+        if code_interp_bucket:
+            s3_deleted = self._delete_s3_prefix(code_interp_bucket, f"{user_id}/")
+            deleted["code_interpreter_s3"] = s3_deleted
+        else:
+            logger.warning("CODE_INTERPRETER_BUCKET_NAME not set; skipping code interpreter S3 cleanup")
+            deleted["code_interpreter_s3"] = 0
+
+        # 9. Cognito — delete user so the email can be re-registered
         if self.user_pool_id:
             self.cognito.admin_delete_user(
                 UserPoolId=self.user_pool_id,

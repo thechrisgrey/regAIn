@@ -355,10 +355,18 @@ class ResumeService:
                     ) from exc
                 continue
 
+            text = self._clean_llm_output(text)
+
             if self._validate_resume(text):
                 return text
 
-            logger.warning("Resume validation failed (attempt %d), retrying", attempt + 1)
+            logger.warning(
+                "Resume validation failed (attempt %d): starts_with_dashes=%s, "
+                "first_80_chars=%r",
+                attempt + 1,
+                text.startswith("---"),
+                text[:80],
+            )
 
         raise ResumeGenerationError(
             "Resume generation failed — please try again",
@@ -462,6 +470,33 @@ MARKDOWN BODY SECTIONS (use ## headers, in this exact order):
 4. ## Mission History Highlights — Include {"5-8" if len(data.completed_missions) >= 8 else "all"} completed missions curated for relevance to the target role, each with a reflection excerpt.
 5. ## Market Alignment — Include target role, alignment percentage, demonstrated in-demand skills, and active skill gaps."""
 
+    @staticmethod
+    def _clean_llm_output(text: str) -> str:
+        """Strip markdown code fences and leading preamble from LLM output.
+
+        Nova Lite sometimes wraps its response in ```markdown ... ``` or
+        adds explanatory text before the actual resume content.
+        """
+        text = text.strip()
+
+        # Strip outer markdown code fences (```markdown ... ``` or ``` ... ```)
+        if text.startswith("```"):
+            first_newline = text.index("\n") if "\n" in text else len(text)
+            text = text[first_newline + 1:]
+            if text.rstrip().endswith("```"):
+                text = text.rstrip()[:-3]
+            text = text.strip()
+
+        # If LLM added preamble before "---", discard everything before it
+        if not text.startswith("---") and "\n---\n" in text:
+            idx = text.index("\n---\n")
+            text = text[idx + 1:]
+        elif not text.startswith("---") and text.find("---") > 0:
+            idx = text.index("---")
+            text = text[idx:]
+
+        return text.strip()
+
     def _validate_resume(self, content: str) -> bool:
         """Validate resume has correct YAML frontmatter and 5 sections.
 
@@ -473,30 +508,36 @@ MARKDOWN BODY SECTIONS (use ## headers, in this exact order):
         """
         # Check frontmatter delimiters
         if not content.startswith("---"):
+            logger.warning("Validation fail: no leading ---. First 120 chars: %r", content[:120])
             return False
 
         parts = content.split("---", 2)
         if len(parts) < 3:
+            logger.warning("Validation fail: fewer than 3 parts after splitting on ---")
             return False
 
         # Validate frontmatter block is non-empty and has at least one key: value line
         fm_content = parts[1].strip()
         if not fm_content:
+            logger.warning("Validation fail: frontmatter block is empty")
             return False
 
         has_kv = any(":" in line for line in fm_content.splitlines() if line.strip())
         if not has_kv:
+            logger.warning("Validation fail: no key:value lines in frontmatter")
             return False
 
-        # Validate all 5 section headers present in order
-        body = parts[2]
-        last_pos = -1
+        # Validate all 5 section headers present (case-insensitive, order not required)
+        body = parts[2].lower()
         for section in REQUIRED_SECTIONS:
-            header = f"## {section}"
-            pos = body.find(header)
-            if pos == -1 or pos <= last_pos:
+            if f"## {section.lower()}" not in body:
+                logger.warning(
+                    "Validation fail: section %r not found in body. "
+                    "Found headers: %s",
+                    section,
+                    [line.strip() for line in parts[2].splitlines() if line.strip().startswith("## ")],
+                )
                 return False
-            last_pos = pos
 
         return True
 

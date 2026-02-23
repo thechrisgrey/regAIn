@@ -33,6 +33,7 @@ resume_stack = ResumeStack(
     user_pool=auth_stack.user_pool,
     tables=data_stack.tables,
     api=api_stack.api,
+    profile_lambda=api_stack.profile_lambda,
     env=env,
 )
 
@@ -73,6 +74,7 @@ agentcore_stack = AgentCoreStack(
     missions_lambda=api_stack.missions_lambda,
     evidence_lambda=api_stack.evidence_lambda,
     dashboard_lambda=api_stack.dashboard_lambda,
+    profile_lambda=api_stack.profile_lambda,
     user_pool=auth_stack.user_pool,
     env=env,
 )

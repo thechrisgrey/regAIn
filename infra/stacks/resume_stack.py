@@ -24,13 +24,16 @@ class ResumeStack(cdk.Stack):
         user_pool: cognito.UserPool,
         tables: dict[str, dynamodb.Table],
         api: apigw.RestApi,
+        profile_lambda: _lambda.Function,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        self.profile_lambda = profile_lambda
         self.bucket = self._create_bucket()
         self.resume_lambda = self._create_lambda(tables)
         self._grant_permissions(tables)
+        self._grant_profile_lambda_permissions()
         self._create_api_routes(api, user_pool)
         self._create_outputs()
 
@@ -92,6 +95,22 @@ class ResumeStack(cdk.Stack):
                 ],
             )
         )
+
+    def _grant_profile_lambda_permissions(self) -> None:
+        """Grant the Profile Lambda permissions for resume cascade delete.
+
+        Uses a constructed ARN from the known bucket name to avoid
+        cyclic cross-stack references (ResumeStack <-> ApiStack).
+        """
+        bucket_name = f"regain-resume-{cdk.Aws.ACCOUNT_ID}"
+        bucket_arn = f"arn:aws:s3:::{bucket_name}"
+        self.profile_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
+                resources=[bucket_arn, f"{bucket_arn}/*"],
+            )
+        )
+        self.profile_lambda.add_environment("RESUME_BUCKET_NAME", bucket_name)
 
     def _create_api_routes(
         self,

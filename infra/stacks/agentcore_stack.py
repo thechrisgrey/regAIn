@@ -41,6 +41,7 @@ class AgentCoreStack(cdk.Stack):
         evidence_lambda: _lambda.Function,
         dashboard_lambda: _lambda.Function,
         market_intel_lambda: _lambda.Function | None = None,
+        profile_lambda: _lambda.Function,
         user_pool: cognito.UserPool,
         **kwargs,
     ) -> None:
@@ -56,6 +57,7 @@ class AgentCoreStack(cdk.Stack):
             self._lambda_targets["market_intel"] = market_intel_lambda
 
         self._user_pool = user_pool
+        self._profile_lambda = profile_lambda
 
         # IAM roles must exist before Gateway (RoleArn is required).
         self._gateway_lambda_role = self._create_gateway_lambda_role()
@@ -70,6 +72,7 @@ class AgentCoreStack(cdk.Stack):
         self.create_alarms()
 
         self._code_interpreter_bucket = self._create_code_interpreter_bucket()
+        self._grant_profile_lambda_permissions()
         self._create_outputs()
 
     # -- Gateway ---------------------------------------------------------------
@@ -517,6 +520,26 @@ class AgentCoreStack(cdk.Stack):
             targets.append(target)
 
         return targets
+
+    # -- Profile Lambda permissions for cascade delete -------------------------
+
+    def _grant_profile_lambda_permissions(self) -> None:
+        """Grant the Profile Lambda permissions for code interpreter cascade delete.
+
+        Uses a constructed ARN from the known bucket name to avoid
+        cyclic cross-stack references.
+        """
+        bucket_name = f"regain-code-interpreter-output-{cdk.Aws.ACCOUNT_ID}"
+        bucket_arn = f"arn:aws:s3:::{bucket_name}"
+        self._profile_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
+                resources=[bucket_arn, f"{bucket_arn}/*"],
+            )
+        )
+        self._profile_lambda.add_environment(
+            "CODE_INTERPRETER_BUCKET_NAME", bucket_name,
+        )
 
     # -- S3 bucket for Code Interpreter ----------------------------------------
 

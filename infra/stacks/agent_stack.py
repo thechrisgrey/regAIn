@@ -167,9 +167,20 @@ class AgentStack(cdk.Stack):
         )
 
     def _grant_voice_lambda_permissions(self, voice_lambda: _lambda.Function) -> None:
-        """Grant the Voice Lambda Bedrock and DynamoDB permissions."""
+        """Grant the Voice Lambda Bedrock, DynamoDB, and WebSocket management permissions."""
         voice_lambda.add_to_role_policy(self._bedrock_policy())
         voice_lambda.add_to_role_policy(self._agentcore_memory_policy())
+
+        # Grant execute-api:ManageConnections so Lambda can call post_to_connection.
+        voice_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["execute-api:ManageConnections"],
+                resources=[
+                    f"arn:aws:execute-api:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:"
+                    f"{self.websocket_api.api_id}/prod/POST/@connections/*"
+                ],
+            )
+        )
 
         for table in self.tables.values():
             table.grant_read_write_data(voice_lambda)

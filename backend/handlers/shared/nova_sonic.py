@@ -141,11 +141,11 @@ def build_tool_specs(
                 "name": name,
                 "description": description,
                 "inputSchema": {
-                    "json": {
+                    "json": json.dumps({
                         "type": "object",
                         "properties": properties,
                         "required": required,
-                    }
+                    })
                 },
             }
         })
@@ -215,10 +215,12 @@ class NovaSonicSession:
             BedrockRuntimeClient,
             InvokeModelWithBidirectionalStreamOperationInput,
         )
-        from aws_sdk_bedrock_runtime.config import Config
-        from smithy_aws_core.identity.environment import (
-            EnvironmentCredentialsResolver,
+        from aws_sdk_bedrock_runtime.config import (
+            Config,
+            HTTPAuthSchemeResolver,
+            SigV4AuthScheme,
         )
+        from smithy_aws_core.identity import EnvironmentCredentialsResolver
 
         self._on_audio = on_audio
         self._on_transcript = on_transcript
@@ -229,6 +231,10 @@ class NovaSonicSession:
             endpoint_uri=f"https://bedrock-runtime.{self.region}.amazonaws.com",
             region=self.region,
             aws_credentials_identity_resolver=EnvironmentCredentialsResolver(),
+            auth_scheme_resolver=HTTPAuthSchemeResolver(),
+            auth_schemes={
+                "aws.auth#sigv4": SigV4AuthScheme(service="bedrock")
+            },
         )
         client = BedrockRuntimeClient(config=config)
 
@@ -440,7 +446,6 @@ class NovaSonicSession:
             }
             prompt_start["event"]["promptStart"]["toolConfiguration"] = {
                 "tools": tool_specs,
-                "toolChoice": {"auto": {}},
             }
 
         await self._send_raw_event(json.dumps(prompt_start))
@@ -538,11 +543,14 @@ class NovaSonicSession:
                     self._handle_tool_use_event(event["toolUse"])
                 elif "contentEnd" in event:
                     content_end = event["contentEnd"]
+                    stop_reason = content_end.get("stopReason", "")
                     if content_end.get("type") == "TOOL":
                         await self._execute_tool()
+                    elif stop_reason == "END_TURN":
+                        if self._on_state:
+                            self._on_state("listening")
                 elif "completionEnd" in event:
-                    if self._on_state:
-                        self._on_state("listening")
+                    logger.info("Nova Sonic completion ended")
 
             except StopAsyncIteration:
                 logger.info("Nova Sonic stream ended")
@@ -574,8 +582,9 @@ class NovaSonicSession:
             self._is_speculative = False
 
         # USER contentStart during playback = barge-in.
+        # Fire "interrupted" so handler sends clear_audio to the browser.
         if self._current_role == "USER" and self._on_state:
-            self._on_state("listening")
+            self._on_state("interrupted")
 
     def _handle_text_output(self, data: dict) -> None:
         content = data.get("content", "")
@@ -592,7 +601,9 @@ class NovaSonicSession:
         if self._current_role == "USER":
             if self._on_transcript:
                 self._on_transcript("user", content)
-        elif self._current_role == "ASSISTANT" and not self._is_speculative:
+        elif self._current_role == "ASSISTANT" and self._is_speculative:
+            # SPECULATIVE generation stage for ASSISTANT = text preview
+            # of what is being spoken. This IS the assistant transcript.
             if self._on_transcript:
                 self._on_transcript("assistant", content)
             if self._on_state:

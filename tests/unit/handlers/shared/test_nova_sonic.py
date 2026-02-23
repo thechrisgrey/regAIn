@@ -36,6 +36,10 @@ _sdk_models.InvokeModelWithBidirectionalStreamInputChunk = MagicMock
 _sdk_models.BidirectionalInputPayloadPart = MagicMock
 _sdk_config = sys.modules["aws_sdk_bedrock_runtime.config"]
 _sdk_config.Config = MagicMock
+_sdk_config.HTTPAuthSchemeResolver = MagicMock
+_sdk_config.SigV4AuthScheme = MagicMock
+_identity_mod = sys.modules["smithy_aws_core.identity"]
+_identity_mod.EnvironmentCredentialsResolver = MagicMock
 _env_resolver = sys.modules["smithy_aws_core.identity.environment"]
 _env_resolver.EnvironmentCredentialsResolver = MagicMock
 
@@ -64,7 +68,8 @@ class TestBuildToolSpecs:
         spec = specs[0]["toolSpec"]
         assert spec["name"] == "read_profile"
         assert spec["description"] == "Read a user profile."
-        schema = spec["inputSchema"]["json"]
+        # inputSchema.json is a stringified JSON object per Nova Sonic API.
+        schema = json.loads(spec["inputSchema"]["json"])
         assert schema["type"] == "object"
         assert schema["properties"] == {}
         assert schema["required"] == []
@@ -82,7 +87,7 @@ class TestBuildToolSpecs:
 
         specs = build_tool_specs([create_campaign])
         spec = specs[0]["toolSpec"]
-        schema = spec["inputSchema"]["json"]
+        schema = json.loads(spec["inputSchema"]["json"])
         assert "title" in schema["properties"]
         assert "target_role" in schema["properties"]
         assert "skills_focus" in schema["properties"]
@@ -104,7 +109,7 @@ class TestBuildToolSpecs:
             return {}
 
         specs = build_tool_specs([log_evidence])
-        schema = specs[0]["toolSpec"]["inputSchema"]["json"]
+        schema = json.loads(specs[0]["toolSpec"]["inputSchema"]["json"])
         assert "mission_id" in schema["required"]
         assert "skill_tag" in schema["required"]
         assert "artifact_url" not in schema["required"]
@@ -116,7 +121,7 @@ class TestBuildToolSpecs:
             return {}
 
         specs = build_tool_specs([get_market_insights])
-        schema = specs[0]["toolSpec"]["inputSchema"]["json"]
+        schema = json.loads(specs[0]["toolSpec"]["inputSchema"]["json"])
         assert "role_id" in schema["properties"]
         assert "role_id" in schema["required"]
 
@@ -144,7 +149,7 @@ class TestBuildToolSpecs:
         specs = build_tool_specs(
             [my_tool], exclude_params={"user_id", "session_id"}
         )
-        schema = specs[0]["toolSpec"]["inputSchema"]["json"]
+        schema = json.loads(specs[0]["toolSpec"]["inputSchema"]["json"])
         assert "user_id" not in schema["properties"]
         assert "session_id" not in schema["properties"]
         assert "query" in schema["properties"]
@@ -215,41 +220,41 @@ class TestResponseHandlers:
 
         assert received == [("user", "Hello world")]
 
-    def test_handle_text_output_assistant(self) -> None:
-        """Non-speculative assistant text dispatches."""
+    def test_handle_text_output_assistant_speculative(self) -> None:
+        """Speculative assistant text dispatches as transcript."""
         session = NovaSonicSession()
         received = []
         session._on_transcript = lambda role, text: received.append((role, text))
         session._on_state = MagicMock()
         session._current_role = "ASSISTANT"
-        session._is_speculative = False
+        session._is_speculative = True
 
         session._handle_text_output({"content": "I can help"})
 
         assert received == [("assistant", "I can help")]
         session._on_state.assert_called_with("speaking")
 
-    def test_handle_text_output_speculative(self) -> None:
-        """Speculative assistant text is not dispatched."""
+    def test_handle_text_output_non_speculative_not_dispatched(self) -> None:
+        """Non-speculative assistant text is not dispatched."""
         session = NovaSonicSession()
         received = []
         session._on_transcript = lambda role, text: received.append((role, text))
         session._current_role = "ASSISTANT"
-        session._is_speculative = True
+        session._is_speculative = False
 
-        session._handle_text_output({"content": "Speculative text"})
+        session._handle_text_output({"content": "Non-speculative text"})
 
         assert received == []
 
-    def test_handle_content_start_user_triggers_listening(self) -> None:
-        """USER contentStart triggers 'listening' state."""
+    def test_handle_content_start_user_triggers_interrupted(self) -> None:
+        """USER contentStart triggers 'interrupted' state (barge-in)."""
         session = NovaSonicSession()
         session._on_state = MagicMock()
 
         session._handle_content_start({"role": "USER"})
 
         assert session._current_role == "USER"
-        session._on_state.assert_called_with("listening")
+        session._on_state.assert_called_with("interrupted")
 
     def test_handle_content_start_speculative_detection(self) -> None:
         """Detects SPECULATIVE generation stage in additionalModelFields."""

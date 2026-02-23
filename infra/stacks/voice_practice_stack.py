@@ -305,6 +305,17 @@ class VoicePracticeStack(cdk.Stack):
         self.tables["Campaigns"].grant_read_data(self.ws_lambda)
         self.tables["MissionHistory"].grant_read_data(self.ws_lambda)
 
+        # WS Lambda: WebSocket management (post_to_connection)
+        self.ws_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["execute-api:ManageConnections"],
+                resources=[
+                    f"arn:aws:execute-api:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:"
+                    f"{self.websocket_api.api_id}/prod/POST/@connections/*"
+                ],
+            )
+        )
+
         # REST Lambda: S3 read on bucket
         self.bucket.grant_read(self.rest_lambda)
 

@@ -462,10 +462,21 @@ export function useVoicePractice() {
                   (msg.role ?? data?.role) === 'user'
                     ? ('user' as const)
                     : ('assistant' as const);
-                setState((prev) => ({
-                  ...prev,
-                  transcript: [...prev.transcript, { role, text }],
-                }));
+                setState((prev) => {
+                  const last = prev.transcript[prev.transcript.length - 1];
+                  if (last && last.role === role) {
+                    const updated = [...prev.transcript];
+                    updated[updated.length - 1] = {
+                      ...last,
+                      text: last.text + text,
+                    };
+                    return { ...prev, transcript: updated };
+                  }
+                  return {
+                    ...prev,
+                    transcript: [...prev.transcript, { role, text }],
+                  };
+                });
               }
               break;
             }

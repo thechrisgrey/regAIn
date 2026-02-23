@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMissions } from '../hooks/useMissions';
+import { useDashboard } from '../hooks/useDashboard';
 import type { Mission, CompleteData } from '../types';
 import { Card, SectionLabel, Button, Badge, SkeletonBlock } from '../components/ui';
 
@@ -586,6 +587,8 @@ export default function Missions() {
     generateMission,
   } = useMissions();
 
+  const { data: dashboardData, loading: dashLoading, fetchDashboard } = useDashboard();
+
   const [completing, setCompleting] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
   const [completedResult, setCompletedResult] = useState<{
@@ -602,8 +605,9 @@ export default function Missions() {
   const lastDateRef = useRef(getUtcDate());
 
   useEffect(() => {
+    void fetchDashboard();
     void fetchMissions();
-  }, [fetchMissions]);
+  }, [fetchDashboard, fetchMissions]);
 
   // Day-change detection: visibility change + 60s interval.
   useEffect(() => {
@@ -714,7 +718,7 @@ export default function Missions() {
   }, [generateMission]);
 
   // Loading state (only when no missions loaded yet)
-  if (loading && missions.length === 0) {
+  if ((loading || dashLoading) && missions.length === 0) {
     return <Skeleton />;
   }
 
@@ -722,6 +726,35 @@ export default function Missions() {
   if (error && missions.length === 0) {
     return (
       <MissionsError message={error} onRetry={() => void fetchMissions()} />
+    );
+  }
+
+  // No campaign — user needs to complete onboarding first
+  if (dashboardData && !dashboardData.campaign) {
+    return (
+      <div className="space-y-6 animate-fade-in">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Missions</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Build evidence through daily challenges
+          </p>
+        </div>
+        <Card className="p-10 text-center">
+          <p className="text-xl font-semibold text-neutral-900">
+            Complete onboarding to unlock missions
+          </p>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
+            Set up your career campaign first. Once your profile and target role are
+            configured, you can start generating daily missions tailored to your transition.
+          </p>
+          <div className="section-divider mx-auto mt-6 w-32" />
+          <div className="mt-6">
+            <Link to="/onboarding">
+              <Button size="lg">Go to Onboarding</Button>
+            </Link>
+          </div>
+        </Card>
+      </div>
     );
   }
 

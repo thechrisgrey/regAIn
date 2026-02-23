@@ -51,11 +51,21 @@ export function useMissions() {
     try {
       const token = await getToken();
       const result = await api.missions.generate(token);
-      setDailyRemaining(result.dailyRemaining);
-      setDailyLimit(result.dailyLimit);
+
+      // Engine may return an error dict (200 with {error: ...}) instead of a mission.
+      if ('error' in result && !('mission' in result)) {
+        setError((result as Record<string, string>).message || 'Could not generate a mission.');
+        return null;
+      }
+
+      if (result.dailyRemaining !== undefined) setDailyRemaining(result.dailyRemaining);
+      if (result.dailyLimit !== undefined) setDailyLimit(result.dailyLimit);
+
       // Re-fetch full mission list to stay in sync.
       const updated = await api.missions.list(token);
       setMissions(updated.missions);
+      setDailyRemaining(updated.dailyRemaining);
+      setDailyLimit(updated.dailyLimit);
       return result;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');

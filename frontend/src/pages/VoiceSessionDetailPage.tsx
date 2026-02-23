@@ -69,7 +69,12 @@ export default function VoiceSessionDetailPage() {
 
   if (!sessionDetail) return null;
 
-  const { session, transcript, assessment } = sessionDetail;
+  const { assessment } = sessionDetail;
+
+  // Normalize transcript: backend may return a flat array or a { turns } object.
+  const turns = Array.isArray(sessionDetail.transcript)
+    ? sessionDetail.transcript
+    : sessionDetail.transcript?.turns ?? [];
 
   return (
     <div className="animate-fade-in">
@@ -84,16 +89,16 @@ export default function VoiceSessionDetailPage() {
       {/* Session metadata bar */}
       <div className="flex items-center gap-4 flex-wrap mb-4">
         <span className="text-sm text-neutral-600">
-          {formatDate(session.createdAt)}
+          {formatDate(sessionDetail.createdAt)}
         </span>
-        <Badge variant={session.sessionType === 'interview' ? 'primary' : 'info'}>
-          {session.sessionType === 'interview' ? 'Interview' : 'Mission Discussion'}
+        <Badge variant={sessionDetail.sessionType === 'interview' ? 'primary' : 'info'}>
+          {sessionDetail.sessionType === 'interview' ? 'Interview' : 'Mission Discussion'}
         </Badge>
         <span className="text-sm font-mono tabular-nums text-neutral-700">
-          {formatDuration(session.durationSeconds)}
+          {formatDuration(sessionDetail.durationSeconds)}
         </span>
-        <span className={`text-2xl font-bold font-mono tabular-nums ${scoreColor(session.overallScore)}`}>
-          {session.overallScore}
+        <span className={`text-2xl font-bold font-mono tabular-nums ${scoreColor(sessionDetail.overallScore)}`}>
+          {sessionDetail.overallScore}
           <span className="text-sm font-normal text-neutral-500">/10</span>
         </span>
       </div>
@@ -164,7 +169,7 @@ export default function VoiceSessionDetailPage() {
       )}
 
       {/* Full Transcript */}
-      {transcript && transcript.turns.length > 0 && (
+      {turns.length > 0 && (
         <div className="border-t border-neutral-200 pt-4">
           <Button
             variant="ghost"
@@ -185,7 +190,7 @@ export default function VoiceSessionDetailPage() {
 
           {transcriptExpanded && (
             <div className="mt-4 space-y-3">
-              {transcript.turns.map((turn, i) => (
+              {turns.map((turn, i) => (
                 <div
                   key={i}
                   className={`flex ${turn.role === 'user' ? 'justify-end' : 'justify-start'}`}

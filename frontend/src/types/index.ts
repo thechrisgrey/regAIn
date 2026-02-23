@@ -161,8 +161,16 @@ export interface VoiceSessionsResponse {
 }
 
 export interface VoiceSessionDetailResponse {
-  session: VoicePracticeSession;
-  transcript: VoicePracticeTranscript | null;
+  sessionId: string;
+  sessionType: VoicePracticeSessionType;
+  status: string;
+  targetRole: string;
+  durationSeconds: number;
+  turnCount: number;
+  overallScore: number;
+  assessmentSummary: string;
+  createdAt: string;
+  transcript: VoicePracticeTranscript | VoicePracticeTranscriptEntry[] | null;
   assessment: VoicePracticeAssessment | null;
 }
 

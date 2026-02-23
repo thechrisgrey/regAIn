@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useStreamingCoaching } from '../hooks/useStreamingCoaching';
 import { useVoiceSession } from '../hooks/useVoiceSession';
-import { Button, MarkdownMessage } from '../components/ui';
+import { Button, MarkdownMessage, AgentActivityFeed } from '../components/ui';
 
 const SESSION_TYPES = [
   { value: 'onboarding', label: 'Onboarding' },
@@ -10,7 +10,7 @@ const SESSION_TYPES = [
 ] as const;
 
 export default function CoachingPage() {
-  const { messages, streaming, streamingText, thinking, thinkingLabel, error, sendMessage } = useStreamingCoaching();
+  const { messages, streaming, streamingText, toolSteps, error, sendMessage } = useStreamingCoaching();
   const { isActive: voiceActive, error: voiceError, fallbackToText, startSession, stopSession } = useVoiceSession();
 
   const [input, setInput] = useState('');
@@ -96,37 +96,28 @@ export default function CoachingPage() {
           </div>
         ))}
 
+        {/* Agent activity feed — shows tool execution steps */}
+        {streaming && toolSteps.length > 0 && (
+          <AgentActivityFeed steps={toolSteps} visible={!streamingText} />
+        )}
+
         {/* Streaming bubble — shows text as it arrives */}
         {streaming && streamingText && (
           <div className="flex justify-start">
             <div className="max-w-[75%] px-4 py-2 text-sm bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm">
               <MarkdownMessage content={streamingText} />
-              {thinking ? (
-                <span className="block mt-2 text-xs text-neutral-400 italic animate-pulse">
-                  {thinkingLabel || 'Thinking'}...
-                </span>
-              ) : (
-                <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse align-text-bottom" />
-              )}
+              <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse align-text-bottom" />
             </div>
           </div>
         )}
 
-        {/* Loading / thinking indicator — between send and first chunk */}
-        {streaming && !streamingText && (
+        {/* Bouncing dots fallback — no tool steps and no text yet */}
+        {streaming && !streamingText && toolSteps.length === 0 && (
           <div className="flex justify-start">
             <div className="bg-surface-3 text-neutral-500 rounded-2xl rounded-bl-sm px-4 py-3 text-sm flex items-center gap-1.5">
-              {thinking ? (
-                <span className="text-xs text-neutral-500 italic animate-pulse">
-                  {thinkingLabel || 'Thinking'}...
-                </span>
-              ) : (
-                <>
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" />
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '150ms' }} />
-                  <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '300ms' }} />
-                </>
-              )}
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '150ms' }} />
+              <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
         )}

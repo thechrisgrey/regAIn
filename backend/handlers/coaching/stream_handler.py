@@ -93,6 +93,7 @@ class _StreamingToolHooks:
     def _on_after_tool(self, event: Any) -> None:
         tool_name = event.tool_use.get("name", "")
         logger.info("Tool completed: %s", tool_name)
+        self._send({"type": "thinking_complete", "tool": tool_name})
 
 
 def _validate_cognito_token(token: str) -> Optional[str]:

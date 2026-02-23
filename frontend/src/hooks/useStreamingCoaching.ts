@@ -6,8 +6,14 @@ interface ChatMessage {
   content: string;
 }
 
+export interface ToolStep {
+  tool: string;
+  label: string;
+  status: 'active' | 'done';
+}
+
 interface StreamEvent {
-  type: 'delta' | 'done' | 'error' | 'thinking';
+  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete';
   text?: string;
   message?: string;
   tool?: string;
@@ -41,8 +47,7 @@ export function useStreamingCoaching() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
-  const [thinking, setThinking] = useState(false);
-  const [thinkingLabel, setThinkingLabel] = useState('');
+  const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
@@ -50,6 +55,18 @@ export function useStreamingCoaching() {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const connectRef = useRef<(() => Promise<void>) | undefined>(undefined);
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const hasStepsRef = useRef(false);
+
+  /** Derived convenience — true while any tool step is still active. */
+  const thinking = toolSteps.some(s => s.status === 'active');
+
+  const clearToolSteps = useCallback(() => {
+    setToolSteps([]);
+    hasStepsRef.current = false;
+    clearTimeout(fadeTimerRef.current);
+    fadeTimerRef.current = undefined;
+  }, []);
 
   /** Reset the safety timeout — called whenever we receive any message. */
   const resetStreamTimeout = useCallback(() => {
@@ -58,10 +75,9 @@ export function useStreamingCoaching() {
       setError('Response timed out. Please try again.');
       setStreaming(false);
       setStreamingText('');
-      setThinking(false);
-      setThinkingLabel('');
+      clearToolSteps();
     }, STREAM_TIMEOUT_MS);
-  }, []);
+  }, [clearToolSteps]);
 
   const clearStreamTimeout = useCallback(() => {
     clearTimeout(streamTimeoutRef.current);
@@ -85,14 +101,34 @@ export function useStreamingCoaching() {
           const data: StreamEvent = JSON.parse(evt.data);
 
           if (data.type === 'delta' && data.text) {
-            setThinking(false);
-            setThinkingLabel('');
+            // Mark all remaining active steps as done and start fade timer.
+            if (hasStepsRef.current && !fadeTimerRef.current) {
+              hasStepsRef.current = false;
+              setToolSteps(prev =>
+                prev.map(s => s.status === 'active' ? { ...s, status: 'done' as const } : s)
+              );
+              fadeTimerRef.current = setTimeout(() => {
+                setToolSteps([]);
+                fadeTimerRef.current = undefined;
+              }, 600);
+            }
             setStreamingText((prev) => prev + data.text);
             resetStreamTimeout();
           } else if (data.type === 'thinking') {
-            setThinking(true);
-            const label = (data.tool && TOOL_LABELS[data.tool]) || 'Thinking';
-            setThinkingLabel(label);
+            const toolName = data.tool || '';
+            const label = TOOL_LABELS[toolName] || 'Thinking';
+            setToolSteps(prev => [...prev, { tool: toolName, label, status: 'active' }]);
+            hasStepsRef.current = true;
+            resetStreamTimeout();
+          } else if (data.type === 'thinking_complete') {
+            const toolName = data.tool || '';
+            setToolSteps(prev => {
+              const idx = prev.findIndex(s => s.tool === toolName && s.status === 'active');
+              if (idx === -1) return prev;
+              const next = [...prev];
+              next[idx] = { ...next[idx], status: 'done' };
+              return next;
+            });
             resetStreamTimeout();
           } else if (data.type === 'done') {
             const finalText = data.text || '';
@@ -102,15 +138,13 @@ export function useStreamingCoaching() {
             ]);
             setStreamingText('');
             setStreaming(false);
-            setThinking(false);
-            setThinkingLabel('');
+            clearToolSteps();
             clearStreamTimeout();
           } else if (data.type === 'error') {
             setError(data.message || 'An error occurred');
             setStreamingText('');
             setStreaming(false);
-            setThinking(false);
-            setThinkingLabel('');
+            clearToolSteps();
             clearStreamTimeout();
           }
         } catch {
@@ -139,7 +173,7 @@ export function useStreamingCoaching() {
     } catch {
       setError('Failed to connect to coaching session');
     }
-  }, [getToken, resetStreamTimeout, clearStreamTimeout]);
+  }, [getToken, resetStreamTimeout, clearStreamTimeout, clearToolSteps]);
 
   // Keep connectRef in sync so the onclose handler always calls the latest version.
   useEffect(() => {
@@ -154,6 +188,7 @@ export function useStreamingCoaching() {
     return () => {
       clearTimeout(reconnectTimer.current);
       clearStreamTimeout();
+      clearTimeout(fadeTimerRef.current);
       wsRef.current?.close();
       wsRef.current = null;
     };
@@ -179,8 +214,7 @@ export function useStreamingCoaching() {
       setMessages((prev) => [...prev, { role: 'user', content: message }]);
       setStreaming(true);
       setStreamingText('');
-      setThinking(false);
-      setThinkingLabel('');
+      clearToolSteps();
       resetStreamTimeout();
 
       const token = await getToken();
@@ -193,8 +227,8 @@ export function useStreamingCoaching() {
         }),
       );
     },
-    [connect, getToken, resetStreamTimeout],
+    [connect, getToken, resetStreamTimeout, clearToolSteps],
   );
 
-  return { messages, streaming, streamingText, thinking, thinkingLabel, error, sendMessage };
+  return { messages, streaming, streamingText, thinking, toolSteps, error, sendMessage };
 }

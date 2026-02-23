@@ -20,7 +20,7 @@ export default function Layout() {
     <div className="flex min-h-screen">
       <nav
         className="flex w-60 flex-col border-r border-white/[0.06]"
-        style={{ background: 'linear-gradient(180deg, #3B2D27 0%, #261C18 100%)' }}
+        style={{ background: 'linear-gradient(180deg, #4A3A50 0%, #2E1F33 100%)' }}
         aria-label="Main navigation"
       >
         {/* Logo */}
@@ -41,7 +41,7 @@ export default function Layout() {
                 className={({ isActive }) =>
                   `relative flex items-center gap-3 rounded-[var(--radius-button)] px-3 py-2 text-sm font-medium transition-colors duration-150 ${
                     isActive
-                      ? 'bg-white/[0.08] text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-full before:bg-accent-400 before:animate-glow-pulse'
+                      ? 'bg-white/[0.08] text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-full before:bg-primary-400 before:animate-glow-pulse'
                       : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
                   }`
                 }

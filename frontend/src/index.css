@@ -208,10 +208,10 @@
 
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 6px rgba(191, 168, 197, 0.3);
+    box-shadow: 0 0 6px rgba(145, 109, 101, 0.3);
   }
   50% {
-    box-shadow: 0 0 14px rgba(191, 168, 197, 0.5);
+    box-shadow: 0 0 14px rgba(145, 109, 101, 0.5);
   }
 }
 

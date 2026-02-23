@@ -13,14 +13,14 @@ export default function VoiceIndicator({ state }: VoiceIndicatorProps) {
       {state === 'speaking' && (
         <>
           <span
-            className="absolute inset-0 rounded-full border border-primary-400/30 animate-voice-ripple"
+            className="absolute inset-0 rounded-full border border-accent-400/30 animate-voice-ripple"
           />
           <span
-            className="absolute inset-0 rounded-full border border-primary-400/20 animate-voice-ripple"
+            className="absolute inset-0 rounded-full border border-accent-400/20 animate-voice-ripple"
             style={{ animationDelay: '0.6s' }}
           />
           <span
-            className="absolute inset-0 rounded-full border border-primary-400/10 animate-voice-ripple"
+            className="absolute inset-0 rounded-full border border-accent-400/10 animate-voice-ripple"
             style={{ animationDelay: '1.2s' }}
           />
         </>
@@ -29,7 +29,7 @@ export default function VoiceIndicator({ state }: VoiceIndicatorProps) {
       {/* Breathing ring — visible when listening */}
       {state === 'listening' && (
         <span
-          className="absolute rounded-full border border-primary-300/30 animate-voice-breathe"
+          className="absolute rounded-full border border-accent-300/30 animate-voice-breathe"
           style={{ inset: '16px' }}
         />
       )}
@@ -45,9 +45,9 @@ export default function VoiceIndicator({ state }: VoiceIndicatorProps) {
         }`}
         style={
           state === 'speaking'
-            ? { boxShadow: '0 0 32px rgba(91,97,213,0.3)' }
+            ? { boxShadow: '0 0 32px rgba(145, 109, 101, 0.3)' }
             : state === 'listening'
-              ? { boxShadow: '0 0 20px rgba(91,97,213,0.15)' }
+              ? { boxShadow: '0 0 20px rgba(191, 168, 197, 0.25)' }
               : undefined
         }
       />

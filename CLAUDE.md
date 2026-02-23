@@ -14,11 +14,15 @@
 - Fonts: General Sans (sans) + JetBrains Mono (mono) — self-hosted in `public/fonts/`
 
 ### Color Palette
-- **Primary**: `primary-50` through `primary-900` (slate-blue, #5B61D5 at 500)
-- **Surfaces**: `surface-1` (white) through `surface-4` (light gray) — use for bg hierarchy
-- **Neutrals**: `neutral-50` through `neutral-900` — use instead of `gray-*` or `slate-*`
+- **Primary**: `primary-50` through `primary-900` (warm cocoa, #916D65 at 500)
+- **Surfaces**: `surface-1` (white) through `surface-4` (#E5DBD8 warm blush) — warm undertone hierarchy
+- **Neutrals**: `neutral-50` through `neutral-900` (warm spectrum) — use instead of `gray-*` or `slate-*`
 - **Semantic**: `success-*`, `warning-*`, `error-*`, `info-*`
+- **Accent**: `accent-50` through `accent-600` (dusty mauve, #BFA8C5 at 400) — highlights & achievements
+- **Steel**: `steel-50` through `steel-500` (cool blue, #B6C8E2 at 300) — cool complement for info states
+- **Peach**: `peach-50` through `peach-300` (warm cream, #FCE5C7 at 100) — warm highlight surfaces
 - **Never use** raw Tailwind `indigo-*`, `blue-*`, `gray-*`, `slate-*` in UI code
+- **Brand hex codes**: `#B6C8E2`, `#FCE5C7`, `#BFA8C5`, `#E5DBD8`, `#916D65`
 
 ### Shared Components (`frontend/src/components/ui/`)
 - `Button` — 4 variants (primary, secondary, ghost, destructive) × 3 sizes (sm, md, lg)
@@ -66,13 +70,14 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 ## Key Decisions & Patterns
 
 - **No emojis** anywhere in UI text or labels (project requirement)
-- Layout sidebar: `w-60` with deep indigo gradient (`#1E2140` to `#12141F`), active nav uses left 3px indicator bar with `animate-glow-pulse`
-- Login: split layout (60% dark brand / 40% form), collapses on mobile
-- Stat numbers use `font-mono tabular-nums` for alignment + `.stat-value` CSS class for gradient text (neutral-900 to primary-700). Wrap stats in `bg-surface-2 rounded-[var(--radius-button)] px-4 py-3` cells
+- **Logo**: Cursive "Regain." script at `public/regain-type.png` — use `<img>` with `brightness-0 invert` filter on dark backgrounds. Never hard-type "REGAIN" in UI
+- Layout sidebar: `w-60` with warm chocolate gradient (`#3B2D27` to `#261C18`), active nav uses left 3px indicator bar in `accent-400` (mauve) with `animate-glow-pulse`
+- Login: split layout (60% dark brand / 40% form), collapses on mobile. Brand panel uses warm gradient (`#3B2D27` → `#261C18` → `#1a1412`)
+- **Intro video**: `IntroVideo.tsx` — full-screen splash plays `regain-prod.mp4` from S3 (`regain-media` bucket, us-east-2) on first visit per session. Skip button bottom-right, Escape key, `sessionStorage` gating
+- Stat numbers use `font-mono tabular-nums` for alignment + `.stat-value` CSS class for gradient text (neutral-900 to primary-600). Wrap stats in `bg-surface-2 rounded-[var(--radius-button)] px-4 py-3` cells
 - Card hover: `transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5`
 - Custom CSS vars for radii: `--radius-card` (12px), `--radius-button` (8px), `--radius-badge` (pill)
-- **Accent palette**: `accent-50` through `accent-600` (warm amber) — for motivational/achievement moments
-- **Shadows**: Primary-tinted hover shadows (`--shadow-card-hover` uses `rgba(91,97,213,0.08)`), `--shadow-glow` for UI emphasis
+- **Shadows**: Warm cocoa-tinted hover shadows (`--shadow-card-hover` uses `rgba(145,109,101,0.08)`), `--shadow-glow` uses mauve (`rgba(191,168,197,0.2)`)
 - **Body texture**: Subtle dot grid via `radial-gradient` in `body` styles
 - **Page headers**: All main pages use consistent pattern: `h1 text-2xl font-semibold tracking-tight` + subtitle `text-sm text-neutral-500`
 - **CSS utility classes**: `.stat-value` (gradient text), `.chat-input-glow` (focus ring), `.section-divider` (gradient line) — defined in `index.css` after base layer
@@ -108,7 +113,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Shared Nova Sonic client**: `backend/handlers/shared/nova_sonic.py` — async bidirectional streaming client using `aws_sdk_bedrock_runtime` SDK (NOT boto3). Used by both coaching voice handler and voice practice handler. Event protocol: sessionStart → promptStart → contentStart/textInput → contentEnd → contentStart(AUDIO) → audioInput chunks. Response loop reads `stream.await_output()` and dispatches to callbacks
 - **Nova Sonic model ID**: `amazon.nova-2-sonic-v1:0` (Nova 2 Sonic, NOT `amazon.nova-sonic-v1:0`). Input audio: 16kHz PCM mono. Output audio: 24kHz PCM mono. Lambda layer includes `aws-sdk-bedrock-runtime` package
 - **Nova Sonic Lambda async bridge**: Lambda handlers are sync but `aws_sdk_bedrock_runtime` is async. A module-level daemon thread runs `asyncio.run_forever()`, and handlers use `run_coroutine_threadsafe()` to schedule async work. See `ensure_event_loop()` and `run_async()` in `nova_sonic.py`
-- **AudioVisualizer**: WebGL 3D orb at `frontend/src/components/voice/AudioVisualizer.tsx` — uses R3F + `three-custom-shader-material` with per-state configs and lerped transitions in `useFrame`
+- **AudioVisualizer**: WebGL 3D orb at `frontend/src/components/voice/AudioVisualizer.tsx` — uses R3F + `three-custom-shader-material` with per-state configs (warm cocoa/mauve/peach tones) and lerped transitions in `useFrame`. Scene lighting uses warm tones (`#e5d5c8`, `#c5a8b5`, `#d8b0a0`)
 
 ## DynamoDB Table Keys
 

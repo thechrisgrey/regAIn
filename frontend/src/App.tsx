@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import IntroVideo from './components/IntroVideo';
 import Layout from './components/Layout';
 import Login from './components/Login';
 import Onboarding from './pages/Onboarding';
@@ -17,6 +18,7 @@ import NotFound from './pages/NotFound';
 function App() {
   return (
     <AuthProvider>
+      <IntroVideo />
       <BrowserRouter>
         <Routes>
           <Route path="/login" element={<Login />} />

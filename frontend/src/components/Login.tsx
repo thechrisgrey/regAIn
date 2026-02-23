@@ -249,11 +249,16 @@ export default function Login() {
   return (
     <div className="flex min-h-screen">
       {/* Brand panel -- left 60% on desktop, hidden on mobile */}
-      <div className="hidden lg:flex lg:w-[60%] flex-col justify-center bg-neutral-900 px-16 xl:px-24">
-        <span className="text-4xl font-bold tracking-tight text-white">
-          REGAIN
-        </span>
-        <p className="mt-4 max-w-md text-lg leading-relaxed text-neutral-400">
+      <div
+        className="hidden lg:flex lg:w-[60%] flex-col justify-center px-16 xl:px-24"
+        style={{ background: 'linear-gradient(160deg, #3B2D27 0%, #261C18 60%, #1a1412 100%)' }}
+      >
+        <img
+          src="/regain-type.png"
+          alt="Regain"
+          className="h-14 w-auto brightness-0 invert self-start"
+        />
+        <p className="mt-6 max-w-md text-lg leading-relaxed text-neutral-400">
           Build documented evidence of your capabilities. Complete missions,
           track your progress, and land your next role.
         </p>
@@ -263,10 +268,12 @@ export default function Login() {
       <div className="flex flex-1 flex-col items-center justify-center bg-surface-2 px-6">
         {/* Mobile brand header */}
         <div className="mb-8 text-center lg:hidden">
-          <span className="text-3xl font-bold tracking-tight text-neutral-900">
-            REGAIN
-          </span>
-          <p className="mt-2 text-sm text-neutral-500">
+          <img
+            src="/regain-type.png"
+            alt="Regain"
+            className="mx-auto h-10 w-auto"
+          />
+          <p className="mt-3 text-sm text-neutral-500">
             Build evidence. Complete missions. Land your next role.
           </p>
         </div>

@@ -39,9 +39,9 @@ interface StateConfig {
 
 const STATE_CONFIGS: Record<OrbState, StateConfig> = {
   idle: {
-    baseColor: [0.22, 0.24, 0.30],
-    accentColor: [0.36, 0.38, 0.52],
-    fresnelColor: [0.50, 0.52, 0.68],
+    baseColor: [0.25, 0.22, 0.20],
+    accentColor: [0.40, 0.32, 0.30],
+    fresnelColor: [0.55, 0.45, 0.42],
     noiseAmplitude: 0.02,
     noiseFrequency: 1.2,
     noiseSpeed: 0.15,
@@ -55,9 +55,9 @@ const STATE_CONFIGS: Record<OrbState, StateConfig> = {
     scale: 0.92,
   },
   connecting: {
-    baseColor: [0.30, 0.32, 0.50],
-    accentColor: [0.46, 0.48, 0.72],
-    fresnelColor: [0.56, 0.58, 0.82],
+    baseColor: [0.38, 0.30, 0.35],
+    accentColor: [0.55, 0.42, 0.50],
+    fresnelColor: [0.70, 0.58, 0.68],
     noiseAmplitude: 0.04,
     noiseFrequency: 2.0,
     noiseSpeed: 0.6,
@@ -71,9 +71,9 @@ const STATE_CONFIGS: Record<OrbState, StateConfig> = {
     scale: 0.95,
   },
   listening: {
-    baseColor: [0.30, 0.32, 0.72],
-    accentColor: [0.42, 0.44, 0.85],
-    fresnelColor: [0.58, 0.60, 0.95],
+    baseColor: [0.45, 0.38, 0.48],
+    accentColor: [0.62, 0.50, 0.65],
+    fresnelColor: [0.75, 0.66, 0.77],
     noiseAmplitude: 0.035,
     noiseFrequency: 1.6,
     noiseSpeed: 0.3,
@@ -87,9 +87,9 @@ const STATE_CONFIGS: Record<OrbState, StateConfig> = {
     scale: 1.0,
   },
   speaking: {
-    baseColor: [0.36, 0.38, 0.84],
-    accentColor: [0.52, 0.46, 0.95],
-    fresnelColor: [0.72, 0.65, 1.0],
+    baseColor: [0.57, 0.43, 0.40],
+    accentColor: [0.75, 0.55, 0.50],
+    fresnelColor: [0.90, 0.75, 0.70],
     noiseAmplitude: 0.08,
     noiseFrequency: 2.4,
     noiseSpeed: 0.8,
@@ -103,9 +103,9 @@ const STATE_CONFIGS: Record<OrbState, StateConfig> = {
     scale: 1.08,
   },
   muted: {
-    baseColor: [0.35, 0.28, 0.22],
-    accentColor: [0.52, 0.38, 0.28],
-    fresnelColor: [0.60, 0.45, 0.35],
+    baseColor: [0.30, 0.25, 0.22],
+    accentColor: [0.42, 0.35, 0.30],
+    fresnelColor: [0.50, 0.42, 0.38],
     noiseAmplitude: 0.015,
     noiseFrequency: 1.0,
     noiseSpeed: 0.08,
@@ -384,9 +384,9 @@ function Scene({ state }: { state: OrbState }) {
   return (
     <>
       <ambientLight intensity={0.25} />
-      <directionalLight position={[3, 4, 5]} intensity={0.8} color="#c8cce0" />
-      <directionalLight position={[-2, -1, 3]} intensity={0.3} color="#8088b0" />
-      <pointLight position={[0, 0, 3]} intensity={0.4} color="#9098d8" distance={8} />
+      <directionalLight position={[3, 4, 5]} intensity={0.8} color="#e5d5c8" />
+      <directionalLight position={[-2, -1, 3]} intensity={0.3} color="#c5a8b5" />
+      <pointLight position={[0, 0, 3]} intensity={0.4} color="#d8b0a0" distance={8} />
       <Orb state={state} />
     </>
   );

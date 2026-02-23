@@ -29,35 +29,35 @@
   --font-sans: "General Sans", "Inter", ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, "Fira Code", monospace;
 
-  /* Primary palette — slate-blue */
-  --color-primary-50: #EDEDF9;
-  --color-primary-100: #D8D9F2;
-  --color-primary-200: #B3B6E6;
-  --color-primary-300: #8E92D9;
-  --color-primary-400: #7478CD;
-  --color-primary-500: #5B61D5;
-  --color-primary-600: #4A4FBF;
-  --color-primary-700: #3B3F99;
-  --color-primary-800: #2D3073;
-  --color-primary-900: #1E204D;
+  /* Primary palette — warm cocoa (#916D65) */
+  --color-primary-50: #F9F5F4;
+  --color-primary-100: #F0E9E7;
+  --color-primary-200: #DFCFC9;
+  --color-primary-300: #CBB3AB;
+  --color-primary-400: #B39189;
+  --color-primary-500: #916D65;
+  --color-primary-600: #7B5B53;
+  --color-primary-700: #634841;
+  --color-primary-800: #4B3531;
+  --color-primary-900: #342422;
 
-  /* Surface hierarchy */
+  /* Surface hierarchy — warm blush undertone */
   --color-surface-1: #FFFFFF;
-  --color-surface-2: #F8F9FB;
-  --color-surface-3: #F1F3F5;
-  --color-surface-4: #E8EAED;
+  --color-surface-2: #FBF8F7;
+  --color-surface-3: #F4EFED;
+  --color-surface-4: #E5DBD8;
 
-  /* Neutrals — refined slate */
-  --color-neutral-50: #F8FAFB;
-  --color-neutral-100: #F1F3F5;
-  --color-neutral-200: #E3E6EA;
-  --color-neutral-300: #CDD1D7;
-  --color-neutral-400: #9BA2AC;
-  --color-neutral-500: #6E7681;
-  --color-neutral-600: #525A65;
-  --color-neutral-700: #3B424B;
-  --color-neutral-800: #272D35;
-  --color-neutral-900: #171B21;
+  /* Neutrals — warm spectrum */
+  --color-neutral-50: #FAF8F7;
+  --color-neutral-100: #F3EFED;
+  --color-neutral-200: #E5DBD8;
+  --color-neutral-300: #D1C5C0;
+  --color-neutral-400: #B09A93;
+  --color-neutral-500: #8A7069;
+  --color-neutral-600: #6E574F;
+  --color-neutral-700: #544038;
+  --color-neutral-800: #3B2D27;
+  --color-neutral-900: #261C18;
 
   /* Semantic colors */
   --color-success-50: #ECFDF5;
@@ -66,35 +66,52 @@
   --color-success-600: #059669;
   --color-success-700: #047857;
 
-  --color-warning-50: #FFFBEB;
-  --color-warning-100: #FEF3C7;
-  --color-warning-500: #F59E0B;
-  --color-warning-600: #D97706;
+  --color-warning-50: #FFF8ED;
+  --color-warning-100: #FCE5C7;
+  --color-warning-500: #E0924A;
+  --color-warning-600: #C47A38;
 
   --color-error-50: #FFF1F2;
   --color-error-100: #FFE4E6;
+  --color-error-400: #F87171;
   --color-error-500: #F43F5E;
   --color-error-600: #E11D48;
   --color-error-700: #BE123C;
 
-  --color-info-50: #ECFEFF;
-  --color-info-100: #CFFAFE;
-  --color-info-500: #06B6D4;
-  --color-info-600: #0891B2;
+  --color-info-50: #F0F4FA;
+  --color-info-100: #E0E9F4;
+  --color-info-200: #C4D5EA;
+  --color-info-500: #7694C2;
+  --color-info-600: #5A7AB0;
 
-  /* Accent palette — warm amber for achievements & motivation */
-  --color-accent-50: #FFFBEB;
-  --color-accent-100: #FEF3C7;
-  --color-accent-200: #FDE68A;
-  --color-accent-400: #FBBF24;
-  --color-accent-500: #F59E0B;
-  --color-accent-600: #D97706;
+  /* Accent palette — dusty mauve for highlights & achievements */
+  --color-accent-50: #F8F4F9;
+  --color-accent-100: #F0E7F2;
+  --color-accent-200: #DFCFE3;
+  --color-accent-300: #CDB5D2;
+  --color-accent-400: #BFA8C5;
+  --color-accent-500: #A68BAD;
+  --color-accent-600: #8D7094;
 
-  /* Shadows — layered with subtle primary tinting */
-  --shadow-card: 0 1px 3px rgba(23, 27, 33, 0.06), 0 1px 2px rgba(23, 27, 33, 0.04);
-  --shadow-card-hover: 0 8px 24px rgba(91, 97, 213, 0.08), 0 2px 6px rgba(23, 27, 33, 0.06);
-  --shadow-elevated: 0 12px 32px rgba(23, 27, 33, 0.1), 0 4px 8px rgba(23, 27, 33, 0.06);
-  --shadow-glow: 0 0 20px rgba(91, 97, 213, 0.15);
+  /* Steel blue — cool complement (#B6C8E2) */
+  --color-steel-50: #F2F6FB;
+  --color-steel-100: #E3EBF5;
+  --color-steel-200: #C8D8EA;
+  --color-steel-300: #B6C8E2;
+  --color-steel-400: #96AED2;
+  --color-steel-500: #7694C2;
+
+  /* Peach — warm highlight (#FCE5C7) */
+  --color-peach-50: #FFF8F0;
+  --color-peach-100: #FCE5C7;
+  --color-peach-200: #F5D3AA;
+  --color-peach-300: #EEC08D;
+
+  /* Shadows — warm tint */
+  --shadow-card: 0 1px 3px rgba(59, 45, 39, 0.06), 0 1px 2px rgba(59, 45, 39, 0.04);
+  --shadow-card-hover: 0 8px 24px rgba(145, 109, 101, 0.08), 0 2px 6px rgba(59, 45, 39, 0.06);
+  --shadow-elevated: 0 12px 32px rgba(59, 45, 39, 0.1), 0 4px 8px rgba(59, 45, 39, 0.06);
+  --shadow-glow: 0 0 20px rgba(191, 168, 197, 0.2);
 
   /* Radii */
   --radius-card: 12px;
@@ -191,10 +208,10 @@
 
 @keyframes glow-pulse {
   0%, 100% {
-    box-shadow: 0 0 6px rgba(91, 97, 213, 0.25);
+    box-shadow: 0 0 6px rgba(191, 168, 197, 0.3);
   }
   50% {
-    box-shadow: 0 0 12px rgba(91, 97, 213, 0.45);
+    box-shadow: 0 0 14px rgba(191, 168, 197, 0.5);
   }
 }
 
@@ -217,14 +234,14 @@ body {
 /* ------------------------------------------------------------------ */
 
 .stat-value {
-  background: linear-gradient(135deg, var(--color-neutral-900) 0%, var(--color-primary-700) 100%);
+  background: linear-gradient(135deg, var(--color-neutral-900) 0%, var(--color-primary-600) 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
 }
 
 .chat-input-glow:focus-within {
-  box-shadow: 0 0 0 3px rgba(91, 97, 213, 0.1), 0 1px 3px rgba(23, 27, 33, 0.06);
+  box-shadow: 0 0 0 3px rgba(145, 109, 101, 0.1), 0 1px 3px rgba(59, 45, 39, 0.06);
 }
 
 .section-divider {

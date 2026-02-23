@@ -1,13 +1,14 @@
 """Voice practice WebSocket Lambda handler.
 
-Manages Nova Sonic bidirectional streaming sessions for voice-based
+Manages Nova 2 Sonic bidirectional streaming sessions for voice-based
 interview practice and mission discussion. Handles WebSocket lifecycle
 events ($connect, $default, $disconnect), accumulates transcripts,
-and generates post-session assessments.
+and generates post-session assessments via the shared NovaSonicSession.
 """
 
 import base64
 import importlib
+import inspect
 import json
 import logging
 import os
@@ -19,6 +20,12 @@ import boto3
 from boto3.dynamodb.conditions import Attr, Key
 
 from backend.handlers.shared.dynamodb import DynamoDBClient
+from backend.handlers.shared.nova_sonic import (
+    NovaSonicSession,
+    build_tool_specs,
+    ensure_event_loop,
+    run_async,
+)
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
@@ -28,20 +35,11 @@ _connections: Dict[str, Dict[str, str]] = {}  # connection_id -> {user_id, jwt_t
 _sessions: Dict[str, Dict[str, Any]] = {}  # connection_id -> session state
 
 # Lazy-initialized clients
-_bedrock_client = None
 _s3_client = None
 _apigw_clients: Dict[str, Any] = {}  # endpoint -> client
 
-# Load Strands tools for Nova Sonic tool registration
+# Load Strands tools for Nova Sonic tool registration.
 _tools_mod = importlib.import_module("backend.agents.coaching.tools")
-
-NOVA_SONIC_MODEL_ID = os.environ.get(
-    "NOVA_SONIC_MODEL_ID", "amazon.nova-sonic-v1:0"
-)
-AUDIO_CONTENT_TYPE = "audio/lpcm"
-AUDIO_SAMPLE_RATE = 16000
-AUDIO_BIT_DEPTH = 16
-AUDIO_CHANNEL_COUNT = 1
 
 VALID_SESSION_TYPES = {"interview", "mission_discussion"}
 
@@ -71,15 +69,6 @@ def _get_tool_functions(session_type: str) -> list:
         base_tools.insert(2, _tools_mod.get_current_mission)
 
     return base_tools
-
-
-def _get_bedrock_client():
-    """Lazily initialize the bedrock-runtime boto3 client."""
-    global _bedrock_client
-    if _bedrock_client is None:
-        region = os.environ.get("AWS_REGION", "us-east-1")
-        _bedrock_client = boto3.client("bedrock-runtime", region_name=region)
-    return _bedrock_client
 
 
 def _get_s3_client():
@@ -167,28 +156,6 @@ def _validate_cognito_token(token: str) -> Optional[str]:
         return None
 
 
-def _build_tool_config(session_type: str) -> Dict[str, Any]:
-    """Build the tool configuration for Nova Sonic session.
-
-    Args:
-        session_type: Either "interview" or "mission_discussion".
-
-    Returns:
-        Tool configuration dict for the Nova Sonic session setup.
-    """
-    tools = []
-    for func in _get_tool_functions(session_type):
-        tool_name = getattr(func, "__name__", str(func))
-        doc = getattr(func, "__doc__", "") or ""
-        tools.append({
-            "toolSpec": {
-                "name": tool_name,
-                "description": doc.split("\n")[0],
-            }
-        })
-    return {"tools": tools}
-
-
 def _get_system_prompt(session_type: str, user_id: str) -> str:
     """Get the appropriate system prompt for the session type.
 
@@ -230,83 +197,32 @@ def _get_system_prompt(session_type: str, user_id: str) -> str:
         return get_mission_discussion_prompt(skills_focus)
 
 
-def _create_nova_sonic_session(
-    connection_id: str, user_id: str, session_type: str
-) -> bool:
-    """Create a Nova Sonic bidirectional streaming session.
+def _execute_tool(user_id: str, tool_name: str, tool_use_id: str, args: dict) -> Any:
+    """Execute a Strands tool function, injecting user_id as needed.
 
     Args:
-        connection_id: The WebSocket connection ID.
         user_id: The authenticated user's ID.
-        session_type: Either "interview" or "mission_discussion".
+        tool_name: The tool function name.
+        tool_use_id: The Nova Sonic tool use ID (for logging).
+        args: Tool arguments from Nova Sonic.
 
     Returns:
-        True if session was created successfully, False otherwise.
+        The tool function's result.
     """
-    client = _get_bedrock_client()
+    func = getattr(_tools_mod, tool_name, None)
+    if not func:
+        return {"error": f"Unknown tool: {tool_name}"}
+
     try:
-        response = client.invoke_model_with_bidirectional_stream(
-            modelId=NOVA_SONIC_MODEL_ID,
-            body=json.dumps({
-                "inputAudioFormat": {
-                    "encoding": "pcm",
-                    "sampleRateHertz": AUDIO_SAMPLE_RATE,
-                    "bitDepth": AUDIO_BIT_DEPTH,
-                    "channelCount": AUDIO_CHANNEL_COUNT,
-                },
-                "outputAudioFormat": {
-                    "encoding": "pcm",
-                    "sampleRateHertz": AUDIO_SAMPLE_RATE,
-                    "bitDepth": AUDIO_BIT_DEPTH,
-                    "channelCount": AUDIO_CHANNEL_COUNT,
-                },
-                "toolConfig": _build_tool_config(session_type),
-            }),
-        )
-        _sessions[connection_id] = {
-            "user_id": user_id,
-            "session_type": session_type,
-            "stream": response,
-            "active": True,
-            "start_time": datetime.now(timezone.utc),
-            "transcript": [],
-        }
-        logger.info(
-            "Nova Sonic session created for connection %s, user %s, type %s",
-            connection_id,
-            user_id,
-            session_type,
-        )
-        return True
-    except Exception:
-        logger.exception(
-            "Failed to create Nova Sonic session for connection %s",
-            connection_id,
-        )
-        return False
+        sig = inspect.signature(func)
+    except (ValueError, TypeError):
+        sig = inspect.signature(getattr(func, "__wrapped__", func))
 
+    if "user_id" in sig.parameters:
+        args["user_id"] = user_id
 
-def _close_nova_sonic_session(connection_id: str) -> None:
-    """Close a Nova Sonic session stream (does not pop from _sessions).
-
-    Args:
-        connection_id: The WebSocket connection ID.
-    """
-    session = _sessions.get(connection_id)
-    if session is None:
-        return
-
-    session["active"] = False
-    stream = session.get("stream")
-    if stream is not None:
-        try:
-            if hasattr(stream, "close"):
-                stream.close()
-        except Exception:
-            logger.warning(
-                "Error closing Nova Sonic stream for connection %s",
-                connection_id,
-            )
+    logger.info("Executing tool %s for user %s", tool_name, user_id)
+    return func(**args)
 
 
 def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -356,8 +272,8 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
 def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     """Handle WebSocket $default event (audio frames).
 
-    Receives base64-encoded audio data from the client, forwards it
-    to the active Nova Sonic session, and accumulates transcript entries.
+    On the first frame, creates a NovaSonicSession with the appropriate
+    tools and system prompt. Subsequent frames forward audio to Nova Sonic.
 
     Args:
         event: API Gateway WebSocket $default event.
@@ -377,8 +293,68 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
     # Create Nova Sonic session on first audio frame.
     if connection_id not in _sessions:
-        success = _create_nova_sonic_session(connection_id, user_id, session_type)
-        if not success:
+        try:
+            ensure_event_loop()
+            session = NovaSonicSession()
+            transcript: List[Dict[str, str]] = []
+
+            def on_audio(base64_audio: str) -> None:
+                _post_to_connection(event, connection_id, {
+                    "type": "audio", "data": base64_audio,
+                })
+
+            def on_transcript(role: str, text: str) -> None:
+                _post_to_connection(event, connection_id, {
+                    "type": "transcript", "role": role, "text": text,
+                })
+                transcript.append({
+                    "role": role,
+                    "text": text,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                })
+
+            def on_tool_use(
+                tool_name: str, tool_use_id: str, args: dict
+            ) -> Any:
+                return _execute_tool(user_id, tool_name, tool_use_id, args)
+
+            def on_state(state: str) -> None:
+                if state == "interrupted":
+                    _post_to_connection(event, connection_id, {
+                        "type": "clear_audio",
+                    })
+                else:
+                    _post_to_connection(event, connection_id, {
+                        "type": "state",
+                        "data": {"state": state},
+                    })
+
+            tool_functions = _get_tool_functions(session_type)
+            system_prompt = _get_system_prompt(session_type, user_id)
+            tool_specs = build_tool_specs(tool_functions)
+
+            run_async(session.start(
+                system_prompt=system_prompt,
+                tool_specs=tool_specs,
+                on_audio=on_audio,
+                on_transcript=on_transcript,
+                on_tool_use=on_tool_use,
+                on_state=on_state,
+            ))
+
+            _sessions[connection_id] = {
+                "user_id": user_id,
+                "session_type": session_type,
+                "session": session,
+                "active": True,
+                "start_time": datetime.now(timezone.utc),
+                "transcript": transcript,
+            }
+        except Exception:
+            logger.exception(
+                "Failed to create Nova Sonic session for connection %s",
+                connection_id,
+            )
             _post_to_connection(event, connection_id, {
                 "type": "fallback",
                 "message": (
@@ -388,42 +364,20 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             })
             return {"statusCode": 200}
 
-    session = _sessions.get(connection_id)
-    if not session or not session.get("active"):
+    session_data = _sessions.get(connection_id)
+    if not session_data or not session_data.get("active"):
         return {"statusCode": 200}
 
+    # Forward audio to Nova Sonic (body is already base64).
     body = event.get("body", "")
-
-    # Check if this is a transcript event (JSON) vs raw audio (base64)
-    try:
-        parsed = json.loads(body) if body else None
-        if parsed and isinstance(parsed, dict) and parsed.get("type") == "transcript":
-            session["transcript"].append({
-                "role": parsed.get("role", "unknown"),
-                "text": parsed.get("text", ""),
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
-            return {"statusCode": 200}
-    except (json.JSONDecodeError, TypeError):
-        pass
-
-    # Decode and forward audio to Nova Sonic.
-    try:
-        audio_bytes = base64.b64decode(body) if body else b""
-    except Exception:
-        logger.warning("Invalid base64 audio data from connection %s", connection_id)
-        return {"statusCode": 200}
-
-    if audio_bytes:
-        stream = session.get("stream")
-        if stream and hasattr(stream, "send"):
-            try:
-                stream.send({"audioInput": audio_bytes})
-            except Exception:
-                logger.exception(
-                    "Failed to send audio to Nova Sonic for connection %s",
-                    connection_id,
-                )
+    if body:
+        try:
+            run_async(session_data["session"].send_audio(body))
+        except Exception:
+            logger.exception(
+                "Failed to send audio to Nova Sonic for connection %s",
+                connection_id,
+            )
 
     return {"statusCode": 200}
 
@@ -443,37 +397,36 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     """
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.pop(connection_id, None)
-    session = _sessions.pop(connection_id, None)
+    session_data = _sessions.pop(connection_id, None)
 
     # Close the Nova Sonic streaming session.
-    if session:
-        session["active"] = False
-        stream = session.get("stream")
-        if stream is not None:
+    if session_data:
+        session_data["active"] = False
+        session = session_data.get("session")
+        if session is not None:
             try:
-                if hasattr(stream, "close"):
-                    stream.close()
+                run_async(session.close())
             except Exception:
                 logger.warning(
-                    "Error closing Nova Sonic stream for connection %s",
+                    "Error closing Nova Sonic session for connection %s",
                     connection_id,
                 )
 
-    if not conn_info or not session:
+    if not conn_info or not session_data:
         logger.info("Connection %s disconnected (no session data)", connection_id)
         return {"statusCode": 200}
 
     user_id = conn_info["user_id"]
     session_type = conn_info["session_type"]
-    transcript = session.get("transcript", [])
-    start_time = session.get("start_time", datetime.now(timezone.utc))
+    transcript = session_data.get("transcript", [])
+    start_time = session_data.get("start_time", datetime.now(timezone.utc))
     duration_seconds = int((datetime.now(timezone.utc) - start_time).total_seconds())
 
     session_id = str(uuid4())
     now_iso = datetime.now(timezone.utc).isoformat()
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
-    # Look up active campaign for target role and skills focus
+    # Look up active campaign for target role and skills focus.
     target_role = "professional"
     skills_focus: List[str] = []
     try:
@@ -490,7 +443,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         logger.warning("Failed to look up campaign for user %s during disconnect", user_id)
 
-    # S3 keys
+    # S3 keys.
     bucket = os.environ.get("VOICE_PRACTICE_BUCKET_NAME", "")
     s3_prefix = f"{user_id}/voice-practice/{session_type}/{today}/{session_id}"
     s3_transcript_key = f"{s3_prefix}/transcript.json"
@@ -498,7 +451,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
 
     s3 = _get_s3_client()
 
-    # Write transcript to S3
+    # Write transcript to S3.
     try:
         s3.put_object(
             Bucket=bucket,
@@ -509,7 +462,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         logger.exception("Failed to write transcript to S3 for session %s", session_id)
 
-    # Generate assessment
+    # Generate assessment.
     overall_score = 0
     assessment_summary = "Assessment generation failed"
     assessment = None
@@ -528,7 +481,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
             overall_score = assessment.get("overallScore", 0)
             assessment_summary = assessment.get("summary", "Assessment generation failed")
 
-            # Write assessment to S3
+            # Write assessment to S3.
             if overall_score > 0:
                 s3_assessment_key = f"{s3_prefix}/assessment.json"
                 s3.put_object(
@@ -540,7 +493,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:
             logger.exception("Assessment generation failed for session %s", session_id)
 
-    # Write VoiceSessions DynamoDB item
+    # Write VoiceSessions DynamoDB item.
     try:
         db = DynamoDBClient()
         db.put_item("voice_sessions", {
@@ -560,7 +513,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         logger.exception("Failed to write VoiceSessions record for session %s", session_id)
 
-    # Store memory summary
+    # Store memory summary.
     try:
         _tools_mod.store_memory(
             user_id=user_id,

@@ -4,7 +4,7 @@ import type { VoicePracticeSessionType } from '../types';
 
 const VOICE_PRACTICE_WS_URL = import.meta.env.VITE_VOICE_PRACTICE_WS_URL as string | undefined;
 const INPUT_SAMPLE_RATE = 16000;
-const OUTPUT_SAMPLE_RATE = 16000;
+const OUTPUT_SAMPLE_RATE = 24000;
 const CAPTURE_BUFFER_SIZE = 4096;
 const PLAYBACK_BUFFER_SIZE = 4096;
 const CHUNK_INTERVAL_MS = 100;

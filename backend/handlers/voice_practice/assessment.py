@@ -29,7 +29,7 @@ class AssessmentService:
             region_name=os.environ.get("AWS_REGION", "us-east-1"),
         )
         self.model_id = os.environ.get(
-            "BEDROCK_MODEL_ID", "us.amazon.nova-lite-v2:0"
+            "BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"
         )
 
     def generate_assessment(

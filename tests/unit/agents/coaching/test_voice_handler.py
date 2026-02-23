@@ -20,6 +20,31 @@ _strands_stub = types.ModuleType("strands")
 _strands_stub.tool = lambda fn: fn
 sys.modules.setdefault("strands", _strands_stub)
 
+# Stub the aws_sdk_bedrock_runtime dependencies so nova_sonic.py can import.
+for mod_name in [
+    "aws_sdk_bedrock_runtime",
+    "aws_sdk_bedrock_runtime.client",
+    "aws_sdk_bedrock_runtime.models",
+    "aws_sdk_bedrock_runtime.config",
+    "smithy_aws_core",
+    "smithy_aws_core.identity",
+    "smithy_aws_core.identity.environment",
+]:
+    if mod_name not in sys.modules:
+        sys.modules[mod_name] = types.ModuleType(mod_name)
+
+# Add expected classes to stubs.
+_sdk_client = sys.modules["aws_sdk_bedrock_runtime.client"]
+_sdk_client.BedrockRuntimeClient = MagicMock
+_sdk_client.InvokeModelWithBidirectionalStreamOperationInput = MagicMock
+_sdk_models = sys.modules["aws_sdk_bedrock_runtime.models"]
+_sdk_models.InvokeModelWithBidirectionalStreamInputChunk = MagicMock
+_sdk_models.BidirectionalInputPayloadPart = MagicMock
+_sdk_config = sys.modules["aws_sdk_bedrock_runtime.config"]
+_sdk_config.Config = MagicMock
+_env_resolver = sys.modules["smithy_aws_core.identity.environment"]
+_env_resolver.EnvironmentCredentialsResolver = MagicMock
+
 
 def _make_token(sub: str = "test-user-123") -> str:
     """Build a valid-looking JWT with the given sub claim."""
@@ -46,7 +71,6 @@ def _load_voice_handler():
     # Reset module-level state
     mod._connections.clear()
     mod._sessions.clear()
-    mod._bedrock_client = None
     mod._apigw_clients.clear()
     return mod
 
@@ -89,7 +113,7 @@ def _default_event(connection_id: str = "conn-123", body: str = "") -> dict:
     }
 
 
-# ── $connect tests ─────────────────────────────────────────────────────────
+# -- $connect tests --------------------------------------------------------
 
 
 class TestConnectSuccess:
@@ -136,7 +160,7 @@ class TestConnectInvalidToken:
         assert "conn-3" not in vh._connections
 
 
-# ── $disconnect tests ──────────────────────────────────────────────────────
+# -- $disconnect tests -----------------------------------------------------
 
 
 class TestDisconnectCleanup:
@@ -146,24 +170,26 @@ class TestDisconnectCleanup:
         """Disconnect removes connection, closes session, calls store_memory."""
         vh = _load_voice_handler()
 
-        # Pre-populate state as if a connection + session exist
+        # Pre-populate state as if a connection + session exist.
         vh._connections["conn-4"] = {"user_id": "user-xyz", "jwt_token": "fake-token"}
-        mock_stream = MagicMock()
+        mock_session = MagicMock()
+        mock_session.close = MagicMock(return_value=MagicMock())
         vh._sessions["conn-4"] = {
             "user_id": "user-xyz",
-            "stream": mock_stream,
+            "session": mock_session,
             "active": True,
         }
 
         event = _disconnect_event(connection_id="conn-4")
 
-        with patch.object(vh._tools_mod, "store_memory") as mock_store:
+        with patch.object(vh._tools_mod, "store_memory") as mock_store, \
+             patch.object(vh, "run_async") as mock_run_async:
             result = vh.lambda_handler(event, None)
 
         assert result["statusCode"] == 200
         assert "conn-4" not in vh._connections
         assert "conn-4" not in vh._sessions
-        mock_stream.close.assert_called_once()
+        mock_run_async.assert_called_once()
         mock_store.assert_called_once_with(
             user_id="user-xyz",
             content="Voice coaching session ended. Session conducted via Nova Sonic.",
@@ -177,7 +203,7 @@ class TestDisconnectNoSession:
         """Disconnect without active session returns 200, no error."""
         vh = _load_voice_handler()
 
-        # Connection exists but no Nova Sonic session was created
+        # Connection exists but no Nova Sonic session was created.
         vh._connections["conn-5"] = {"user_id": "user-solo", "jwt_token": "fake-token"}
 
         event = _disconnect_event(connection_id="conn-5")
@@ -188,11 +214,11 @@ class TestDisconnectNoSession:
         assert result["statusCode"] == 200
         assert "conn-5" not in vh._connections
         assert "conn-5" not in vh._sessions
-        # store_memory still called for the user
+        # store_memory still called for the user.
         mock_store.assert_called_once()
 
 
-# ── $default fallback test ─────────────────────────────────────────────────
+# -- $default fallback test ------------------------------------------------
 
 
 class TestDefaultFallbackOnSessionFailure:
@@ -202,24 +228,21 @@ class TestDefaultFallbackOnSessionFailure:
         """When Nova Sonic session creation fails, client gets fallback message."""
         vh = _load_voice_handler()
 
-        # Pre-populate connection mapping (as if $connect succeeded)
+        # Pre-populate connection mapping (as if $connect succeeded).
         vh._connections["conn-6"] = {"user_id": "user-fallback", "jwt_token": "fake-token"}
 
         audio_data = base64.b64encode(b"fake-audio-bytes").decode()
         event = _default_event(connection_id="conn-6", body=audio_data)
 
-        mock_bedrock = MagicMock()
-        mock_bedrock.invoke_model_with_bidirectional_stream.side_effect = Exception(
-            "Nova Sonic unavailable"
-        )
         mock_apigw = MagicMock()
 
-        with patch.object(vh, "_get_bedrock_client", return_value=mock_bedrock), \
+        with patch.object(vh, "ensure_event_loop"), \
+             patch.object(vh, "NovaSonicSession", side_effect=Exception("SDK unavailable")), \
              patch.object(vh, "_get_apigw_client", return_value=mock_apigw):
             result = vh.lambda_handler(event, None)
 
         assert result["statusCode"] == 200
-        # Verify fallback message was posted to the client
+        # Verify fallback message was posted to the client.
         mock_apigw.post_to_connection.assert_called_once()
         call_kwargs = mock_apigw.post_to_connection.call_args[1]
         assert call_kwargs["ConnectionId"] == "conn-6"

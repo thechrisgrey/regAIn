@@ -358,9 +358,11 @@ export default function Dashboard() {
     return (
       <div className="space-y-6 animate-fade-in">
         <Card className="p-10 text-center">
-          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
-            Welcome to REGAIN
-          </h2>
+          <img
+            src="/regain-type.png"
+            alt="Regain"
+            className="mx-auto h-12 w-auto"
+          />
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
             Set up your career campaign to start generating missions, building evidence, and tracking your professional trajectory.
           </p>

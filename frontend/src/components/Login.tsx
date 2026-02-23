@@ -256,7 +256,7 @@ export default function Login() {
         <img
           src="/regain-type.png"
           alt="Regain"
-          className="h-14 w-auto brightness-0 invert self-start"
+          className="h-20 w-auto brightness-0 invert self-start"
         />
         <p className="mt-6 max-w-md text-lg leading-relaxed text-neutral-400">
           Build documented evidence of your capabilities. Complete missions,
@@ -271,7 +271,7 @@ export default function Login() {
           <img
             src="/regain-type.png"
             alt="Regain"
-            className="mx-auto h-10 w-auto"
+            className="mx-auto h-12 w-auto"
           />
           <p className="mt-3 text-sm text-neutral-500">
             Build evidence. Complete missions. Land your next role.

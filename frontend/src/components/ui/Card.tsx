@@ -8,9 +8,9 @@ interface CardProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 const variantStyles: Record<Variant, string> = {
-  default: 'border border-neutral-200 bg-surface-1 shadow-card',
-  elevated: 'border border-neutral-200 bg-surface-1 shadow-elevated',
-  accent: 'border border-primary-300/40 bg-surface-1 shadow-card',
+  default: 'border border-neutral-200/80 bg-surface-1 shadow-card',
+  elevated: 'border border-neutral-200/60 bg-surface-1 shadow-elevated',
+  accent: 'border border-neutral-200/60 border-l-[3px] border-l-primary-500 bg-surface-1 shadow-card',
 };
 
 export default function Card({
@@ -24,7 +24,7 @@ export default function Card({
     <div
       className={`rounded-[var(--radius-card)] ${variantStyles[variant]} ${
         hoverable
-          ? 'transition-all duration-200 hover:shadow-card-hover hover:-translate-y-px'
+          ? 'transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5'
           : ''
       } ${className}`}
       {...rest}

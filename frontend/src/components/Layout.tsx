@@ -19,7 +19,8 @@ export default function Layout() {
   return (
     <div className="flex min-h-screen">
       <nav
-        className="flex w-60 flex-col bg-neutral-900"
+        className="flex w-60 flex-col border-r border-white/[0.06]"
+        style={{ background: 'linear-gradient(180deg, #1E2140 0%, #12141F 100%)' }}
         aria-label="Main navigation"
       >
         {/* Wordmark */}
@@ -38,8 +39,8 @@ export default function Layout() {
                 className={({ isActive }) =>
                   `relative flex items-center gap-3 rounded-[var(--radius-button)] px-3 py-2 text-sm font-medium transition-colors duration-150 ${
                     isActive
-                      ? 'bg-white/10 text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-0.5 before:rounded-full before:bg-primary-400'
-                      : 'text-neutral-400 hover:text-white hover:bg-white/5'
+                      ? 'bg-white/[0.08] text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-full before:bg-primary-400 before:animate-glow-pulse'
+                      : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
                   }`
                 }
               >
@@ -51,7 +52,7 @@ export default function Layout() {
         </ul>
 
         {/* Sign-out */}
-        <div className="border-t border-white/10 px-5 py-4">
+        <div className="border-t border-white/[0.06] px-5 py-4">
           {user?.username && (
             <p className="mb-2 truncate text-xs text-neutral-500">
               {user.username}
@@ -59,7 +60,7 @@ export default function Layout() {
           )}
           <button
             onClick={() => void signOut()}
-            className="w-full rounded-[var(--radius-button)] bg-white/5 px-3 py-2 text-sm text-neutral-400 hover:bg-white/10 hover:text-white transition-colors duration-150"
+            className="w-full rounded-[var(--radius-button)] bg-white/[0.04] px-3 py-2 text-sm text-neutral-400 hover:bg-white/[0.08] hover:text-white transition-colors duration-150"
           >
             Sign out
           </button>

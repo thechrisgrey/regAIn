@@ -7,12 +7,12 @@ interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
 }
 
 const variantStyles: Record<Variant, string> = {
-  primary: 'bg-primary-100 text-primary-700',
-  success: 'bg-success-100 text-success-700',
-  warning: 'bg-warning-100 text-warning-600',
-  error: 'bg-error-100 text-error-700',
-  info: 'bg-info-100 text-info-600',
-  default: 'bg-neutral-100 text-neutral-600',
+  primary: 'bg-primary-50 text-primary-700 ring-1 ring-primary-200',
+  success: 'bg-success-50 text-success-700 ring-1 ring-success-500/20',
+  warning: 'bg-warning-50 text-warning-600 ring-1 ring-warning-500/20',
+  error: 'bg-error-50 text-error-700 ring-1 ring-error-500/20',
+  info: 'bg-info-50 text-info-600 ring-1 ring-info-500/20',
+  default: 'bg-neutral-50 text-neutral-600 ring-1 ring-neutral-200',
 };
 
 export default function Badge({

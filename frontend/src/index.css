@@ -82,14 +82,23 @@
   --color-info-500: #06B6D4;
   --color-info-600: #0891B2;
 
-  /* Shadows — layered approach */
-  --shadow-card: 0 1px 2px rgba(23, 27, 33, 0.04), 0 1px 3px rgba(23, 27, 33, 0.06);
-  --shadow-card-hover: 0 4px 12px rgba(23, 27, 33, 0.08), 0 1px 3px rgba(23, 27, 33, 0.06);
-  --shadow-elevated: 0 8px 24px rgba(23, 27, 33, 0.12), 0 2px 6px rgba(23, 27, 33, 0.06);
+  /* Accent palette — warm amber for achievements & motivation */
+  --color-accent-50: #FFFBEB;
+  --color-accent-100: #FEF3C7;
+  --color-accent-200: #FDE68A;
+  --color-accent-400: #FBBF24;
+  --color-accent-500: #F59E0B;
+  --color-accent-600: #D97706;
+
+  /* Shadows — layered with subtle primary tinting */
+  --shadow-card: 0 1px 3px rgba(23, 27, 33, 0.06), 0 1px 2px rgba(23, 27, 33, 0.04);
+  --shadow-card-hover: 0 8px 24px rgba(91, 97, 213, 0.08), 0 2px 6px rgba(23, 27, 33, 0.06);
+  --shadow-elevated: 0 12px 32px rgba(23, 27, 33, 0.1), 0 4px 8px rgba(23, 27, 33, 0.06);
+  --shadow-glow: 0 0 20px rgba(91, 97, 213, 0.15);
 
   /* Radii */
-  --radius-card: 8px;
-  --radius-button: 6px;
+  --radius-card: 12px;
+  --radius-button: 8px;
   --radius-badge: 9999px;
 
   /* Animations */
@@ -103,6 +112,9 @@
   --animate-voice-pulse: voice-pulse 2.5s ease-in-out infinite;
   --animate-voice-breathe: voice-breathe 3s ease-in-out infinite;
   --animate-voice-ripple: voice-ripple 2s ease-out infinite backwards;
+
+  /* UI glow animation */
+  --animate-glow-pulse: glow-pulse 2.5s ease-in-out infinite;
 }
 
 /* ------------------------------------------------------------------ */
@@ -177,6 +189,15 @@
   }
 }
 
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(91, 97, 213, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(91, 97, 213, 0.45);
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Base layer                                                         */
 /* ------------------------------------------------------------------ */
@@ -185,6 +206,28 @@ body {
   font-family: var(--font-sans);
   color: var(--color-neutral-900);
   background-color: var(--color-surface-2);
+  background-image: radial-gradient(var(--color-neutral-200) 0.5px, transparent 0.5px);
+  background-size: 24px 24px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* ------------------------------------------------------------------ */
+/* Page-level utility classes                                         */
+/* ------------------------------------------------------------------ */
+
+.stat-value {
+  background: linear-gradient(135deg, var(--color-neutral-900) 0%, var(--color-primary-700) 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.chat-input-glow:focus-within {
+  box-shadow: 0 0 0 3px rgba(91, 97, 213, 0.1), 0 1px 3px rgba(23, 27, 33, 0.06);
+}
+
+.section-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent 0%, var(--color-neutral-200) 20%, var(--color-neutral-200) 80%, transparent 100%);
 }

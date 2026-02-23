@@ -74,8 +74,8 @@ describe('ResumePage', () => {
   it('shows empty state when no resume exists (Req 9.7)', () => {
     renderPage();
     expect(screen.getByText('No resume yet')).toBeInTheDocument();
-    expect(screen.getByText(/Complete your first mission/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Go to Missions/ })).toHaveAttribute('href', '/missions');
+    expect(screen.getByText(/Generate your resume from completed missions/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Generate Resume/ })).toBeInTheDocument();
   });
 
   it('shows loading indicator during fetch (Req 9.8)', () => {

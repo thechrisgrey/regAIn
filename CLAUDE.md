@@ -66,11 +66,17 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 ## Key Decisions & Patterns
 
 - **No emojis** anywhere in UI text or labels (project requirement)
-- Layout sidebar: `w-60 bg-neutral-900`, active nav uses left indicator bar
+- Layout sidebar: `w-60` with deep indigo gradient (`#1E2140` to `#12141F`), active nav uses left 3px indicator bar with `animate-glow-pulse`
 - Login: split layout (60% dark brand / 40% form), collapses on mobile
-- Stat numbers use `font-mono tabular-nums` for alignment
-- Card hover: `transition-all duration-200 hover:shadow-card-hover hover:-translate-y-px`
-- Custom CSS vars for radii: `--radius-card` (8px), `--radius-button` (6px), `--radius-badge` (pill)
+- Stat numbers use `font-mono tabular-nums` for alignment + `.stat-value` CSS class for gradient text (neutral-900 to primary-700). Wrap stats in `bg-surface-2 rounded-[var(--radius-button)] px-4 py-3` cells
+- Card hover: `transition-all duration-200 hover:shadow-card-hover hover:-translate-y-0.5`
+- Custom CSS vars for radii: `--radius-card` (12px), `--radius-button` (8px), `--radius-badge` (pill)
+- **Accent palette**: `accent-50` through `accent-600` (warm amber) — for motivational/achievement moments
+- **Shadows**: Primary-tinted hover shadows (`--shadow-card-hover` uses `rgba(91,97,213,0.08)`), `--shadow-glow` for UI emphasis
+- **Body texture**: Subtle dot grid via `radial-gradient` in `body` styles
+- **Page headers**: All main pages use consistent pattern: `h1 text-2xl font-semibold tracking-tight` + subtitle `text-sm text-neutral-500`
+- **CSS utility classes**: `.stat-value` (gradient text), `.chat-input-glow` (focus ring), `.section-divider` (gradient line) — defined in `index.css` after base layer
+- **Card accent variant**: 3px left primary border for emphasis cards (current focus, primary mission)
 
 ## Backend Architecture
 
@@ -139,3 +145,4 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Coaching tools test import order**: When mocking `backend.engine.generator.complete_mission` in tests, the `patch()` must be active **before** `_load_tools()` re-imports the tools module, because `from ... import ... as engine_complete_mission` captures a binding at import time. Use `with patch(...): tools = _load_tools(...)` not `tools = _load_tools(...); with patch(...):`
 - **Mission lifecycle transitions**: Missions must follow `pending -> in_progress -> completed`. Tests for `complete_mission` must seed missions with `status: "in_progress"`, not `"pending"`, or the engine rejects the transition
 - **ESLint hook naming**: Don't prefix plain utility functions with `use` (e.g. `useUtcDate`) — ESLint's `react-hooks/rules-of-hooks` rule will flag calls to them inside non-hook functions. Use `get`/`compute`/plain names instead
+- **fast-check `fc.date()` generates invalid dates**: `fc.date().map(d => d.toISOString())` can produce `Invalid Date` instances that throw `RangeError`. Fix: use `fc.integer({ min: 946684800000, max: 4102444800000 }).map(ts => new Date(ts).toISOString())` for safe ISO strings

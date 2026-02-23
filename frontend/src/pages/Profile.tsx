@@ -120,22 +120,22 @@ function IdentitySummary({
         <span className="text-sm text-neutral-400">{username}</span>
       </div>
 
-      <div className="mt-8 flex gap-8 sm:gap-12">
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">{days}</p>
-          <p className="mt-0.5 text-xs text-neutral-400">days active</p>
+      <div className="mt-8 grid grid-cols-3 gap-4">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">{days}</p>
+          <p className="mt-0.5 text-xs text-neutral-500">days active</p>
         </div>
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {stats.missionsCompleted}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-400">missions completed</p>
+          <p className="mt-0.5 text-xs text-neutral-500">missions completed</p>
         </div>
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {stats.evidenceCount}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-400">evidence items</p>
+          <p className="mt-0.5 text-xs text-neutral-500">evidence items</p>
         </div>
       </div>
 
@@ -351,18 +351,18 @@ function SkillDevelopmentChart() {
         })}
       </div>
 
-      <div className="mt-6 flex gap-12">
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+      <div className="mt-6 grid grid-cols-2 gap-4">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {evidence.length}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-400">total evidence</p>
+          <p className="mt-0.5 text-xs text-neutral-500">total evidence</p>
         </div>
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {skillStats.length}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-400">skills covered</p>
+          <p className="mt-0.5 text-xs text-neutral-500">skills covered</p>
         </div>
       </div>
     </Card>

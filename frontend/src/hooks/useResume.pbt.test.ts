@@ -27,12 +27,12 @@ const mockedGenerate = vi.mocked(api.resume.generate);
 // Arbitrary for generating valid ResumeResponse objects
 const resumeResponseArb = fc.record({
   content: fc.string({ minLength: 1 }),
-  generatedAt: fc.date().map(d => d.toISOString()),
+  generatedAt: fc.integer({ min: 946684800000, max: 4102444800000 }).map(ts => new Date(ts).toISOString()),
   version: fc.integer({ min: 1 }),
   downloadUrl: fc.webUrl(),
   frontmatter: fc.record({
     schema_version: fc.string({ minLength: 1 }),
-    generated_at: fc.date().map(d => d.toISOString()),
+    generated_at: fc.integer({ min: 946684800000, max: 4102444800000 }).map(ts => new Date(ts).toISOString()),
     regain_version: fc.string({ minLength: 1 }),
     name: fc.string({ minLength: 1 }),
     target_role: fc.string({ minLength: 1 }),

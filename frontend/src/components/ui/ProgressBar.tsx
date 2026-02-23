@@ -25,7 +25,7 @@ export default function ProgressBar({
   return (
     <div
       ref={ref}
-      className={`h-1 w-full overflow-hidden rounded-[var(--radius-badge)] bg-neutral-100 ${className}`}
+      className={`h-1.5 w-full overflow-hidden rounded-[var(--radius-badge)] bg-neutral-200/50 ${className}`}
     >
       <div
         className={`h-full rounded-[var(--radius-badge)] transition-all duration-700 ease-out ${barClassName}`}

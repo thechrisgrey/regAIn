@@ -40,17 +40,20 @@ export default function CoachingPage() {
   return (
     <div className="flex flex-col h-[calc(100vh-3rem)] animate-fade-in">
       {/* Header */}
-      <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-        <h1 className="text-2xl font-bold text-neutral-900">Coaching</h1>
+      <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Coaching</h1>
+          <p className="mt-0.5 text-xs text-neutral-400">AI-powered career guidance</p>
+        </div>
         <div className="flex items-center gap-2">
-          <label htmlFor="session-type" className="text-sm text-neutral-600">
-            Session:
+          <label htmlFor="session-type" className="text-xs font-medium text-neutral-500">
+            Session
           </label>
           <select
             id="session-type"
             value={sessionType}
             onChange={(e) => setSessionType(e.target.value)}
-            className="rounded-[var(--radius-button)] border border-neutral-200 bg-white px-3 py-1.5 text-sm text-neutral-700 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20"
+            className="rounded-[var(--radius-button)] border border-neutral-200/80 bg-surface-1 px-3 py-1.5 text-sm text-neutral-700 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-shadow"
           >
             {SESSION_TYPES.map(({ value, label }) => (
               <option key={value} value={value}>{label}</option>
@@ -62,9 +65,19 @@ export default function CoachingPage() {
       {/* Message History */}
       <div className="flex-1 overflow-y-auto py-4 space-y-3" role="log" aria-label="Coaching conversation">
         {messages.length === 0 && !streaming && (
-          <p className="text-center text-neutral-400 mt-12">
-            Start a conversation with your coaching agent.
-          </p>
+          <div className="flex flex-col items-center justify-center mt-16 text-center">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-primary-50 ring-1 ring-primary-100">
+              <svg className="h-6 w-6 text-primary-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H8.25m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0H12m4.125 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 0 1-2.555-.337A5.972 5.972 0 0 1 5.41 20.97a5.969 5.969 0 0 1-.474-.065 4.48 4.48 0 0 0 .978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25Z" />
+              </svg>
+            </div>
+            <p className="mt-4 text-sm font-medium text-neutral-700">
+              Start a conversation with your coaching agent
+            </p>
+            <p className="mt-1 text-xs text-neutral-400">
+              Ask about your campaign, get mission guidance, or discuss your career strategy
+            </p>
+          </div>
         )}
         {messages.map((msg, i) => (
           <div
@@ -120,16 +133,18 @@ export default function CoachingPage() {
       )}
 
       {/* Input Area */}
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 pt-3 border-t border-neutral-200">
-        <input
-          type="text"
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          placeholder="Type a message..."
-          disabled={streaming}
-          aria-label="Coaching message"
-          className="flex-1 rounded-[var(--radius-card)] border border-neutral-200 px-4 py-2 text-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 disabled:opacity-50"
-        />
+      <form onSubmit={handleSubmit} className="flex items-center gap-2 pt-3 border-t border-neutral-100">
+        <div className="chat-input-glow flex-1 rounded-[var(--radius-card)] border border-neutral-200/80 bg-surface-1 transition-shadow">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Type a message..."
+            disabled={streaming}
+            aria-label="Coaching message"
+            className="w-full rounded-[var(--radius-card)] border-0 bg-transparent px-4 py-2.5 text-sm focus:outline-none disabled:opacity-50"
+          />
+        </div>
         <Button
           type="submit"
           disabled={streaming || !input.trim()}

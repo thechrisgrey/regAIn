@@ -385,6 +385,16 @@ export default function Evidence() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Evidence Vault</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            {evidence.length} item{evidence.length !== 1 ? 's' : ''} across {skillStats.length} skill{skillStats.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+
       {/* Section 1: Skill Coverage */}
       <Card className="p-6">
         <SectionLabel>Skill Coverage</SectionLabel>
@@ -414,18 +424,18 @@ export default function Evidence() {
         )}
 
         {/* Summary numbers */}
-        <div className="mt-6 flex gap-12">
-          <div>
-            <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+        <div className="mt-6 grid grid-cols-2 gap-4">
+          <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+            <p className="stat-value text-3xl font-medium font-mono tabular-nums">
               {evidence.length}
             </p>
-            <p className="mt-0.5 text-xs text-neutral-400">total items</p>
+            <p className="mt-0.5 text-xs text-neutral-500">total items</p>
           </div>
-          <div>
-            <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+          <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+            <p className="stat-value text-3xl font-medium font-mono tabular-nums">
               {skillStats.length}
             </p>
-            <p className="mt-0.5 text-xs text-neutral-400">skills covered</p>
+            <p className="mt-0.5 text-xs text-neutral-500">skills covered</p>
           </div>
         </div>
       </Card>

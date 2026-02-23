@@ -179,9 +179,9 @@ function CompletionConfirmation({ evidenceId }: { evidenceId: string }) {
   return (
     <Card variant="accent" className="p-8 animate-scale-in">
       <div className="flex flex-col items-center py-8 text-center">
-        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-50">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-success-50 ring-4 ring-success-100">
           <svg
-            className="h-5 w-5 text-primary-600"
+            className="h-6 w-6 text-success-600"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -200,6 +200,7 @@ function CompletionConfirmation({ evidenceId }: { evidenceId: string }) {
         <p className="mt-1.5 text-sm text-neutral-500">
           Your reflection has been recorded as evidence.
         </p>
+        <div className="section-divider mx-auto mt-4 w-24" />
         <p className="mt-3 text-xs font-mono tabular-nums text-neutral-400">
           {evidenceId}
         </p>
@@ -726,6 +727,16 @@ export default function Missions() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Page header */}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Missions</h1>
+        <p className="mt-1 text-sm text-neutral-500">
+          {activeMissions.length > 0
+            ? `${activeMissions.length} active mission${activeMissions.length > 1 ? 's' : ''} available`
+            : 'Build evidence through daily challenges'}
+        </p>
+      </div>
+
       {/* Section 1: Primary mission or completion confirmation or empty state */}
       {completedResult ? (
         <CompletionConfirmation evidenceId={completedResult.evidenceId} />

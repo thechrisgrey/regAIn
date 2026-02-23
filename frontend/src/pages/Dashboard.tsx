@@ -110,27 +110,38 @@ function CampaignStatus({
 
   return (
     <Card variant="default" className="p-6">
-      <SectionLabel>Campaign</SectionLabel>
+      <SectionLabel>Campaign Progress</SectionLabel>
 
-      {/* Phase indicator */}
+      {/* Phase indicator with step dots */}
       <div className="mt-4 flex items-center">
         {DISPLAY_PHASES.map((phase, i) => (
           <div key={phase} className="flex items-center">
-            <span
-              className={`text-sm transition-colors ${
-                i < idx
-                  ? 'font-medium text-neutral-900'
-                  : i === idx
-                    ? 'font-semibold text-primary-600'
-                    : 'font-normal text-neutral-300'
-              }`}
-            >
-              {phase}
-            </span>
+            <div className="flex items-center gap-2">
+              <div
+                className={`h-2 w-2 rounded-full transition-colors ${
+                  i < idx
+                    ? 'bg-primary-500'
+                    : i === idx
+                      ? 'bg-primary-500 ring-4 ring-primary-100'
+                      : 'bg-neutral-200'
+                }`}
+              />
+              <span
+                className={`text-sm transition-colors ${
+                  i < idx
+                    ? 'font-medium text-neutral-900'
+                    : i === idx
+                      ? 'font-semibold text-primary-600'
+                      : 'font-normal text-neutral-300'
+                }`}
+              >
+                {phase}
+              </span>
+            </div>
             {i < DISPLAY_PHASES.length - 1 && (
               <span
                 className={`mx-3 inline-block h-px w-6 sm:w-10 ${
-                  i < idx ? 'bg-neutral-400' : 'bg-neutral-200'
+                  i < idx ? 'bg-primary-300' : 'bg-neutral-200'
                 }`}
               />
             )}
@@ -141,23 +152,23 @@ function CampaignStatus({
       {/* Progress bar */}
       <ProgressBar value={progress} className="mt-3" />
 
-      {/* Metrics */}
-      <div className="mt-6 flex gap-8 sm:gap-12">
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+      {/* Metrics as distinct cells */}
+      <div className="mt-6 grid grid-cols-3 gap-4">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {missionsCompleted}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-400">missions completed</p>
+          <p className="mt-0.5 text-xs text-neutral-500">missions completed</p>
         </div>
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {evidenceCount}
           </p>
-          <p className="mt-0.5 text-xs text-neutral-400">evidence items</p>
+          <p className="mt-0.5 text-xs text-neutral-500">evidence items</p>
         </div>
-        <div>
-          <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">{days}</p>
-          <p className="mt-0.5 text-xs text-neutral-400">days active</p>
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+          <p className="stat-value text-3xl font-medium font-mono tabular-nums">{days}</p>
+          <p className="mt-0.5 text-xs text-neutral-500">days active</p>
         </div>
       </div>
 
@@ -346,11 +357,14 @@ export default function Dashboard() {
   if (!campaign) {
     return (
       <div className="space-y-6 animate-fade-in">
-        <Card className="p-8 text-center">
-          <h2 className="text-lg font-semibold text-neutral-900">Welcome to REGAIN</h2>
-          <p className="mt-2 text-sm text-neutral-500">
-            Complete onboarding to set up your career campaign and start building evidence.
+        <Card className="p-10 text-center">
+          <h2 className="text-2xl font-semibold tracking-tight text-neutral-900">
+            Welcome to REGAIN
+          </h2>
+          <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-neutral-500">
+            Set up your career campaign to start generating missions, building evidence, and tracking your professional trajectory.
           </p>
+          <div className="section-divider mx-auto mt-6 w-32" />
           <div className="mt-6">
             <Link to="/onboarding">
               <Button size="lg">Get started</Button>
@@ -363,6 +377,19 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Page header */}
+      <div className="flex items-end justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Dashboard</h1>
+          <p className="mt-1 text-sm text-neutral-500">
+            Tracking your transition to {campaign.targetRole}
+          </p>
+        </div>
+        <p className="text-xs font-mono tabular-nums text-neutral-400">
+          {new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+        </p>
+      </div>
+
       <CampaignStatus
         campaign={campaign}
         missionsCompleted={stats.missionsCompleted}

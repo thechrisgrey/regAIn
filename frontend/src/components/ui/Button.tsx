@@ -10,13 +10,13 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles: Record<Variant, string> = {
   primary:
-    'bg-primary-500 text-white hover:bg-primary-600 focus:ring-primary-500/30',
+    'bg-primary-500 text-white shadow-sm hover:bg-primary-600 hover:shadow focus:ring-primary-500/30',
   secondary:
-    'border border-neutral-200 bg-white text-neutral-700 hover:bg-neutral-50 focus:ring-neutral-400/20',
+    'border border-neutral-200/80 bg-white text-neutral-700 hover:bg-neutral-50 hover:border-neutral-300 focus:ring-neutral-400/20',
   ghost:
-    'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100 focus:ring-neutral-400/20',
+    'text-neutral-500 hover:text-neutral-700 hover:bg-neutral-100/80 focus:ring-neutral-400/20',
   destructive:
-    'bg-error-500 text-white hover:bg-error-600 focus:ring-error-500/30',
+    'bg-error-500 text-white shadow-sm hover:bg-error-600 hover:shadow focus:ring-error-500/30',
 };
 
 const sizeStyles: Record<Size, string> = {

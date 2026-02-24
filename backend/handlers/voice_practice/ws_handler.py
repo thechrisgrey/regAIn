@@ -7,7 +7,6 @@ and generates post-session assessments via the shared NovaSonicSession.
 """
 
 import base64
-import importlib
 import json
 import logging
 import os
@@ -41,8 +40,8 @@ _sessions: Dict[str, Dict[str, Any]] = {}  # connection_id -> session state
 _s3_client = None
 _apigw_clients: Dict[str, Any] = {}  # endpoint -> client
 
-# Load Strands tools for Nova Sonic tool registration.
-_tools_mod = importlib.import_module("backend.agents.coaching.tools")
+# Lazy-loaded coaching tools module (only needed for store_memory on disconnect).
+_tools_mod = None
 
 VALID_SESSION_TYPES = {"interview", "mission_discussion"}
 
@@ -510,8 +509,12 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         logger.exception("Failed to write VoiceSessions record for session %s", session_id)
 
-    # Store memory summary.
+    # Store memory summary (lazy-import to avoid cold start penalty).
     try:
+        global _tools_mod
+        if _tools_mod is None:
+            import importlib
+            _tools_mod = importlib.import_module("backend.agents.coaching.tools")
         _tools_mod.store_memory(
             user_id=user_id,
             content=f"Voice {session_type.replace('_', ' ')} session completed. "

@@ -770,6 +770,18 @@ class AgentCoreStack(cdk.Stack):
         )
         denial_alarm.add_alarm_action(sns_action)
 
+    # -- Public properties for cross-stack wiring ------------------------------
+
+    @property
+    def gateway_id(self) -> str:
+        """Physical ID of the AgentCore Gateway (for Lambda env vars)."""
+        return self.gateway.ref
+
+    @property
+    def gateway_endpoint(self) -> str:
+        """Gateway URL for MCP tool routing (for Lambda env vars)."""
+        return cdk.Fn.get_att(self.gateway.logical_id, "GatewayUrl").to_string()
+
     # -- Outputs ---------------------------------------------------------------
 
     def _create_outputs(self) -> None:

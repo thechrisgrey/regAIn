@@ -15,6 +15,7 @@ When disabled, all context managers are no-ops for zero overhead.
 Requirements: 10.1, 10.2, 10.3, 10.4
 """
 
+import json
 import logging
 import os
 import time
@@ -223,11 +224,10 @@ class SessionTracer:
             self.spans.append(span)
 
     def _flush_spans(self) -> None:
-        """Export collected spans to AgentCore Observability.
+        """Export collected spans as structured JSON to CloudWatch.
 
-        In production, this sends spans via the OpenTelemetry exporter
-        configured by AgentCore. In the current implementation, spans
-        are logged for the AgentCore collector to pick up.
+        Emits a single structured log line per session that is parseable
+        by CloudWatch Insights queries on the operations dashboard.
         """
         if not self.spans:
             return
@@ -237,8 +237,14 @@ class SessionTracer:
             len(self.spans),
             self.session_id,
         )
-        for span in self.spans:
-            logger.debug("Span: %s", span.to_dict())
+        summary = {
+            "trace_type": "coaching_session",
+            "session_id": self.session_id,
+            "user_id": self.user_id,
+            "span_count": len(self.spans),
+            "spans": [s.to_dict() for s in self.spans],
+        }
+        logger.info("TRACE %s", json.dumps(summary))
 
     def get_spans(self) -> list[dict[str, Any]]:
         """Return all collected spans as dicts (useful for testing)."""

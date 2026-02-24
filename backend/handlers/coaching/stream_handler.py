@@ -221,18 +221,21 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
     try:
         from backend.agents.coaching.agent import create_coaching_agent
+        from backend.agents.coaching.instrumentation import SessionTracer
 
         tool_hooks = _StreamingToolHooks(send_fn=send_ws)
 
-        agent = create_coaching_agent(
-            user_id=user_id,
-            jwt_token=jwt_token,
-            callback_handler=stream_callback,
-            hooks=[tool_hooks],
-        )
-        result = agent(
-            f"[session_type={session_type}] [user_id={user_id}] {message}"
-        )
+        tracer = SessionTracer(session_id=connection_id, user_id=user_id)
+        with tracer.coaching_session():
+            agent = create_coaching_agent(
+                user_id=user_id,
+                jwt_token=jwt_token,
+                callback_handler=stream_callback,
+                hooks=[tool_hooks],
+            )
+            result = agent(
+                f"[session_type={session_type}] [user_id={user_id}] {message}"
+            )
 
         # Only send done if we haven't already sent a timeout error.
         if not timed_out.is_set():

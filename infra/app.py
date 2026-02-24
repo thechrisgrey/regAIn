@@ -47,6 +47,27 @@ voice_practice_stack = VoicePracticeStack(
     env=env,
 )
 
+market_intel_stack = MarketIntelStack(
+    app,
+    "RegainMarketIntelStack",
+    tables=data_stack.tables,
+    env=env,
+)
+
+# AgentCoreStack must be created before AgentStack so Gateway ID/endpoint
+# are available as cross-stack references for Lambda env vars.
+agentcore_stack = AgentCoreStack(
+    app,
+    "RegainAgentCoreStack",
+    coaching_lambda=api_stack.coaching_lambda,
+    missions_lambda=api_stack.missions_lambda,
+    evidence_lambda=api_stack.evidence_lambda,
+    dashboard_lambda=api_stack.dashboard_lambda,
+    profile_lambda=api_stack.profile_lambda,
+    user_pool=auth_stack.user_pool,
+    env=env,
+)
+
 agent_stack = AgentStack(
     app,
     "RegainAgentStack",
@@ -57,25 +78,8 @@ agent_stack = AgentStack(
     # ResumeStack → ApiStack (for api) would cycle with ApiStack → ResumeStack.
     resume_lambda_arn=f"arn:aws:lambda:us-east-1:563170906428:function:RegainResume",
     resume_bucket_name=f"regain-resume-563170906428",
-    env=env,
-)
-
-market_intel_stack = MarketIntelStack(
-    app,
-    "RegainMarketIntelStack",
-    tables=data_stack.tables,
-    env=env,
-)
-
-agentcore_stack = AgentCoreStack(
-    app,
-    "RegainAgentCoreStack",
-    coaching_lambda=api_stack.coaching_lambda,
-    missions_lambda=api_stack.missions_lambda,
-    evidence_lambda=api_stack.evidence_lambda,
-    dashboard_lambda=api_stack.dashboard_lambda,
-    profile_lambda=api_stack.profile_lambda,
-    user_pool=auth_stack.user_pool,
+    gateway_id=agentcore_stack.gateway_id,
+    gateway_endpoint=agentcore_stack.gateway_endpoint,
     env=env,
 )
 

@@ -26,6 +26,8 @@ class AgentStack(cdk.Stack):
         coaching_lambda: _lambda.Function,
         resume_lambda_arn: str | None = None,
         resume_bucket_name: str | None = None,
+        gateway_id: str | None = None,
+        gateway_endpoint: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -35,6 +37,8 @@ class AgentStack(cdk.Stack):
         self.coaching_lambda = coaching_lambda
         self.resume_lambda_arn = resume_lambda_arn
         self.resume_bucket_name = resume_bucket_name
+        self.gateway_id = gateway_id
+        self.gateway_endpoint = gateway_endpoint
         self.strands_layer = self._create_strands_layer()
 
         voice_lambda = self._create_voice_lambda()
@@ -76,8 +80,9 @@ class AgentStack(cdk.Stack):
             "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
             "AWS_REGION_NAME": "us-east-1",
-            "AGENTCORE_GATEWAY_ID": "pending-agentcore-deploy",
-            "AGENTCORE_GATEWAY_ENDPOINT": "pending-agentcore-deploy",
+            "AGENTCORE_GATEWAY_ID": self.gateway_id or "pending-agentcore-deploy",
+            "AGENTCORE_GATEWAY_ENDPOINT": self.gateway_endpoint or "pending-agentcore-deploy",
+            "REGAIN_TRACING_ENABLED": "true",
         }
 
     def _create_voice_lambda(self) -> _lambda.Function:
@@ -166,10 +171,18 @@ class AgentStack(cdk.Stack):
             resources=["*"],
         )
 
+    def _agentcore_gateway_policy(self) -> iam.PolicyStatement:
+        """Create IAM policy statement for AgentCore Gateway access."""
+        return iam.PolicyStatement(
+            actions=["bedrock:InvokeAgent", "bedrock:InvokeAgentCore"],
+            resources=[f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"],
+        )
+
     def _grant_voice_lambda_permissions(self, voice_lambda: _lambda.Function) -> None:
         """Grant the Voice Lambda Bedrock, DynamoDB, and WebSocket management permissions."""
         voice_lambda.add_to_role_policy(self._bedrock_policy())
         voice_lambda.add_to_role_policy(self._agentcore_memory_policy())
+        voice_lambda.add_to_role_policy(self._agentcore_gateway_policy())
 
         # Grant execute-api:ManageConnections so Lambda can call post_to_connection.
         voice_lambda.add_to_role_policy(
@@ -189,6 +202,7 @@ class AgentStack(cdk.Stack):
         """Add Bedrock permissions and full DynamoDB access to the existing Coaching Lambda."""
         self.coaching_lambda.add_to_role_policy(self._bedrock_policy())
         self.coaching_lambda.add_to_role_policy(self._agentcore_memory_policy())
+        self.coaching_lambda.add_to_role_policy(self._agentcore_gateway_policy())
 
         # Add Bedrock and AgentCore env vars to the coaching Lambda
         for key, value in self._bedrock_env().items():
@@ -287,6 +301,7 @@ class AgentStack(cdk.Stack):
         """Grant the Chat Stream Lambda Bedrock, DynamoDB, and WebSocket management permissions."""
         chat_stream_lambda.add_to_role_policy(self._bedrock_policy())
         chat_stream_lambda.add_to_role_policy(self._agentcore_memory_policy())
+        chat_stream_lambda.add_to_role_policy(self._agentcore_gateway_policy())
 
         # Grant execute-api:ManageConnections so Lambda can call post_to_connection.
         chat_stream_lambda.add_to_role_policy(

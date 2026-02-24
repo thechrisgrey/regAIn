@@ -204,9 +204,31 @@ class AgentStack(cdk.Stack):
         self.coaching_lambda.add_to_role_policy(self._agentcore_memory_policy())
         self.coaching_lambda.add_to_role_policy(self._agentcore_gateway_policy())
 
-        # Add Bedrock and AgentCore env vars to the coaching Lambda
+        # Add Bedrock and AgentCore env vars to the coaching Lambda.
+        # Gateway values use Fn.import_value() instead of CDK token references
+        # to avoid cyclic dependency: coaching_lambda is owned by ApiStack, and
+        # AgentCoreStack already depends on ApiStack for Lambda ARNs.
+        gateway_keys = {"AGENTCORE_GATEWAY_ID", "AGENTCORE_GATEWAY_ENDPOINT"}
         for key, value in self._bedrock_env().items():
-            self.coaching_lambda.add_environment(key, value)
+            if key not in gateway_keys:
+                self.coaching_lambda.add_environment(key, value)
+
+        if self.gateway_id:
+            self.coaching_lambda.add_environment(
+                "AGENTCORE_GATEWAY_ID",
+                cdk.Fn.import_value("RegainAgentCoreGatewayId"),
+            )
+            self.coaching_lambda.add_environment(
+                "AGENTCORE_GATEWAY_ENDPOINT",
+                cdk.Fn.import_value("RegainAgentCoreGatewayEndpoint"),
+            )
+        else:
+            self.coaching_lambda.add_environment(
+                "AGENTCORE_GATEWAY_ID", "pending-agentcore-deploy",
+            )
+            self.coaching_lambda.add_environment(
+                "AGENTCORE_GATEWAY_ENDPOINT", "pending-agentcore-deploy",
+            )
 
         # Grant read/write on all tables (upgrades from read-only on UserProfiles)
         for table in self.tables.values():

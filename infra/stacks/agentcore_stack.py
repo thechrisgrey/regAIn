@@ -780,7 +780,7 @@ class AgentCoreStack(cdk.Stack):
     @property
     def gateway_endpoint(self) -> str:
         """Gateway URL for MCP tool routing (for Lambda env vars)."""
-        return cdk.Fn.get_att(self.gateway.logical_id, "GatewayUrl").to_string()
+        return self.gateway.get_att("GatewayUrl").to_string()
 
     # -- Outputs ---------------------------------------------------------------
 

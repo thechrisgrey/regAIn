@@ -191,10 +191,10 @@ class NovaSonicSession:
     async def start(
         self,
         system_prompt: str,
-        tool_specs: list[dict],
         on_audio: Callable[[str], None],
         on_transcript: Callable[[str, str], None],
-        on_tool_use: Callable[[str, str, dict], Any],
+        tool_specs: Optional[list[dict]] = None,
+        on_tool_use: Optional[Callable[[str, str, dict], Any]] = None,
         on_state: Optional[Callable[[str], None]] = None,
     ) -> None:
         """Initialize the Nova Sonic stream and begin processing.
@@ -204,10 +204,12 @@ class NovaSonicSession:
 
         Args:
             system_prompt: System instructions for the AI.
-            tool_specs: List of toolSpec dicts from build_tool_specs().
             on_audio: Callback(base64_audio) for audio output chunks.
             on_transcript: Callback(role, text) for ASR and assistant text.
+            tool_specs: List of toolSpec dicts from build_tool_specs().
+                Empty or None to disable tools.
             on_tool_use: Callback(tool_name, tool_use_id, args_dict) -> result.
+                Required if tool_specs is non-empty.
             on_state: Optional callback(state_str) for state changes
                 ("speaking", "listening", "interrupted").
         """
@@ -247,7 +249,7 @@ class NovaSonicSession:
 
         # Send the initialization sequence.
         await self._send_session_start()
-        await self._send_prompt_start(tool_specs)
+        await self._send_prompt_start(tool_specs or [])
         await self._send_system_prompt(system_prompt)
         await self._start_audio_input()
 
@@ -411,9 +413,6 @@ class NovaSonicSession:
                         "maxTokens": 1024,
                         "topP": 0.9,
                         "temperature": 0.7,
-                    },
-                    "turnDetectionConfiguration": {
-                        "endpointingSensitivity": "HIGH",
                     },
                 }
             }

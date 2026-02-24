@@ -5,7 +5,11 @@ and post-session assessment generation.
 """
 
 
-def get_interview_prompt(target_role: str, skills_focus: list[str]) -> str:
+def get_interview_prompt(
+    target_role: str,
+    skills_focus: list[str],
+    user_name: str = "",
+) -> str:
     """Build a system prompt for mock interview sessions.
 
     The AI acts as an experienced interviewer for the given target role,
@@ -14,13 +18,15 @@ def get_interview_prompt(target_role: str, skills_focus: list[str]) -> str:
     Args:
         target_role: The user's target job role.
         skills_focus: List of skill tags from the user's active campaign.
+        user_name: The candidate's first name for personalization.
 
     Returns:
         System prompt string for Nova Sonic.
     """
     skills_list = ", ".join(skills_focus) if skills_focus else "general professional skills"
+    name_line = f"\nThe candidate's name is {user_name}." if user_name else ""
 
-    return f"""You are an experienced interviewer conducting a mock interview for a {target_role} position. Your goal is to help the candidate practice and improve their interview skills through realistic questioning.
+    return f"""You are an experienced interviewer conducting a mock interview for a {target_role} position. Your goal is to help the candidate practice and improve their interview skills through realistic questioning.{name_line}
 
 INTERVIEW GUIDELINES:
 - Ask behavioral, situational, and technical questions relevant to the {target_role} role
@@ -28,7 +34,7 @@ INTERVIEW GUIDELINES:
 - Adapt question difficulty based on the candidate's responses — start moderate and adjust
 - Ask one question at a time and follow up on answers before moving to a new topic
 - Be conversational but professional, as a real interviewer would be
-- Keep your responses concise and natural for voice conversation
+- Keep each response to 2-3 sentences maximum. This is a voice conversation -- brevity and natural pacing are essential.
 - DO NOT reveal any assessment, scoring, or evaluation during the interview
 - DO NOT tell the candidate how they are performing until the session ends
 
@@ -40,7 +46,11 @@ Ask questions that allow the candidate to demonstrate competency in these areas.
 Begin by briefly introducing yourself and the interview format, then ask your first question."""
 
 
-def get_mission_discussion_prompt(valid_skill_tags: list[str]) -> str:
+def get_mission_discussion_prompt(
+    valid_skill_tags: list[str],
+    user_name: str = "",
+    missions: list[dict] | None = None,
+) -> str:
     """Build a system prompt for mission discussion sessions.
 
     The AI reviews the user's current missions, discusses progress,
@@ -48,13 +58,26 @@ def get_mission_discussion_prompt(valid_skill_tags: list[str]) -> str:
 
     Args:
         valid_skill_tags: List of valid skill tags from the user's campaign.
+        user_name: The user's first name for personalization.
+        missions: Pre-fetched active missions (pending/in_progress).
 
     Returns:
         System prompt string for Nova Sonic.
     """
     skills_list = ", ".join(valid_skill_tags) if valid_skill_tags else "your current skills"
+    name_line = f"\nThe user's name is {user_name}." if user_name else ""
 
-    return f"""You are a career development coach helping a user review and discuss their current missions on the REGAIN platform. Your role is to facilitate productive reflection and planning.
+    mission_block = ""
+    if missions:
+        lines = []
+        for m in missions:
+            title = m.get("title", "Untitled")
+            status = m.get("status", "unknown")
+            desc = m.get("description", "")
+            lines.append(f"- {title} ({status}): {desc}")
+        mission_block = "\n\nCURRENT MISSIONS:\n" + "\n".join(lines)
+
+    return f"""You are a career development coach helping a user review and discuss their current missions on the REGAIN platform. Your role is to facilitate productive reflection and planning.{name_line}
 
 DISCUSSION GUIDELINES:
 - Discuss progress on current missions, identifying blockers and strategies to overcome them
@@ -63,9 +86,9 @@ DISCUSSION GUIDELINES:
 - Connect discussions to skill development in these areas: {skills_list}
 - Encourage the user to think about what they have learned and how they can apply it
 - Be conversational and supportive but also direct when offering suggestions
-- Keep your responses concise and natural for voice conversation
+- Keep each response to 2-3 sentences maximum. This is a voice conversation -- brevity and natural pacing are essential.
 - Ask follow-up questions to deepen the discussion
-- Help the user recognize patterns in their progress
+- Help the user recognize patterns in their progress{mission_block}
 
 Begin by asking the user which mission or skill area they would like to discuss first."""
 

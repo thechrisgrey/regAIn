@@ -8,7 +8,6 @@ and generates post-session assessments via the shared NovaSonicSession.
 
 import base64
 import importlib
-import inspect
 import json
 import logging
 import os
@@ -22,7 +21,6 @@ from boto3.dynamodb.conditions import Attr, Key
 from backend.handlers.shared.dynamodb import DynamoDBClient
 from backend.handlers.shared.nova_sonic import (
     NovaSonicSession,
-    build_tool_specs,
     ensure_event_loop,
     run_async,
 )
@@ -47,33 +45,6 @@ _apigw_clients: Dict[str, Any] = {}  # endpoint -> client
 _tools_mod = importlib.import_module("backend.agents.coaching.tools")
 
 VALID_SESSION_TYPES = {"interview", "mission_discussion"}
-
-
-def _get_tool_functions(session_type: str) -> list:
-    """Return the appropriate tool functions for the given session type.
-
-    Interview sessions get profile, campaign, evidence, market, and memory tools.
-    Mission discussion sessions additionally get the current mission tool.
-
-    Args:
-        session_type: Either "interview" or "mission_discussion".
-
-    Returns:
-        List of tool function references.
-    """
-    base_tools = [
-        _tools_mod.read_user_profile,
-        _tools_mod.get_campaign_status,
-        _tools_mod.get_evidence_summary,
-        _tools_mod.get_market_insights,
-        _tools_mod.recall_memory,
-        _tools_mod.store_memory,
-    ]
-
-    if session_type == "mission_discussion":
-        base_tools.insert(2, _tools_mod.get_current_mission)
-
-    return base_tools
 
 
 def _get_s3_client():
@@ -161,15 +132,67 @@ def _validate_cognito_token(token: str) -> Optional[str]:
         return None
 
 
-def _get_system_prompt(session_type: str, user_id: str) -> str:
-    """Get the appropriate system prompt for the session type.
+def _prefetch_context(session_type: str, user_id: str) -> dict:
+    """Pre-fetch all user context needed for the voice session prompt.
 
-    Looks up the user's active campaign to retrieve target role and
-    skills focus for prompt generation.
+    Retrieves profile name, active campaign, and (for mission discussions)
+    active missions up front so Nova Sonic can run without live tools.
 
     Args:
         session_type: Either "interview" or "mission_discussion".
         user_id: The authenticated user's ID.
+
+    Returns:
+        Dict with keys: target_role, skills_focus, user_name, missions.
+    """
+    ctx: Dict[str, Any] = {
+        "target_role": "professional",
+        "skills_focus": [],
+        "user_name": "",
+        "missions": [],
+    }
+
+    try:
+        db = DynamoDBClient()
+
+        # User profile -- extract first name.
+        profile = db.get_item("user_profiles", {"userId": user_id})
+        if profile:
+            ctx["user_name"] = profile.get("firstName", "")
+
+        # Active campaign -- target role + skills.
+        campaigns = db.query(
+            "campaigns",
+            Key("userId").eq(user_id),
+            filter_expression=Attr("status").eq("active"),
+        )
+        if campaigns:
+            campaign = campaigns[0]
+            ctx["target_role"] = campaign.get("targetRole", ctx["target_role"])
+            ctx["skills_focus"] = campaign.get("skillsFocus", [])
+
+        # Active missions for mission_discussion.
+        if session_type == "mission_discussion":
+            missions = db.query(
+                "mission_history",
+                Key("userId").eq(user_id),
+                filter_expression=Attr("status").is_in(["pending", "in_progress"]),
+            )
+            ctx["missions"] = missions or []
+    except Exception:
+        logger.warning("Failed to pre-fetch context for user %s", user_id)
+
+    return ctx
+
+
+def _get_system_prompt(session_type: str, ctx: dict) -> str:
+    """Get the appropriate system prompt for the session type.
+
+    Uses pre-fetched context instead of live tool calls.
+
+    Args:
+        session_type: Either "interview" or "mission_discussion".
+        ctx: Pre-fetched context dict from _prefetch_context().
 
     Returns:
         System prompt string.
@@ -179,55 +202,18 @@ def _get_system_prompt(session_type: str, user_id: str) -> str:
         get_mission_discussion_prompt,
     )
 
-    target_role = "professional"
-    skills_focus: List[str] = []
-
-    try:
-        db = DynamoDBClient()
-        campaigns = db.query(
-            "campaigns",
-            Key("userId").eq(user_id),
-            filter_expression=Attr("status").eq("active"),
-        )
-        if campaigns:
-            campaign = campaigns[0]
-            target_role = campaign.get("targetRole", target_role)
-            skills_focus = campaign.get("skillsFocus", [])
-    except Exception:
-        logger.warning("Failed to look up campaign for user %s", user_id)
-
     if session_type == "interview":
-        return get_interview_prompt(target_role, skills_focus)
+        return get_interview_prompt(
+            ctx["target_role"],
+            ctx["skills_focus"],
+            user_name=ctx["user_name"],
+        )
     else:
-        return get_mission_discussion_prompt(skills_focus)
-
-
-def _execute_tool(user_id: str, tool_name: str, tool_use_id: str, args: dict) -> Any:
-    """Execute a Strands tool function, injecting user_id as needed.
-
-    Args:
-        user_id: The authenticated user's ID.
-        tool_name: The tool function name.
-        tool_use_id: The Nova Sonic tool use ID (for logging).
-        args: Tool arguments from Nova Sonic.
-
-    Returns:
-        The tool function's result.
-    """
-    func = getattr(_tools_mod, tool_name, None)
-    if not func:
-        return {"error": f"Unknown tool: {tool_name}"}
-
-    try:
-        sig = inspect.signature(func)
-    except (ValueError, TypeError):
-        sig = inspect.signature(getattr(func, "__wrapped__", func))
-
-    if "user_id" in sig.parameters:
-        args["user_id"] = user_id
-
-    logger.info("Executing tool %s for user %s", tool_name, user_id)
-    return func(**args)
+        return get_mission_discussion_prompt(
+            ctx["skills_focus"],
+            user_name=ctx["user_name"],
+            missions=ctx["missions"],
+        )
 
 
 def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -328,18 +314,6 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
 
-            def on_tool_use(
-                tool_name: str, tool_use_id: str, args: dict
-            ) -> Any:
-                _post_to_connection(event, connection_id, {
-                    "type": "thinking", "tool": tool_name,
-                })
-                result = _execute_tool(user_id, tool_name, tool_use_id, args)
-                _post_to_connection(event, connection_id, {
-                    "type": "thinking_complete", "tool": tool_name,
-                })
-                return result
-
             def on_state(state: str) -> None:
                 if state == "interrupted":
                     _post_to_connection(event, connection_id, {
@@ -351,16 +325,13 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                         "data": {"state": state},
                     })
 
-            tool_functions = _get_tool_functions(session_type)
-            system_prompt = _get_system_prompt(session_type, user_id)
-            tool_specs = build_tool_specs(tool_functions)
+            ctx = _prefetch_context(session_type, user_id)
+            system_prompt = _get_system_prompt(session_type, ctx)
 
             run_async(session.start(
                 system_prompt=system_prompt,
-                tool_specs=tool_specs,
                 on_audio=on_audio,
                 on_transcript=on_transcript,
-                on_tool_use=on_tool_use,
                 on_state=on_state,
             ))
 

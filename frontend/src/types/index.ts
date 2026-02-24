@@ -179,6 +179,103 @@ export interface VoiceSessionsResponse {
   sessions: VoicePracticeSession[];
 }
 
+// O*NET types
+
+export interface OnetSearchResult {
+  code: string;
+  title: string;
+  tags?: { bright_outlook?: boolean; green?: boolean; apprenticeship?: boolean };
+}
+
+export interface OnetSearchResponse {
+  career: OnetSearchResult[];
+  total?: number;
+  start?: number;
+  end?: number;
+}
+
+export interface OnetScoredItem {
+  id: string;
+  name: string;
+  description?: string;
+  score?: { value: number };
+}
+
+export interface OnetScoredGroup {
+  title?: string;
+  element: OnetScoredItem[];
+}
+
+export interface OnetTask {
+  statement: string;
+}
+
+export interface OnetEducation {
+  job_zone: number;
+  education_usually_needed?: { category: string[] };
+  experience_usually_needed?: { category: string[] };
+}
+
+export interface OnetSalary {
+  annual_median?: number;
+  annual_10th_percentile?: number;
+  annual_25th_percentile?: number;
+  annual_75th_percentile?: number;
+  annual_90th_percentile?: number;
+  hourly_median?: number;
+}
+
+export interface OnetOutlook {
+  category?: string;
+  description?: string;
+}
+
+export interface OnetPersonalityType {
+  code: string;
+  name: string;
+  description?: string;
+}
+
+export interface OnetTechnology {
+  title: { name: string };
+  example: { name: string }[];
+}
+
+export interface OnetIndustry {
+  code: string;
+  title: string;
+  percent?: number;
+}
+
+export interface OnetLocationQuotient {
+  state: string;
+  quotient: number;
+}
+
+export interface OnetRelatedCareer {
+  code: string;
+  title: string;
+}
+
+export interface OnetCareerReport {
+  code: string;
+  title: string;
+  tags?: { bright_outlook?: boolean; green?: boolean; apprenticeship?: boolean };
+  what_they_do?: string;
+  on_the_job?: { task: OnetTask[] };
+  education?: OnetEducation;
+  outlook?: OnetOutlook;
+  salary?: OnetSalary;
+  knowledge?: OnetScoredGroup;
+  skills?: OnetScoredGroup;
+  abilities?: OnetScoredGroup;
+  personality?: { top_interest?: OnetPersonalityType; secondary_interest?: OnetPersonalityType };
+  technology?: { category: OnetTechnology[] };
+  industry?: OnetIndustry[];
+  location_quotient?: OnetLocationQuotient[];
+  related_careers?: OnetRelatedCareer[];
+}
+
 export interface VoiceSessionDetailResponse {
   sessionId: string;
   sessionType: VoicePracticeSessionType;

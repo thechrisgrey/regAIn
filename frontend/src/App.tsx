@@ -13,6 +13,7 @@ import Profile from './pages/Profile';
 import CoachingPage from './pages/CoachingPage';
 import VoicePracticePage from './pages/VoicePracticePage';
 import VoiceSessionDetailPage from './pages/VoiceSessionDetailPage';
+import OnetPage from './pages/OnetPage';
 import NotFound from './pages/NotFound';
 
 function App() {
@@ -39,6 +40,7 @@ function App() {
             <Route path="missions" element={<Missions />} />
             <Route path="evidence" element={<Evidence />} />
             <Route path="resume" element={<ResumePage />} />
+            <Route path="onet" element={<OnetPage />} />
             <Route path="profile" element={<Profile />} />
           </Route>
           <Route path="*" element={<NotFound />} />

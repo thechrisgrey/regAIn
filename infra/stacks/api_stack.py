@@ -114,8 +114,9 @@ class ApiStack(cdk.Stack):
             "Coaching": "backend.handlers.coaching.handler.lambda_handler",
             "Dashboard": "backend.handlers.dashboard.handler.lambda_handler",
             "Profile": "backend.handlers.profile.handler.lambda_handler",
+            "Onet": "backend.handlers.onet.handler.lambda_handler",
         }
-        return {
+        result = {
             name: self._create_lambda_function(
                 name,
                 path,
@@ -123,6 +124,18 @@ class ApiStack(cdk.Stack):
             )
             for name, path in handlers.items()
         }
+
+        # Onet Lambda reads O*NET credentials from SSM SecureString at runtime
+        result["Onet"].add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["ssm:GetParameter"],
+                resources=[
+                    f"arn:aws:ssm:{self.region}:{self.account}:parameter/regain/onet/*",
+                ],
+            )
+        )
+
+        return result
 
     def _grant_permissions(self, lambdas: dict[str, _lambda.Function]) -> None:
         """Grant least-privilege DynamoDB permissions to each Lambda.
@@ -155,6 +168,8 @@ class ApiStack(cdk.Stack):
         self.tables["Campaigns"].grant_read_data(lambdas["Dashboard"])
         self.tables["MissionHistory"].grant_read_data(lambdas["Dashboard"])
         self.tables["EvidenceVault"].grant_read_data(lambdas["Dashboard"])
+
+        # Onet: no DynamoDB access — proxies external O*NET API only
 
         # Profile: read/write all user tables (for cascade delete) + Cognito
         self.tables["UserProfiles"].grant_read_write_data(lambdas["Profile"])
@@ -253,6 +268,22 @@ class ApiStack(cdk.Stack):
         profile.add_method(
             "DELETE",
             apigw.LambdaIntegration(lambdas["Profile"]),
+            **auth_kwargs,
+        )
+
+        # GET /onet/search, GET /onet/careers/{soc_code}
+        onet = self.api.root.add_resource("onet")
+        onet_search = onet.add_resource("search")
+        onet_search.add_method(
+            "GET",
+            apigw.LambdaIntegration(lambdas["Onet"]),
+            **auth_kwargs,
+        )
+        onet_careers = onet.add_resource("careers")
+        onet_soc_code = onet_careers.add_resource("{soc_code}")
+        onet_soc_code.add_method(
+            "GET",
+            apigw.LambdaIntegration(lambdas["Onet"]),
             **auth_kwargs,
         )
 

@@ -16,7 +16,7 @@ from infra.stacks.api_stack import ApiStack
 
 
 # Expected Lambda count in the API stack.
-EXPECTED_LAMBDA_COUNT = 6
+EXPECTED_LAMBDA_COUNT = 7
 
 # Map each Lambda logical-name fragment to the tables it MAY access.
 # Derived from ApiStack._grant_permissions.
@@ -27,6 +27,7 @@ ALLOWED_TABLES: dict[str, set[str]] = {
     "Coaching": {"UserProfiles"},
     "Dashboard": {"Campaigns", "MissionHistory", "EvidenceVault"},
     "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
+    "Onet": set(),
 }
 
 ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections"}
@@ -201,7 +202,9 @@ def test_lambda_has_least_privilege_table_access(lambda_index: int) -> None:
     )
 
     # The Lambda MUST have access to at least one of its allowed tables
-    assert accessed_tables, (
-        f"Lambda {lambda_name} ({logical_id}) has no DynamoDB table access at all. "
-        f"Expected access to: {allowed}"
-    )
+    # (skip for Lambdas that need no DynamoDB access, e.g. Onet)
+    if allowed:
+        assert accessed_tables, (
+            f"Lambda {lambda_name} ({logical_id}) has no DynamoDB table access at all. "
+            f"Expected access to: {allowed}"
+        )

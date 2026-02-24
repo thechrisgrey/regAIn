@@ -24,7 +24,7 @@ REQUIRED_TABLE_ENV_VARS = [
     "MARKET_DATA_TABLE",
 ]
 
-EXPECTED_LAMBDA_COUNT = 6
+EXPECTED_LAMBDA_COUNT = 7
 
 
 def _synth_api_template() -> dict:

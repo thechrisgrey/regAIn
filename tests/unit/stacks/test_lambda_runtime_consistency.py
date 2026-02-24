@@ -38,9 +38,9 @@ def _get_lambda_functions(template: dict) -> list[tuple[str, dict]]:
     ]
 
 
-# The API stack creates exactly 6 Lambda functions:
-# Onboarding, Missions, Evidence, Coaching, Dashboard, Profile
-EXPECTED_LAMBDA_COUNT = 6
+# The API stack creates exactly 7 Lambda functions:
+# Onboarding, Missions, Evidence, Coaching, Dashboard, Profile, Onet
+EXPECTED_LAMBDA_COUNT = 7
 
 
 @given(

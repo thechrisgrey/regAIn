@@ -11,6 +11,8 @@ import type {
   CoachingResponse,
   VoiceSessionsResponse,
   VoiceSessionDetailResponse,
+  OnetSearchResponse,
+  OnetCareerReport,
 } from '../types';
 import type { ResumeResponse } from '../types/resume';
 
@@ -146,6 +148,20 @@ export const api = {
       apiRequest<{ message: string }>(
         '/profile',
         { method: 'DELETE' },
+        token,
+      ),
+  },
+  onet: {
+    search: (keyword: string, token: string) =>
+      apiRequest<OnetSearchResponse>(
+        `/onet/search?keyword=${encodeURIComponent(keyword)}`,
+        { method: 'GET' },
+        token,
+      ),
+    careerDetail: (socCode: string, token: string) =>
+      apiRequest<OnetCareerReport>(
+        `/onet/careers/${encodeURIComponent(socCode)}`,
+        { method: 'GET' },
         token,
       ),
   },

@@ -179,11 +179,12 @@ export interface VoiceSessionsResponse {
   sessions: VoicePracticeSession[];
 }
 
-// O*NET types
+// O*NET types (v2 API)
 
 export interface OnetSearchResult {
   code: string;
   title: string;
+  href?: string;
   tags?: { bright_outlook?: boolean; green?: boolean; apprenticeship?: boolean };
 }
 
@@ -194,35 +195,39 @@ export interface OnetSearchResponse {
   end?: number;
 }
 
-export interface OnetScoredItem {
+export interface OnetKnowledgeElement {
   id: string;
   name: string;
-  description?: string;
-  score?: { value: number };
 }
 
-export interface OnetScoredGroup {
-  title?: string;
-  element: OnetScoredItem[];
+export interface OnetKnowledgeGroup {
+  id: string;
+  name: string;
+  element: OnetKnowledgeElement[];
 }
 
 export interface OnetTask {
   statement: string;
 }
 
+export interface OnetJobZone {
+  code: number;
+  title: string;
+  experience?: string;
+  training?: string;
+  education?: string;
+}
+
 export interface OnetEducation {
-  job_zone: number;
-  education_usually_needed?: { category: string[] };
-  experience_usually_needed?: { category: string[] };
+  job_zone: OnetJobZone;
+  education_usually_needed?: string[];
 }
 
 export interface OnetSalary {
+  soc_code?: string;
   annual_median?: number;
   annual_10th_percentile?: number;
-  annual_25th_percentile?: number;
-  annual_75th_percentile?: number;
   annual_90th_percentile?: number;
-  hourly_median?: number;
 }
 
 export interface OnetOutlook {
@@ -230,31 +235,49 @@ export interface OnetOutlook {
   description?: string;
 }
 
+export interface OnetJobOutlook {
+  outlook?: OnetOutlook;
+  bright_outlook?: { code: string; title: string }[];
+  salary?: OnetSalary;
+}
+
 export interface OnetPersonalityType {
-  code: string;
+  id: string;
   name: string;
   description?: string;
 }
 
-export interface OnetTechnology {
-  title: { name: string };
-  example: { name: string }[];
+export interface OnetWorkStyle {
+  id: string;
+  name: string;
 }
 
-export interface OnetIndustry {
-  code: string;
+export interface OnetPersonality {
+  top_interest?: OnetPersonalityType;
+  work_styles?: OnetWorkStyle[];
+}
+
+export interface OnetTechExample {
   title: string;
-  percent?: number;
+  hot_technology?: boolean;
 }
 
-export interface OnetLocationQuotient {
-  state: string;
-  quotient: number;
+export interface OnetTechnology {
+  code: number;
+  title: string;
+  example: OnetTechExample[];
+}
+
+export interface OnetStateOutlook {
+  code: string;
+  name: string;
+  job_outlook: string;
 }
 
 export interface OnetRelatedCareer {
   code: string;
   title: string;
+  tags?: { bright_outlook?: boolean; green?: boolean };
 }
 
 export interface OnetCareerReport {
@@ -263,17 +286,15 @@ export interface OnetCareerReport {
   tags?: { bright_outlook?: boolean; green?: boolean; apprenticeship?: boolean };
   what_they_do?: string;
   on_the_job?: { task: OnetTask[] };
-  education?: OnetEducation;
-  outlook?: OnetOutlook;
-  salary?: OnetSalary;
-  knowledge?: OnetScoredGroup;
-  skills?: OnetScoredGroup;
-  abilities?: OnetScoredGroup;
-  personality?: { top_interest?: OnetPersonalityType; secondary_interest?: OnetPersonalityType };
-  technology?: { category: OnetTechnology[] };
-  industry?: OnetIndustry[];
-  location_quotient?: OnetLocationQuotient[];
-  related_careers?: OnetRelatedCareer[];
+  education?: OnetEducation | null;
+  job_outlook?: OnetJobOutlook | null;
+  knowledge?: OnetKnowledgeGroup[] | null;
+  skills?: OnetKnowledgeGroup[] | null;
+  abilities?: OnetKnowledgeGroup[] | null;
+  personality?: OnetPersonality | null;
+  technology?: OnetTechnology[] | null;
+  check_out_my_state?: OnetStateOutlook[] | null;
+  explore_more?: { careers: OnetRelatedCareer[] } | null;
 }
 
 export interface VoiceSessionDetailResponse {

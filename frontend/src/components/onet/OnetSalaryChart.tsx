@@ -17,9 +17,7 @@ export default function OnetSalaryChart({ salary }: OnetSalaryChartProps) {
 
   const percentiles = [
     { label: '10th percentile', value: salary.annual_10th_percentile },
-    { label: '25th percentile', value: salary.annual_25th_percentile },
     { label: 'Median', value: salary.annual_median },
-    { label: '75th percentile', value: salary.annual_75th_percentile },
     { label: '90th percentile', value: salary.annual_90th_percentile },
   ].filter(p => p.value != null);
 
@@ -41,11 +39,6 @@ export default function OnetSalaryChart({ salary }: OnetSalaryChartProps) {
           </div>
         ))}
       </div>
-      {salary.hourly_median != null && (
-        <p className="mt-4 text-xs text-neutral-400">
-          Hourly median: ${salary.hourly_median.toLocaleString()}/hr
-        </p>
-      )}
     </Card>
   );
 }

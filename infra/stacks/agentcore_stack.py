@@ -524,10 +524,11 @@ class AgentCoreStack(cdk.Stack):
     # -- Profile Lambda permissions for cascade delete -------------------------
 
     def _grant_profile_lambda_permissions(self) -> None:
-        """Grant the Profile Lambda permissions for code interpreter cascade delete.
+        """Grant the Profile Lambda permissions for code interpreter cascade delete
+        and AgentCore Memory cleanup.
 
-        Uses a constructed ARN from the known bucket name to avoid
-        cyclic cross-stack references.
+        Uses constructed ARNs from known names to avoid cyclic cross-stack
+        references.
         """
         bucket_name = f"regain-code-interpreter-output-{cdk.Aws.ACCOUNT_ID}"
         bucket_arn = f"arn:aws:s3:::{bucket_name}"
@@ -539,6 +540,17 @@ class AgentCoreStack(cdk.Stack):
         )
         self._profile_lambda.add_environment(
             "CODE_INTERPRETER_BUCKET_NAME", bucket_name,
+        )
+
+        # AgentCore Memory cleanup permissions for cascade deletion
+        self._profile_lambda.add_environment(
+            "AGENTCORE_MEMORY_ID", "regain-coaching-memory",
+        )
+        self._profile_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["bedrock:ListMemoryRecords", "bedrock:DeleteMemoryRecord"],
+                resources=["*"],
+            )
         )
 
     # -- S3 bucket for Code Interpreter ----------------------------------------

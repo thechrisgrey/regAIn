@@ -108,7 +108,10 @@ class ProfileService:
             logger.warning("CODE_INTERPRETER_BUCKET_NAME not set; skipping code interpreter S3 cleanup")
             deleted["code_interpreter_s3"] = 0
 
-        # 9. Cognito — delete user so the email can be re-registered
+        # 9. AgentCore Memory — purge coaching session summaries
+        deleted["agentcore_memory"] = self._delete_agentcore_memory(user_id)
+
+        # 10. Cognito — delete user so the email can be re-registered
         if self.user_pool_id:
             self.cognito.admin_delete_user(
                 UserPoolId=self.user_pool_id,
@@ -123,25 +126,83 @@ class ProfileService:
         return deleted
 
     def _delete_s3_prefix(self, bucket: str, prefix: str) -> int:
-        """Delete all objects under an S3 prefix.
+        """Delete all object versions and delete markers under an S3 prefix.
+
+        Uses ``list_object_versions`` so that versioned buckets are fully
+        purged (not just delete-marker'd).  Works identically on
+        non-versioned buckets where ``VersionId`` is ``"null"``.
 
         Args:
             bucket: S3 bucket name.
             prefix: Object key prefix to delete under.
 
         Returns:
-            Number of objects deleted.
+            Number of object versions deleted.
         """
         deleted_count = 0
-        paginator = self.s3.get_paginator("list_objects_v2")
+        paginator = self.s3.get_paginator("list_object_versions")
         for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            objects = page.get("Contents", [])
-            if not objects:
+            to_delete = []
+            for obj in page.get("Versions", []):
+                to_delete.append({"Key": obj["Key"], "VersionId": obj["VersionId"]})
+            for marker in page.get("DeleteMarkers", []):
+                to_delete.append({"Key": marker["Key"], "VersionId": marker["VersionId"]})
+            if not to_delete:
                 continue
-            delete_keys = [{"Key": obj["Key"]} for obj in objects]
-            self.s3.delete_objects(
+            # S3 delete_objects accepts max 1000 keys per call;
+            # list_object_versions returns max 1000 entries per page, so safe.
+            resp = self.s3.delete_objects(
                 Bucket=bucket,
-                Delete={"Objects": delete_keys},
+                Delete={"Objects": to_delete, "Quiet": True},
             )
-            deleted_count += len(delete_keys)
+            errors = resp.get("Errors", [])
+            if errors:
+                logger.warning("S3 delete errors in %s: %s", bucket, errors)
+            deleted_count += len(to_delete) - len(errors)
+        return deleted_count
+
+    def _delete_agentcore_memory(self, user_id: str) -> int:
+        """Delete all AgentCore Memory records for a user's coaching namespace.
+
+        Gracefully degrades if the ``bedrock-agentcore`` service model is
+        unavailable in the Lambda runtime's boto3 version.
+
+        Args:
+            user_id: Cognito sub from JWT claims.
+
+        Returns:
+            Number of memory records deleted.
+        """
+        memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
+        if not memory_id:
+            logger.warning("AGENTCORE_MEMORY_ID not set; skipping memory cleanup")
+            return 0
+
+        try:
+            client = boto3.client(
+                "bedrock-agentcore",
+                region_name=os.environ.get("AWS_REGION", "us-east-1"),
+            )
+        except Exception:
+            logger.warning("bedrock-agentcore client unavailable; skipping memory cleanup")
+            return 0
+
+        namespace = f"regain-coaching-{user_id}"
+        deleted_count = 0
+
+        try:
+            paginator = client.get_paginator("list_memory_records")
+            for page in paginator.paginate(memoryId=memory_id, namespace=namespace):
+                for record in page.get("memoryRecordSummaries", []):
+                    record_id = record.get("memoryRecordId", "")
+                    if not record_id:
+                        continue
+                    client.delete_memory_record(
+                        memoryId=memory_id,
+                        memoryRecordId=record_id,
+                    )
+                    deleted_count += 1
+        except Exception as exc:
+            logger.warning("AgentCore Memory cleanup failed for user %s: %s", user_id, exc)
+
         return deleted_count

@@ -149,6 +149,7 @@ def _prefetch_context(session_type: str, user_id: str) -> dict:
         "skills_focus": [],
         "user_name": "",
         "missions": [],
+        "coaching_notes": "",
     }
 
     try:
@@ -181,7 +182,66 @@ def _prefetch_context(session_type: str, user_id: str) -> dict:
     except Exception:
         logger.warning("Failed to pre-fetch context for user %s", user_id)
 
+    # Recall coaching memory (isolated from DynamoDB failures above).
+    ctx["coaching_notes"] = _recall_coaching_notes(
+        session_type, user_id, ctx["target_role"]
+    )
+
     return ctx
+
+
+def _recall_coaching_notes(
+    session_type: str, user_id: str, target_role: str
+) -> str:
+    """Recall relevant coaching memory entries for the session prompt.
+
+    Uses the same lazy-imported coaching tools module as disconnect's
+    store_memory call. Returns a formatted string of bullet points,
+    or empty string on any failure.
+
+    Args:
+        session_type: Either "interview" or "mission_discussion".
+        user_id: The authenticated user's ID.
+        target_role: The user's target role (used in interview queries).
+
+    Returns:
+        Formatted coaching notes string, or "" on failure.
+    """
+    try:
+        global _tools_mod
+        if _tools_mod is None:
+            import importlib
+            _tools_mod = importlib.import_module("backend.agents.coaching.tools")
+
+        if session_type == "interview":
+            query = (
+                f"interview practice performance, strengths, weaknesses, "
+                f"and areas to improve for {target_role}"
+            )
+        else:
+            query = (
+                "mission progress, skill development patterns, blockers, "
+                "and coaching session summaries"
+            )
+
+        entries = _tools_mod.recall_memory(user_id=user_id, query=query)
+        if not entries:
+            return ""
+
+        lines = []
+        for entry in entries[:5]:
+            content = entry.get("content", "").strip()
+            if content:
+                lines.append(f"- {content}")
+
+        result = "\n".join(lines)
+        if len(result) > 1500:
+            result = result[:1500].rsplit("\n", 1)[0]
+
+        return result
+    except Exception:
+        logger.warning("Failed to recall coaching notes for user %s", user_id)
+        return ""
 
 
 def _get_system_prompt(session_type: str, ctx: dict) -> str:
@@ -206,12 +266,14 @@ def _get_system_prompt(session_type: str, ctx: dict) -> str:
             ctx["target_role"],
             ctx["skills_focus"],
             user_name=ctx["user_name"],
+            coaching_notes=ctx["coaching_notes"],
         )
     else:
         return get_mission_discussion_prompt(
             ctx["skills_focus"],
             user_name=ctx["user_name"],
             missions=ctx["missions"],
+            coaching_notes=ctx["coaching_notes"],
         )
 
 

@@ -9,6 +9,7 @@ def get_interview_prompt(
     target_role: str,
     skills_focus: list[str],
     user_name: str = "",
+    coaching_notes: str = "",
 ) -> str:
     """Build a system prompt for mock interview sessions.
 
@@ -19,12 +20,22 @@ def get_interview_prompt(
         target_role: The user's target job role.
         skills_focus: List of skill tags from the user's active campaign.
         user_name: The candidate's first name for personalization.
+        coaching_notes: Prior coaching context from AgentCore Memory.
 
     Returns:
         System prompt string for Nova Sonic.
     """
     skills_list = ", ".join(skills_focus) if skills_focus else "general professional skills"
     name_line = f"\nThe candidate's name is {user_name}." if user_name else ""
+
+    coaching_section = ""
+    if coaching_notes:
+        coaching_section = f"""
+
+PRIOR COACHING CONTEXT:
+The following notes summarize the candidate's recent coaching sessions. Use them to tailor your questions and probe areas where they have been working to improve. Do not mention these notes directly -- weave them naturally into your questioning.
+{coaching_notes}
+"""
 
     return f"""You are an experienced interviewer conducting a mock interview for a {target_role} position. Your goal is to help the candidate practice and improve their interview skills through realistic questioning.{name_line}
 
@@ -42,7 +53,7 @@ FOCUS AREAS:
 Pay special attention to these skills relevant to the candidate's career goals: {skills_list}
 
 Ask questions that allow the candidate to demonstrate competency in these areas. Mix behavioral questions ("Tell me about a time when...") with situational questions ("How would you handle...") and role-specific technical questions.
-
+{coaching_section}
 Begin by briefly introducing yourself and the interview format, then ask your first question."""
 
 
@@ -50,6 +61,7 @@ def get_mission_discussion_prompt(
     valid_skill_tags: list[str],
     user_name: str = "",
     missions: list[dict] | None = None,
+    coaching_notes: str = "",
 ) -> str:
     """Build a system prompt for mission discussion sessions.
 
@@ -60,6 +72,7 @@ def get_mission_discussion_prompt(
         valid_skill_tags: List of valid skill tags from the user's campaign.
         user_name: The user's first name for personalization.
         missions: Pre-fetched active missions (pending/in_progress).
+        coaching_notes: Prior coaching context from AgentCore Memory.
 
     Returns:
         System prompt string for Nova Sonic.
@@ -77,6 +90,15 @@ def get_mission_discussion_prompt(
             lines.append(f"- {title} ({status}): {desc}")
         mission_block = "\n\nCURRENT MISSIONS:\n" + "\n".join(lines)
 
+    coaching_section = ""
+    if coaching_notes:
+        coaching_section = f"""
+
+PRIOR COACHING CONTEXT:
+The following notes summarize the user's recent coaching sessions. Use them to ask informed follow-up questions about patterns, blockers, or prior progress. Do not mention these notes directly -- reference them naturally in conversation.
+{coaching_notes}
+"""
+
     return f"""You are a career development coach helping a user review and discuss their current missions on the REGAIN platform. Your role is to facilitate productive reflection and planning.{name_line}
 
 DISCUSSION GUIDELINES:
@@ -89,7 +111,7 @@ DISCUSSION GUIDELINES:
 - Keep each response to 2-3 sentences maximum. This is a voice conversation -- brevity and natural pacing are essential.
 - Ask follow-up questions to deepen the discussion
 - Help the user recognize patterns in their progress{mission_block}
-
+{coaching_section}
 Begin by asking the user which mission or skill area they would like to discuss first."""
 
 

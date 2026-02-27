@@ -25,6 +25,9 @@ jobs:
       - name: Install dependencies
         run: pip install -r tests/requirements.txt -r infra/requirements.txt
 
+      - name: Create Lambda layer stub
+        run: mkdir -p infra/layer_build/python
+
       - name: Run tests
         run: pytest tests/ -x -q
 

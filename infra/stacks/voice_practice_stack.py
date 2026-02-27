@@ -11,8 +11,11 @@ from aws_cdk import (
     aws_iam as iam,
     aws_lambda as _lambda,
     aws_s3 as s3,
+    aws_sns as sns,
 )
 from constructs import Construct
+
+from .monitoring import add_lambda_alarms
 
 
 class VoicePracticeStack(cdk.Stack):
@@ -44,6 +47,7 @@ class VoicePracticeStack(cdk.Stack):
         self._create_api_routes(api)
         self._grant_permissions()
         self._grant_profile_lambda_permissions()
+        self._create_monitoring()
         self._create_outputs()
 
     def _table_env(self) -> dict[str, str]:
@@ -234,7 +238,7 @@ class VoicePracticeStack(cdk.Stack):
         cors_response_params = {
             "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization'",
             "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
-            "method.response.header.Access-Control-Allow-Origin": "'*'",
+            "method.response.header.Access-Control-Allow-Origin": "'https://regain.altivum.ai'",
         }
         cors_method_response_params = {
             "method.response.header.Access-Control-Allow-Headers": True,
@@ -348,6 +352,15 @@ class VoicePracticeStack(cdk.Stack):
         self.profile_lambda.add_environment(
             "VOICE_PRACTICE_BUCKET_NAME", bucket_name,
         )
+
+    def _create_monitoring(self) -> None:
+        """Add CloudWatch alarms for voice practice Lambda functions."""
+        alert_topic = sns.Topic.from_topic_arn(
+            self, "ImportedAlertTopic",
+            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+        )
+        add_lambda_alarms(self, self.ws_lambda, alert_topic, name="VoicePractice", timeout_seconds=120)
+        add_lambda_alarms(self, self.rest_lambda, alert_topic, name="VoicePracticeApi", timeout_seconds=30)
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs for voice practice infrastructure."""

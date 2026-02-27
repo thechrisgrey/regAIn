@@ -4,12 +4,17 @@ from pathlib import Path
 import aws_cdk as cdk
 from aws_cdk import (
     aws_apigateway as apigw,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cw_actions,
     aws_cognito as cognito,
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_sns as sns,
 )
 from constructs import Construct
+
+from .monitoring import add_lambda_alarms
 
 
 class ApiStack(cdk.Stack):
@@ -34,6 +39,7 @@ class ApiStack(cdk.Stack):
         lambdas = self._create_lambda_functions()
         self._grant_permissions(lambdas)
         self._create_api(authorizer, lambdas)
+        self._create_monitoring(lambdas)
 
         # Expose Lambda functions for cross-stack references
         self.coaching_lambda = lambdas["Coaching"]
@@ -194,7 +200,7 @@ class ApiStack(cdk.Stack):
             "RegainApi",
             rest_api_name="RegainApi",
             default_cors_preflight_options=apigw.CorsOptions(
-                allow_origins=apigw.Cors.ALL_ORIGINS,
+                allow_origins=["https://regain.altivum.ai"],
                 allow_methods=apigw.Cors.ALL_METHODS,
                 allow_headers=["Content-Type", "Authorization"],
             ),
@@ -297,7 +303,7 @@ class ApiStack(cdk.Stack):
                 f"CorsGateway{suffix}",
                 type=response_type,
                 response_headers={
-                    "Access-Control-Allow-Origin": "'*'",
+                    "Access-Control-Allow-Origin": "'https://regain.altivum.ai'",
                     "Access-Control-Allow-Headers": "'Content-Type,Authorization'",
                     "Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
                 },
@@ -309,3 +315,32 @@ class ApiStack(cdk.Stack):
             value=self.api.url,
             export_name="RegainApiUrl",
         )
+
+    def _create_monitoring(self, lambdas: dict[str, _lambda.Function]) -> None:
+        """Add CloudWatch alarms for all Lambda functions and the API Gateway."""
+        alert_topic = sns.Topic.from_topic_arn(
+            self, "ImportedAlertTopic",
+            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+        )
+
+        for name, fn in lambdas.items():
+            add_lambda_alarms(self, fn, alert_topic, name=name, timeout_seconds=30)
+
+        # API Gateway 5xx alarm
+        api_5xx_metric = cloudwatch.Metric(
+            namespace="AWS/ApiGateway",
+            metric_name="5XXError",
+            dimensions_map={"ApiName": "RegainApi"},
+            statistic="Sum",
+            period=cdk.Duration.minutes(5),
+        )
+        api_5xx_alarm = api_5xx_metric.create_alarm(
+            self, "RegainApi5xxAlarm",
+            alarm_name="Regain-Api-5xxErrors",
+            alarm_description="API Gateway 5xx error count > 0 over 5 minutes",
+            threshold=0,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        api_5xx_alarm.add_alarm_action(cw_actions.SnsAction(alert_topic))

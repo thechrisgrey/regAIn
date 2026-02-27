@@ -15,9 +15,12 @@ from aws_cdk import (
     aws_events as events,
     aws_events_targets as targets,
     aws_lambda as _lambda,
+    aws_sns as sns,
     custom_resources as cr,
 )
 from constructs import Construct
+
+from .monitoring import add_lambda_alarms
 
 
 class MarketIntelStack(cdk.Stack):
@@ -40,6 +43,7 @@ class MarketIntelStack(cdk.Stack):
         self._grant_permissions(lambdas)
         self._create_schedules(lambdas)
         self._create_seed_trigger(lambdas["Seed"])
+        self._create_monitoring(lambdas)
 
     def _create_deps_layer(self) -> _lambda.LayerVersion:
         """Create a Lambda Layer with third-party Python dependencies (requests)."""
@@ -195,3 +199,12 @@ class MarketIntelStack(cdk.Stack):
                 "trigger": "initial-seed-load",
             },
         )
+
+    def _create_monitoring(self, lambdas: dict[str, _lambda.Function]) -> None:
+        """Add CloudWatch alarms for all market intel Lambda functions."""
+        alert_topic = sns.Topic.from_topic_arn(
+            self, "ImportedAlertTopic",
+            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+        )
+        for name, fn in lambdas.items():
+            add_lambda_alarms(self, fn, alert_topic, name=name, timeout_seconds=30, prefix="MarketIntel-")

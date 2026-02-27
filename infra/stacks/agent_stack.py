@@ -9,8 +9,11 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_sns as sns,
 )
 from constructs import Construct
+
+from .monitoring import add_lambda_alarms
 
 
 class AgentStack(cdk.Stack):
@@ -49,6 +52,8 @@ class AgentStack(cdk.Stack):
         chat_stream_lambda = self._create_chat_stream_lambda()
         self._create_chat_websocket_api(chat_stream_lambda)
         self._grant_chat_stream_lambda_permissions(chat_stream_lambda)
+
+        self._create_monitoring(voice_lambda, chat_stream_lambda)
 
     def _create_strands_layer(self) -> _lambda.LayerVersion:
         """Create the Strands Agents Lambda Layer from the local build directory."""
@@ -338,3 +343,16 @@ class AgentStack(cdk.Stack):
 
         for table in self.tables.values():
             table.grant_read_write_data(chat_stream_lambda)
+
+    def _create_monitoring(
+        self,
+        voice_lambda: _lambda.Function,
+        chat_stream_lambda: _lambda.Function,
+    ) -> None:
+        """Add CloudWatch alarms for agent Lambda functions."""
+        alert_topic = sns.Topic.from_topic_arn(
+            self, "ImportedAlertTopic",
+            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+        )
+        add_lambda_alarms(self, voice_lambda, alert_topic, name="VoiceSession", timeout_seconds=120)
+        add_lambda_alarms(self, chat_stream_lambda, alert_topic, name="ChatStream", timeout_seconds=120)

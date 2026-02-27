@@ -9,8 +9,11 @@ from aws_cdk import (
     aws_iam as iam,
     aws_lambda as _lambda,
     aws_s3 as s3,
+    aws_sns as sns,
 )
 from constructs import Construct
+
+from .monitoring import add_lambda_alarms
 
 
 class ResumeStack(cdk.Stack):
@@ -35,6 +38,7 @@ class ResumeStack(cdk.Stack):
         self._grant_permissions(tables)
         self._grant_profile_lambda_permissions()
         self._create_api_routes(api, user_pool)
+        self._create_monitoring()
         self._create_outputs()
 
     def _create_bucket(self) -> s3.Bucket:
@@ -190,7 +194,7 @@ class ResumeStack(cdk.Stack):
         cors_response_params = {
             "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization'",
             "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
-            "method.response.header.Access-Control-Allow-Origin": "'*'",
+            "method.response.header.Access-Control-Allow-Origin": "'https://regain.altivum.ai'",
         }
         cors_method_response_params = {
             "method.response.header.Access-Control-Allow-Headers": True,
@@ -225,6 +229,14 @@ class ResumeStack(cdk.Stack):
                     )
                 ],
             )
+
+    def _create_monitoring(self) -> None:
+        """Add CloudWatch alarms for the Resume Lambda."""
+        alert_topic = sns.Topic.from_topic_arn(
+            self, "ImportedAlertTopic",
+            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+        )
+        add_lambda_alarms(self, self.resume_lambda, alert_topic, name="Resume", timeout_seconds=60)
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs for resume infrastructure."""

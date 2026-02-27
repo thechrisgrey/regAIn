@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { CoachingProvider } from './hooks/CoachingContext';
+import { MutationBusProvider } from './hooks/MutationBusContext';
 import { ToastProvider } from './components/ui';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import IntroVideo from './components/IntroVideo';
@@ -21,6 +22,7 @@ import NotFound from './pages/NotFound';
 function App() {
   return (
     <AuthProvider>
+      <MutationBusProvider>
       <ToastProvider>
       <IntroVideo />
       <BrowserRouter>
@@ -52,6 +54,7 @@ function App() {
         </Routes>
       </BrowserRouter>
       </ToastProvider>
+      </MutationBusProvider>
     </AuthProvider>
   );
 }

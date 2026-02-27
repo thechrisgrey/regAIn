@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { useOnMutation } from './useMutationBus';
 import { api } from '../services/api';
 import type { Evidence } from '../types';
 
@@ -25,6 +26,8 @@ export function useEvidence() {
     },
     [getToken],
   );
+
+  useOnMutation('mission:completed', fetchEvidence);
 
   return { evidence, loading, error, fetchEvidence };
 }

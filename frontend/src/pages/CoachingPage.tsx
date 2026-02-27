@@ -10,23 +10,28 @@ const SESSION_TYPES = [
 ] as const;
 
 export default function CoachingPage() {
-  const { messages, streaming, streamingText, toolSteps, error, sendMessage, clearConversation } = useCoaching();
+  const { messages, streaming, streamingText, toolSteps, error, connectionStatus, streamHint, sendMessage, clearConversation } = useCoaching();
   const { isActive: voiceActive, error: voiceError, fallbackToText, startSession, stopSession } = useVoiceSession();
 
   const [input, setInput] = useState('');
   const [sessionType, setSessionType] = useState('checkin');
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const draftRef = useRef('');
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingText]);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     const trimmed = input.trim();
     if (!trimmed || streaming) return;
+    draftRef.current = trimmed;
     setInput('');
-    void sendMessage(trimmed, sessionType);
+    const sent = await sendMessage(trimmed, sessionType);
+    if (!sent) {
+      setInput(draftRef.current);
+    }
   };
 
   const toggleVoice = () => {
@@ -66,6 +71,20 @@ export default function CoachingPage() {
           </select>
         </div>
       </div>
+
+      {/* Connection status banners */}
+      {connectionStatus === 'reconnecting' && (
+        <div className="flex items-center gap-2 rounded-[var(--radius-button)] border border-warning-100 bg-warning-50 px-3 py-2 text-xs text-warning-600 animate-fade-in">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-warning-500 animate-pulse" />
+          Reconnecting to coaching session...
+        </div>
+      )}
+      {connectionStatus === 'disconnected' && (
+        <div className="flex items-center gap-2 rounded-[var(--radius-button)] border border-error-100 bg-error-50 px-3 py-2 text-xs text-error-600 animate-fade-in">
+          <span className="inline-block h-1.5 w-1.5 rounded-full bg-error-500" />
+          Connection lost. Messages may not be delivered.
+        </div>
+      )}
 
       {/* Message History */}
       <div className="flex-1 overflow-y-auto py-4 space-y-3" role="log" aria-label="Coaching conversation">
@@ -125,6 +144,9 @@ export default function CoachingPage() {
               <span className="inline-block h-1.5 w-1.5 rounded-full bg-neutral-400 animate-pulse" style={{ animationDelay: '300ms' }} />
             </div>
           </div>
+        )}
+        {streaming && streamHint && (
+          <p className="px-4 py-1 text-xs text-neutral-400 animate-fade-in">{streamHint}</p>
         )}
         <div ref={messagesEndRef} />
       </div>

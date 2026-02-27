@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useMissions } from '../hooks/useMissions';
 import { useDashboard } from '../hooks/useDashboard';
+import { useMutationBus } from '../hooks/useMutationBus';
 import type { Mission, CompleteData } from '../types';
 import { Card, SectionLabel, Button, Badge, SkeletonBlock, useToast } from '../components/ui';
 
@@ -588,6 +589,7 @@ export default function Missions() {
   } = useMissions();
 
   const { data: dashboardData, loading: dashLoading, fetchDashboard } = useDashboard();
+  const { emit } = useMutationBus();
 
   const [completing, setCompleting] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
@@ -683,6 +685,8 @@ export default function Missions() {
       setCompleting(false);
 
       if (result) {
+        emit({ type: 'mission:completed' });
+        emit({ type: 'evidence:logged' });
         setCompletedResult({ missionId, evidenceId: result.evidenceId });
         setPrimaryOverride(null);
         setTimeout(() => {
@@ -695,7 +699,7 @@ export default function Missions() {
         );
       }
     },
-    [completeMission, fetchMissions],
+    [completeMission, fetchMissions, emit],
   );
 
   const { toast } = useToast();

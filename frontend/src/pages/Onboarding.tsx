@@ -1,11 +1,39 @@
-import { useState, useCallback, type KeyboardEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useCallback, useEffect, useRef, type KeyboardEvent } from 'react';
+import { useNavigate, useBlocker } from 'react-router-dom';
 import { useOnboarding } from '../hooks/useOnboarding';
 import { useAuth } from '../hooks/useAuth';
 import type { OnboardingData } from '../types';
 import { api } from '../services/api';
-import { Card, SectionLabel, Badge, Button, Input, Textarea, Select } from '../components/ui';
+import { Card, SectionLabel, Badge, Button, Input, Textarea, Select, ConfirmDialog } from '../components/ui';
 import VoiceOnboarding from '../components/voice/VoiceOnboarding';
+
+const DRAFT_STORAGE_KEY = 'regain-onboarding-draft';
+
+interface OnboardingDraft {
+  firstName?: string;
+  lastName?: string;
+  currentRole?: string;
+  company?: string;
+  industry?: string;
+  yearsInRole?: string;
+  yearsExperience?: string;
+  highestPosition?: string;
+  story?: string;
+  transitionType?: string;
+  targetRole?: string;
+  selectedSkills?: string[];
+  coachNotes?: string;
+}
+
+function loadDraft(): OnboardingDraft {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_STORAGE_KEY);
+    if (!raw) return {};
+    return JSON.parse(raw) as OnboardingDraft;
+  } catch {
+    return {};
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -250,23 +278,68 @@ export default function Onboarding() {
   const [step, setStep] = useState(1);
   const [voiceMode, setVoiceMode] = useState(false);
 
-  // Step 1
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [currentRole, setCurrentRole] = useState('');
-  const [company, setCompany] = useState('');
-  const [industry, setIndustry] = useState('');
-  const [yearsInRole, setYearsInRole] = useState('');
-  const [yearsExperience, setYearsExperience] = useState('');
-  const [highestPosition, setHighestPosition] = useState('');
-  const [story, setStory] = useState('');
-  const [transitionType, setTransitionType] = useState('');
+  // Step 1 — initialize from sessionStorage draft for recovery
+  const [firstName, setFirstName] = useState(() => loadDraft().firstName ?? '');
+  const [lastName, setLastName] = useState(() => loadDraft().lastName ?? '');
+  const [currentRole, setCurrentRole] = useState(() => loadDraft().currentRole ?? '');
+  const [company, setCompany] = useState(() => loadDraft().company ?? '');
+  const [industry, setIndustry] = useState(() => loadDraft().industry ?? '');
+  const [yearsInRole, setYearsInRole] = useState(() => loadDraft().yearsInRole ?? '');
+  const [yearsExperience, setYearsExperience] = useState(() => loadDraft().yearsExperience ?? '');
+  const [highestPosition, setHighestPosition] = useState(() => loadDraft().highestPosition ?? '');
+  const [story, setStory] = useState(() => loadDraft().story ?? '');
+  const [transitionType, setTransitionType] = useState(() => loadDraft().transitionType ?? '');
 
   // Step 2
-  const [targetRole, setTargetRole] = useState('');
-  const [selectedSkills, setSelectedSkills] = useState<string[]>([]);
+  const [targetRole, setTargetRole] = useState(() => loadDraft().targetRole ?? '');
+  const [selectedSkills, setSelectedSkills] = useState<string[]>(() => loadDraft().selectedSkills ?? []);
   const [customSkillInput, setCustomSkillInput] = useState('');
-  const [coachNotes, setCoachNotes] = useState('');
+  const [coachNotes, setCoachNotes] = useState(() => loadDraft().coachNotes ?? '');
+
+  // Draft persistence — debounced save to sessionStorage
+  const draftTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => {
+    clearTimeout(draftTimerRef.current);
+    draftTimerRef.current = setTimeout(() => {
+      try {
+        sessionStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({
+            firstName, lastName, currentRole, company, industry,
+            yearsInRole, yearsExperience, highestPosition, story, transitionType,
+            targetRole, selectedSkills, coachNotes,
+          }),
+        );
+      } catch { /* storage full or unavailable */ }
+    }, 500);
+    return () => clearTimeout(draftTimerRef.current);
+  }, [firstName, lastName, currentRole, company, industry, yearsInRole, yearsExperience, highestPosition, story, transitionType, targetRole, selectedSkills, coachNotes]);
+
+  // Clear draft on successful submission
+  useEffect(() => {
+    if (data) {
+      sessionStorage.removeItem(DRAFT_STORAGE_KEY);
+    }
+  }, [data]);
+
+  // Dirty detection — true when required fields have been touched and submission hasn't completed
+  const isDirty = !data && (
+    firstName.trim() !== '' ||
+    lastName.trim() !== '' ||
+    currentRole.trim() !== '' ||
+    transitionType !== ''
+  );
+
+  // Block in-app navigation when form is dirty
+  const blocker = useBlocker(isDirty);
+
+  // Block browser close / refresh when form is dirty
+  useEffect(() => {
+    if (!isDirty) return;
+    const handler = (e: BeforeUnloadEvent) => { e.preventDefault(); };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
 
   // Validation
   const canProceed1 = firstName.trim() && lastName.trim() && currentRole.trim() && transitionType;
@@ -782,6 +855,18 @@ export default function Onboarding() {
           </Button>
         </div>
       )}
+
+      {/* Navigation blocker dialog */}
+      <ConfirmDialog
+        open={blocker.state === 'blocked'}
+        title="Leave onboarding?"
+        description="Your progress has not been saved. If you leave now, you will need to start over."
+        confirmLabel="Leave"
+        cancelLabel="Stay"
+        variant="destructive"
+        onConfirm={() => blocker.proceed?.()}
+        onCancel={() => blocker.reset?.()}
+      />
     </div>
   );
 }

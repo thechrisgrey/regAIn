@@ -2,7 +2,7 @@ import { useContext } from 'react';
 import { CoachingContext, type CoachingContextType } from './CoachingContext';
 
 export type { CoachingContextType };
-export type { ChatMessage, ToolStep } from './CoachingContext';
+export type { ChatMessage, ToolStep, ConnectionStatus } from './CoachingContext';
 
 /** Human-readable labels for tool names sent by the backend. */
 export const TOOL_LABELS: Record<string, string> = {

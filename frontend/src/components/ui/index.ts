@@ -7,3 +7,4 @@ export { default as ProgressBar } from './ProgressBar';
 export { default as SkeletonBlock } from './SkeletonBlock';
 export { default as MarkdownMessage } from './MarkdownMessage';
 export { default as AgentActivityFeed } from './AgentActivityFeed';
+export { ToastProvider, useToast } from './Toast';

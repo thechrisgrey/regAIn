@@ -132,6 +132,10 @@
 
   /* UI glow animation */
   --animate-glow-pulse: glow-pulse 2.5s ease-in-out infinite;
+
+  /* Toast animations */
+  --animate-toast-in: toast-slide-in 0.3s ease-out;
+  --animate-toast-out: toast-slide-out 0.2s ease-in forwards;
 }
 
 /* ------------------------------------------------------------------ */
@@ -212,6 +216,24 @@
   }
   50% {
     box-shadow: 0 0 14px rgba(145, 109, 101, 0.5);
+  }
+}
+
+@keyframes toast-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(12px);
   }
 }
 

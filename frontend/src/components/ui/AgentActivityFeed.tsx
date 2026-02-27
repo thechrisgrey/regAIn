@@ -1,4 +1,4 @@
-import type { ToolStep } from '../../hooks/useStreamingCoaching';
+import type { ToolStep } from '../../hooks/useCoaching';
 import SectionLabel from './SectionLabel';
 
 interface AgentActivityFeedProps {

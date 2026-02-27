@@ -1,7 +1,14 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import {
+  createContext,
+  useState,
+  useCallback,
+  useRef,
+  useEffect,
+  type ReactNode,
+} from 'react';
 import { useAuth } from './useAuth';
 
-interface ChatMessage {
+export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
 }
@@ -20,7 +27,7 @@ interface StreamEvent {
 }
 
 /** Human-readable labels for tool names sent by the backend. */
-export const TOOL_LABELS: Record<string, string> = {
+const TOOL_LABELS: Record<string, string> = {
   read_user_profile: 'Reviewing your profile',
   update_user_profile: 'Updating profile',
   get_campaign_status: 'Checking campaign status',
@@ -36,15 +43,53 @@ export const TOOL_LABELS: Record<string, string> = {
   store_memory: 'Saving notes',
 };
 
+export interface CoachingContextType {
+  messages: ChatMessage[];
+  streaming: boolean;
+  streamingText: string;
+  thinking: boolean;
+  toolSteps: ToolStep[];
+  error: string | null;
+  sendMessage: (message: string, sessionType: string) => Promise<void>;
+  clearConversation: () => void;
+}
+
 const WS_URL = import.meta.env.VITE_CHAT_WS_URL as string | undefined;
 const MAX_RECONNECT_DELAY = 16000;
-
-/** Seconds of total silence before the frontend gives up. */
 const STREAM_TIMEOUT_MS = 90_000;
+const SESSION_STORAGE_KEY = 'regain-coaching-messages';
+const MAX_PERSISTED_MESSAGES = 100;
 
-export function useStreamingCoaching() {
+function loadPersistedMessages(): ChatMessage[] {
+  try {
+    const raw = sessionStorage.getItem(SESSION_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as ChatMessage[];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.slice(-MAX_PERSISTED_MESSAGES);
+  } catch {
+    return [];
+  }
+}
+
+function persistMessages(messages: ChatMessage[]) {
+  try {
+    sessionStorage.setItem(
+      SESSION_STORAGE_KEY,
+      JSON.stringify(messages.slice(-MAX_PERSISTED_MESSAGES)),
+    );
+  } catch {
+    // Storage full or unavailable — ignore.
+  }
+}
+
+const CoachingContext = createContext<CoachingContextType | undefined>(undefined);
+
+export { CoachingContext };
+
+export function CoachingProvider({ children }: { children: ReactNode }) {
   const { getToken } = useAuth();
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessages] = useState<ChatMessage[]>(loadPersistedMessages);
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
@@ -58,7 +103,11 @@ export function useStreamingCoaching() {
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasStepsRef = useRef(false);
 
-  /** Derived convenience — true while any tool step is still active. */
+  // Persist messages to sessionStorage whenever they change.
+  useEffect(() => {
+    persistMessages(messages);
+  }, [messages]);
+
   const thinking = toolSteps.some(s => s.status === 'active');
 
   const clearToolSteps = useCallback(() => {
@@ -68,7 +117,6 @@ export function useStreamingCoaching() {
     fadeTimerRef.current = undefined;
   }, []);
 
-  /** Reset the safety timeout — called whenever we receive any message. */
   const resetStreamTimeout = useCallback(() => {
     clearTimeout(streamTimeoutRef.current);
     streamTimeoutRef.current = setTimeout(() => {
@@ -101,11 +149,10 @@ export function useStreamingCoaching() {
           const data: StreamEvent = JSON.parse(evt.data);
 
           if (data.type === 'delta' && data.text) {
-            // Mark all remaining active steps as done and start fade timer.
             if (hasStepsRef.current && !fadeTimerRef.current) {
               hasStepsRef.current = false;
               setToolSteps(prev =>
-                prev.map(s => s.status === 'active' ? { ...s, status: 'done' as const } : s)
+                prev.map(s => s.status === 'active' ? { ...s, status: 'done' as const } : s),
               );
               fadeTimerRef.current = setTimeout(() => {
                 setToolSteps([]);
@@ -154,7 +201,6 @@ export function useStreamingCoaching() {
 
       ws.onclose = () => {
         wsRef.current = null;
-        // Auto-reconnect with exponential backoff.
         const delay = Math.min(
           1000 * 2 ** reconnectAttempt.current,
           MAX_RECONNECT_DELAY,
@@ -198,10 +244,8 @@ export function useStreamingCoaching() {
     async (message: string, sessionType: string) => {
       setError(null);
 
-      // Ensure connection is open.
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         await connect();
-        // Brief wait for the connection to establish.
         await new Promise((r) => setTimeout(r, 500));
       }
 
@@ -210,7 +254,6 @@ export function useStreamingCoaching() {
         return;
       }
 
-      // Add user message immediately.
       setMessages((prev) => [...prev, { role: 'user', content: message }]);
       setStreaming(true);
       setStreamingText('');
@@ -230,5 +273,28 @@ export function useStreamingCoaching() {
     [connect, getToken, resetStreamTimeout, clearToolSteps],
   );
 
-  return { messages, streaming, streamingText, thinking, toolSteps, error, sendMessage };
+  const clearConversation = useCallback(() => {
+    setMessages([]);
+    setStreamingText('');
+    setError(null);
+    clearToolSteps();
+    sessionStorage.removeItem(SESSION_STORAGE_KEY);
+  }, [clearToolSteps]);
+
+  return (
+    <CoachingContext.Provider
+      value={{
+        messages,
+        streaming,
+        streamingText,
+        thinking,
+        toolSteps,
+        error,
+        sendMessage,
+        clearConversation,
+      }}
+    >
+      {children}
+    </CoachingContext.Provider>
+  );
 }

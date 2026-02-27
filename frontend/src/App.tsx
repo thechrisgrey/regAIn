@@ -1,5 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
+import { CoachingProvider } from './hooks/CoachingContext';
+import { ToastProvider } from './components/ui';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import IntroVideo from './components/IntroVideo';
 import Layout from './components/Layout';
@@ -19,6 +21,7 @@ import NotFound from './pages/NotFound';
 function App() {
   return (
     <AuthProvider>
+      <ToastProvider>
       <IntroVideo />
       <BrowserRouter>
         <Routes>
@@ -27,7 +30,9 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <Layout />
+                <CoachingProvider>
+                  <Layout />
+                </CoachingProvider>
               </ProtectedRoute>
             }
           >
@@ -46,6 +51,7 @@ function App() {
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
+      </ToastProvider>
     </AuthProvider>
   );
 }

@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useMissions } from '../hooks/useMissions';
 import { useDashboard } from '../hooks/useDashboard';
 import type { Mission, CompleteData } from '../types';
-import { Card, SectionLabel, Button, Badge, SkeletonBlock } from '../components/ui';
+import { Card, SectionLabel, Button, Badge, SkeletonBlock, useToast } from '../components/ui';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -359,7 +359,7 @@ function CompletionForm({
           type="button"
           onClick={() => onSkip(missionId)}
           disabled={completing}
-          className="text-xs text-neutral-400 hover:underline disabled:opacity-50"
+          className="px-3 py-2 text-xs text-neutral-400 hover:text-neutral-500 hover:bg-neutral-50 rounded-[var(--radius-button)] transition-colors duration-150 disabled:opacity-50"
         >
           Skip this mission
         </button>
@@ -698,10 +698,27 @@ export default function Missions() {
     [completeMission, fetchMissions],
   );
 
+  const { toast } = useToast();
+
   const handleSkip = useCallback((missionId: string) => {
     setSkippedIds(prev => new Set(prev).add(missionId));
     setPrimaryOverride(null);
-  }, []);
+    toast({
+      message: 'Mission skipped',
+      variant: 'default',
+      duration: 5000,
+      action: {
+        label: 'Undo',
+        onClick: () => {
+          setSkippedIds(prev => {
+            const next = new Set(prev);
+            next.delete(missionId);
+            return next;
+          });
+        },
+      },
+    });
+  }, [toast]);
 
   const handleSwitch = useCallback((missionId: string) => {
     setPrimaryOverride(missionId);

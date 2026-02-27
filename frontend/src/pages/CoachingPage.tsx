@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
-import { useStreamingCoaching } from '../hooks/useStreamingCoaching';
+import { useCoaching } from '../hooks/useCoaching';
 import { useVoiceSession } from '../hooks/useVoiceSession';
 import { Button, MarkdownMessage, AgentActivityFeed } from '../components/ui';
 
@@ -10,7 +10,7 @@ const SESSION_TYPES = [
 ] as const;
 
 export default function CoachingPage() {
-  const { messages, streaming, streamingText, toolSteps, error, sendMessage } = useStreamingCoaching();
+  const { messages, streaming, streamingText, toolSteps, error, sendMessage, clearConversation } = useCoaching();
   const { isActive: voiceActive, error: voiceError, fallbackToText, startSession, stopSession } = useVoiceSession();
 
   const [input, setInput] = useState('');
@@ -46,6 +46,11 @@ export default function CoachingPage() {
           <p className="mt-0.5 text-xs text-neutral-400">AI-powered career guidance</p>
         </div>
         <div className="flex items-center gap-2">
+          {messages.length > 0 && !streaming && (
+            <Button variant="ghost" size="sm" onClick={clearConversation}>
+              Clear
+            </Button>
+          )}
           <label htmlFor="session-type" className="text-xs font-medium text-neutral-500">
             Session
           </label>

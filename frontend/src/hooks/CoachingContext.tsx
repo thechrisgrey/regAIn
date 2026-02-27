@@ -43,6 +43,8 @@ const TOOL_LABELS: Record<string, string> = {
   store_memory: 'Saving notes',
 };
 
+export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
+
 export interface CoachingContextType {
   messages: ChatMessage[];
   streaming: boolean;
@@ -50,13 +52,17 @@ export interface CoachingContextType {
   thinking: boolean;
   toolSteps: ToolStep[];
   error: string | null;
-  sendMessage: (message: string, sessionType: string) => Promise<void>;
+  connectionStatus: ConnectionStatus;
+  streamHint: string | null;
+  sendMessage: (message: string, sessionType: string) => Promise<boolean>;
   clearConversation: () => void;
 }
 
 const WS_URL = import.meta.env.VITE_CHAT_WS_URL as string | undefined;
 const MAX_RECONNECT_DELAY = 16000;
+const MAX_RECONNECT_ATTEMPTS = 5;
 const STREAM_TIMEOUT_MS = 90_000;
+const INTERMEDIATE_TIMEOUT_MS = 45_000;
 const SESSION_STORAGE_KEY = 'regain-coaching-messages';
 const MAX_PERSISTED_MESSAGES = 100;
 
@@ -94,12 +100,17 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const [streamingText, setStreamingText] = useState('');
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
+    WS_URL ? 'reconnecting' : 'disconnected',
+  );
+  const [streamHint, setStreamHint] = useState<string | null>(null);
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const connectRef = useRef<(() => Promise<void>) | undefined>(undefined);
   const streamTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const intermediateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasStepsRef = useRef(false);
 
@@ -119,16 +130,23 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
   const resetStreamTimeout = useCallback(() => {
     clearTimeout(streamTimeoutRef.current);
+    clearTimeout(intermediateTimeoutRef.current);
     streamTimeoutRef.current = setTimeout(() => {
       setError('Response timed out. Please try again.');
       setStreaming(false);
       setStreamingText('');
+      setStreamHint(null);
       clearToolSteps();
     }, STREAM_TIMEOUT_MS);
+    intermediateTimeoutRef.current = setTimeout(() => {
+      setStreamHint('Still working on it...');
+    }, INTERMEDIATE_TIMEOUT_MS);
   }, [clearToolSteps]);
 
   const clearStreamTimeout = useCallback(() => {
     clearTimeout(streamTimeoutRef.current);
+    clearTimeout(intermediateTimeoutRef.current);
+    setStreamHint(null);
   }, []);
 
   const connect = useCallback(async () => {
@@ -141,6 +159,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
       ws.onopen = () => {
         reconnectAttempt.current = 0;
+        setConnectionStatus('connected');
         setError(null);
       };
 
@@ -149,6 +168,8 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
           const data: StreamEvent = JSON.parse(evt.data);
 
           if (data.type === 'delta' && data.text) {
+            setStreamHint(null);
+            clearTimeout(intermediateTimeoutRef.current);
             if (hasStepsRef.current && !fadeTimerRef.current) {
               hasStepsRef.current = false;
               setToolSteps(prev =>
@@ -201,6 +222,11 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
       ws.onclose = () => {
         wsRef.current = null;
+        if (reconnectAttempt.current >= MAX_RECONNECT_ATTEMPTS) {
+          setConnectionStatus('disconnected');
+          return;
+        }
+        setConnectionStatus('reconnecting');
         const delay = Math.min(
           1000 * 2 ** reconnectAttempt.current,
           MAX_RECONNECT_DELAY,
@@ -235,13 +261,14 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       clearTimeout(reconnectTimer.current);
       clearStreamTimeout();
       clearTimeout(fadeTimerRef.current);
+      clearTimeout(intermediateTimeoutRef.current);
       wsRef.current?.close();
       wsRef.current = null;
     };
   }, [connect, clearStreamTimeout]);
 
   const sendMessage = useCallback(
-    async (message: string, sessionType: string) => {
+    async (message: string, sessionType: string): Promise<boolean> => {
       setError(null);
 
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
@@ -251,12 +278,13 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
         setError('Connection not available. Retrying...');
-        return;
+        return false;
       }
 
       setMessages((prev) => [...prev, { role: 'user', content: message }]);
       setStreaming(true);
       setStreamingText('');
+      setStreamHint(null);
       clearToolSteps();
       resetStreamTimeout();
 
@@ -269,6 +297,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
           token,
         }),
       );
+      return true;
     },
     [connect, getToken, resetStreamTimeout, clearToolSteps],
   );
@@ -290,6 +319,8 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         thinking,
         toolSteps,
         error,
+        connectionStatus,
+        streamHint,
         sendMessage,
         clearConversation,
       }}

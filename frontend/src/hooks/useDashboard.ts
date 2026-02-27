@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
+import { useOnMutation } from './useMutationBus';
 import { api } from '../services/api';
 import type { DashboardResponse } from '../types';
 
@@ -22,6 +23,8 @@ export function useDashboard() {
       setLoading(false);
     }
   }, [getToken]);
+
+  useOnMutation('mission:completed', fetchDashboard);
 
   return { data, loading, error, fetchDashboard };
 }

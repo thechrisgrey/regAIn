@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useId, useCallback } from 'react';
 import Button from './Button';
 
 interface ConfirmDialogProps {
@@ -22,22 +22,55 @@ export default function ConfirmDialog({
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const titleId = useId();
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<Element | null>(null);
 
+  // Capture previous focus and auto-focus cancel button on open
   useEffect(() => {
     if (open) {
+      previousFocusRef.current = document.activeElement;
       cancelRef.current?.focus();
+    } else if (previousFocusRef.current instanceof HTMLElement) {
+      previousFocusRef.current.focus();
+      previousFocusRef.current = null;
     }
   }, [open]);
 
+  // Focus trap + Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCancel();
+        return;
+      }
+      if (e.key !== 'Tab' || !panelRef.current) return;
+
+      const focusable = panelRef.current.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (focusable.length === 0) return;
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    },
+    [onCancel],
+  );
+
   useEffect(() => {
     if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onCancel();
-    };
-    window.addEventListener('keydown', handleKey);
-    return () => window.removeEventListener('keydown', handleKey);
-  }, [open, onCancel]);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [open, handleKeyDown]);
 
   if (!open) return null;
 
@@ -47,10 +80,14 @@ export default function ConfirmDialog({
       onClick={onCancel}
     >
       <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
         className="w-full max-w-sm rounded-[var(--radius-card)] bg-surface-1 shadow-elevated p-6 animate-scale-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 className="text-lg font-semibold text-neutral-900">{title}</h3>
+        <h3 id={titleId} className="text-lg font-semibold text-neutral-900">{title}</h3>
         {description && (
           <p className="mt-2 text-sm leading-relaxed text-neutral-500">{description}</p>
         )}

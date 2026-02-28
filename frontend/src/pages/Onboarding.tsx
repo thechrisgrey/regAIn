@@ -322,12 +322,14 @@ export default function Onboarding() {
     }
   }, [data]);
 
-  // Dirty detection — true when required fields have been touched and submission hasn't completed
+  // Dirty detection — true when any form fields have been touched and submission hasn't completed
   const isDirty = !data && (
     firstName.trim() !== '' ||
     lastName.trim() !== '' ||
     currentRole.trim() !== '' ||
-    transitionType !== ''
+    transitionType !== '' ||
+    targetRole.trim() !== '' ||
+    selectedSkills.length > 0
   );
 
   // Block in-app navigation when form is dirty

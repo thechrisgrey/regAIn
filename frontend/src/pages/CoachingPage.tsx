@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, type FormEvent } from 'react';
 import { useCoaching } from '../hooks/useCoaching';
 import { useVoiceSession } from '../hooks/useVoiceSession';
-import { Button, MarkdownMessage, AgentActivityFeed } from '../components/ui';
+import { Button, MarkdownMessage, AgentActivityFeed, ConfirmDialog } from '../components/ui';
 
 const SESSION_TYPES = [
   { value: 'onboarding', label: 'Onboarding' },
@@ -15,6 +15,7 @@ export default function CoachingPage() {
 
   const [input, setInput] = useState('');
   const [sessionType, setSessionType] = useState('checkin');
+  const [showClearConfirm, setShowClearConfirm] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef('');
 
@@ -52,7 +53,7 @@ export default function CoachingPage() {
         </div>
         <div className="flex items-center gap-2">
           {messages.length > 0 && !streaming && (
-            <Button variant="ghost" size="sm" onClick={clearConversation}>
+            <Button variant="ghost" size="sm" onClick={() => setShowClearConfirm(true)}>
               Clear
             </Button>
           )}
@@ -199,6 +200,17 @@ export default function CoachingPage() {
           </svg>
         </button>
       </form>
+
+      <ConfirmDialog
+        open={showClearConfirm}
+        title="Clear conversation?"
+        description="This will permanently remove all messages from this session."
+        confirmLabel="Clear"
+        cancelLabel="Keep"
+        variant="destructive"
+        onConfirm={() => { clearConversation(); setShowClearConfirm(false); }}
+        onCancel={() => setShowClearConfirm(false)}
+      />
     </div>
   );
 }

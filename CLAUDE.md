@@ -33,8 +33,13 @@
 - `ProgressBar` — animated fill on mount, accepts `barClassName` for custom color
 - `SkeletonBlock` — shimmer gradient animation
 - `AgentActivityFeed` — step-by-step tool execution feed for coaching chat; takes `steps: ToolStep[]` + `visible: boolean`
+- `ConfirmDialog` — accessible modal (role="dialog", aria-modal, focus trap, focus restore). Props: `open`, `title`, `description?`, `confirmLabel`, `cancelLabel`, `variant` ('primary' | 'destructive'), `onConfirm`, `onCancel`. Uses existing `Button` with `forwardRef`
 - `NavIcon` — SVG icon map for sidebar nav items
 - Barrel export from `components/ui/index.ts`
+
+### Shared Hooks
+- `hooks/MutationBusContext.tsx` + `hooks/useMutationBus.ts` — ref-based event bus for cross-page data freshness. `emit({ type: 'mission:completed' })` from Missions.tsx triggers auto-refresh in `useDashboard` and `useEvidence` via `useOnMutation`. No re-renders from subscribe/unsubscribe
+- `hooks/CoachingContext.tsx` — exposes `connectionStatus` ('connected' | 'reconnecting' | 'disconnected'), `streamHint` (45s intermediate warning), `sendMessage` returns `Promise<boolean>` for draft recovery
 
 ### Shared Utilities
 - `utils/campaign.ts` — `phaseIndex`, `phaseLabel`, `phaseProgress`, `daysActive`, `formatDate`
@@ -54,7 +59,7 @@
 # Frontend
 cd frontend && npm run dev      # Dev server
 cd frontend && npm run build    # tsc + vite build
-cd frontend && npx vitest --run # Run tests (47 tests)
+cd frontend && npx vitest --run # Run tests (45 tests)
 cd frontend && npm run lint     # ESLint
 
 # Backend
@@ -179,3 +184,9 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Voice fluidity: pre-fetch context, don't use live tools**: Synchronous tool execution (DynamoDB reads) during Nova Sonic streaming causes 500ms-2s audio gaps per tool call. Solution: pre-fetch all user context into the system prompt before session start. Only `store_memory()` runs post-session on disconnect. Voice prompts enforce "2-3 sentences maximum" for natural pacing
 - **Voice mic unmute: use server-side END_TURN, not frontend timers**: Nova Sonic sends `END_TURN` stop reason which triggers `on_state("listening")`. Relying on this server signal is more accurate than a frontend speaking timer (e.g. 1.5s timeout) which adds unnecessary delay
 - **Nova Sonic endpointing sensitivity**: Leave `turnDetectionConfiguration` unset to use Nova Sonic defaults. Setting `endpointingSensitivity: "HIGH"` causes aggressive user cut-offs mid-sentence
+- **`react-refresh/only-export-components` lint rule**: When a `.tsx` file exports both a `createContext()` value and a Provider component, use `export { X }` (re-export syntax) for the context — NOT `export const X = createContext(...)` (inline export). Inline export triggers the lint rule; re-export does not. See `CoachingContext.tsx` and `MutationBusContext.tsx` for the pattern
+- **React 19 `react-hooks/refs` lint rule**: Do NOT use `useRef` to cache a value read during render (e.g. `const draft = useRef(loadDraft()).current`). The new strict refs rule flags any `.current` access in the render path. Use `useState(() => loadDraft())` lazy initializer instead — it runs once on mount and satisfies both the lint rule and the intent
+- **`useBlocker` (React Router v7.13)**: Only blocks React Router navigation — does NOT fire for in-component state changes (e.g. `setStep(1)`). The `isDirty` predicate must cover all form steps, not just the currently visible one, since a user can be on Step 2 and navigate away via the sidebar
+- **`Button` supports `forwardRef`**: `components/ui/Button.tsx` wraps with `forwardRef<HTMLButtonElement, ButtonProps>` — needed by `ConfirmDialog` for auto-focus on cancel button. Fully backward-compatible with existing call sites
+- **`useVoicePractice` has no public idle reset from assessing state**: `stopSession()` transitions to `'assessing'`, not `'idle'`. To escape the assessing view (e.g. on timeout), use `navigate(0)` to reload the route and remount the hook
+- **`main` branch is protected**: Direct push to `main` is blocked by 2 required status checks (frontend + backend CI). Must use feature branch + PR. Squash merge creates a divergent local history — use `git pull --rebase` to sync after merge

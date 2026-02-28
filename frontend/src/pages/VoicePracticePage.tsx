@@ -45,7 +45,9 @@ export default function VoicePracticePage() {
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
+  const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const [initialSessionCount, setInitialSessionCount] = useState<number | null>(null);
+  const [assessmentTimedOut, setAssessmentTimedOut] = useState(false);
 
   // Load sessions on mount
   useEffect(() => {
@@ -58,18 +60,34 @@ export default function VoicePracticePage() {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript]);
 
-  // Poll for completed session during assessing state
+  // Poll for completed session during assessing state (60s timeout)
+  const startPolling = () => {
+    setAssessmentTimedOut(false);
+    setInitialSessionCount(sessions.length);
+    clearInterval(pollRef.current);
+    clearTimeout(pollTimeoutRef.current);
+    pollRef.current = setInterval(() => {
+      void fetchSessions();
+    }, 3000);
+    pollTimeoutRef.current = setTimeout(() => {
+      clearInterval(pollRef.current);
+      setAssessmentTimedOut(true);
+    }, 60_000);
+  };
+
   useEffect(() => {
     if (status === 'assessing') {
-      setInitialSessionCount(sessions.length);
-      pollRef.current = setInterval(() => {
-        void fetchSessions();
-      }, 3000);
+      startPolling();
     } else {
       clearInterval(pollRef.current);
+      clearTimeout(pollTimeoutRef.current);
       setInitialSessionCount(null);
+      setAssessmentTimedOut(false);
     }
-    return () => clearInterval(pollRef.current);
+    return () => {
+      clearInterval(pollRef.current);
+      clearTimeout(pollTimeoutRef.current);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status]);
 
@@ -94,13 +112,39 @@ export default function VoicePracticePage() {
   if (status === 'assessing') {
     return (
       <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
-        <div className="h-12 w-12 rounded-full border-4 border-primary-200 border-t-primary-500 animate-spin mb-6" />
-        <p className="text-lg font-medium text-neutral-900">
-          Generating your assessment...
-        </p>
-        <p className="text-sm text-neutral-500 mt-2">
-          This may take a moment.
-        </p>
+        {assessmentTimedOut ? (
+          <>
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning-100 mb-6">
+              <svg className="h-6 w-6 text-warning-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 1 1-18 0 9 9 0 0 1 18 0Zm-9 3.75h.008v.008H12v-.008Z" />
+              </svg>
+            </div>
+            <p className="text-lg font-medium text-neutral-900">
+              Assessment is taking longer than expected
+            </p>
+            <p className="text-sm text-neutral-500 mt-2 max-w-sm text-center">
+              The assessment may still be processing. You can check again or return to your sessions.
+            </p>
+            <div className="flex items-center gap-3 mt-6">
+              <Button variant="secondary" onClick={startPolling}>
+                Check again
+              </Button>
+              <Button variant="ghost" onClick={() => navigate(0)}>
+                Back to sessions
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="h-12 w-12 rounded-full border-4 border-primary-200 border-t-primary-500 animate-spin mb-6" />
+            <p className="text-lg font-medium text-neutral-900">
+              Generating your assessment...
+            </p>
+            <p className="text-sm text-neutral-500 mt-2">
+              This may take a moment.
+            </p>
+          </>
+        )}
       </div>
     );
   }
@@ -256,7 +300,12 @@ export default function VoicePracticePage() {
       <h2 className="text-lg font-semibold text-neutral-900 mb-3">Session History</h2>
 
       {sessionsError && (
-        <p className="text-sm text-error-600 mb-3" role="alert">{sessionsError}</p>
+        <div className="flex items-center gap-3 mb-3" role="alert">
+          <p className="text-sm text-error-600">{sessionsError}</p>
+          <Button variant="secondary" size="sm" onClick={() => void fetchSessions()}>
+            Retry
+          </Button>
+        </div>
       )}
 
       {sessionsLoading && sessions.length === 0 && (

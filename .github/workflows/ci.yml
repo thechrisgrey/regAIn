@@ -56,3 +56,43 @@ jobs:
 
       - name: Run tests
         run: npx vitest --run
+
+  infra:
+    runs-on: ubuntu-latest
+    env:
+      AWS_DEFAULT_REGION: us-east-1
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: infra/requirements.txt
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install CDK dependencies
+        run: pip install -r infra/requirements.txt
+
+      - name: Install CDK CLI
+        run: npm install -g aws-cdk
+
+      - name: Create Lambda layer stubs
+        run: mkdir -p infra/layer_build/python _layer/python
+
+      - name: Synthesize all stacks
+        working-directory: infra
+        run: cdk synth --quiet --app "python app.py"
+
+      - name: Validate synthesis produced all 8 stacks
+        working-directory: infra
+        run: |
+          STACK_COUNT=$(ls -1 cdk.out/*.template.json 2>/dev/null | wc -l)
+          echo "Synthesized $STACK_COUNT stacks"
+          if [ "$STACK_COUNT" -lt 8 ]; then
+            echo "ERROR: Expected 8 stacks, got $STACK_COUNT"
+            exit 1
+          fi

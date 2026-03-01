@@ -108,7 +108,6 @@ class AgentStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
-            reserved_concurrent_executions=50,
         )
 
     def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
@@ -290,7 +289,6 @@ class AgentStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
-            reserved_concurrent_executions=50,
         )
 
     def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:

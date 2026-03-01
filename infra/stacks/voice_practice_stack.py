@@ -111,7 +111,6 @@ class VoicePracticeStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
-            reserved_concurrent_executions=30,
         )
 
     def _create_ws_api(self) -> None:

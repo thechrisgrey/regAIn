@@ -42,7 +42,7 @@ class ResumeStack(cdk.Stack):
         self._create_outputs()
 
     def _create_bucket(self) -> s3.Bucket:
-        """Create the Resume S3 bucket with versioning and public access blocked."""
+        """Create the Resume S3 bucket with versioning, lifecycle rules, and public access blocked."""
         return s3.Bucket(
             self,
             "RegainResumeBucket",
@@ -51,6 +51,12 @@ class ResumeStack(cdk.Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             auto_delete_objects=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    noncurrent_versions_to_retain=2,
+                    noncurrent_version_expiration=cdk.Duration.days(30),
+                ),
+            ],
         )
 
     def _create_lambda(self, tables: dict[str, dynamodb.Table]) -> _lambda.Function:
@@ -76,7 +82,7 @@ class ResumeStack(cdk.Stack):
                 **({"IDEMPOTENCY_TABLE": tables["IdempotencyKeys"].table_name} if "IdempotencyKeys" in tables else {}),
             },
             timeout=cdk.Duration.seconds(60),
-            memory_size=256,
+            memory_size=512,
             tracing=_lambda.Tracing.ACTIVE,
         )
 

@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import threading
+import time
 from typing import Any, Callable, Dict, Optional
 
 import boto3
@@ -18,6 +19,7 @@ from backend.handlers.shared.ws_connections import (
     delete_connection,
     load_connection,
     store_connection,
+    update_connection,
 )
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,9 @@ _apigw_clients: Dict[str, Any] = {}
 # Lambda timeout minus safety margin (seconds).
 _LAMBDA_TIMEOUT = int(os.environ.get("LAMBDA_TIMEOUT_SECONDS", "120"))
 _SAFETY_MARGIN = 10
+
+# Auth deadline: max seconds to send auth message after unauthenticated $connect.
+_AUTH_DEADLINE_SECONDS = 10
 
 
 def _get_apigw_client(domain_name: str, stage: str):
@@ -107,21 +112,40 @@ def _validate_cognito_token(token: str) -> Optional[str]:
 
 
 def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Accept WebSocket connection and store connection metadata."""
+    """Accept WebSocket connection and store connection metadata.
+
+    Supports both query-param auth (legacy) and first-message auth.
+    If a token is present in query params, validate immediately.
+    Otherwise, accept unauthenticated and require auth in $default.
+    """
     connection_id = event["requestContext"]["connectionId"]
     query_params = event.get("queryStringParameters") or {}
     token = query_params.get("token", "")
 
-    user_id = _validate_cognito_token(token)
-    if not user_id:
-        logger.warning("Auth failed for chat connection %s", connection_id)
-        return {"statusCode": 401}
+    # Try query-param auth first (legacy path).
+    if token:
+        user_id = _validate_cognito_token(token)
+        if not user_id:
+            logger.warning("Auth failed for chat connection %s", connection_id)
+            return {"statusCode": 401}
 
-    conn_data = {"user_id": user_id}
+        conn_data = {"user_id": user_id, "authenticated": "true"}
+        _connections[connection_id] = conn_data
+        store_connection(connection_id, conn_data)
+
+        logger.info("Chat connection %s established for user %s", connection_id, user_id)
+        return {"statusCode": 200}
+
+    # No token in query params — accept unauthenticated, require first-message auth.
+    conn_data = {
+        "user_id": "",
+        "authenticated": "false",
+        "auth_deadline": str(time.time() + _AUTH_DEADLINE_SECONDS),
+    }
     _connections[connection_id] = conn_data
     store_connection(connection_id, conn_data)
 
-    logger.info("Chat connection %s established for user %s", connection_id, user_id)
+    logger.info("Chat connection %s accepted unauthenticated (first-message auth required)", connection_id)
     return {"statusCode": 200}
 
 
@@ -141,6 +165,10 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
       - message: str (the user's text)
       - session_type: str (onboarding | checkin | general)
       - token: str (JWT, used if not already cached from $connect)
+
+    Or, for first-message auth:
+      - type: "auth"
+      - token: str (JWT)
     """
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.get(connection_id)
@@ -154,8 +182,6 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("No user mapping for chat connection %s", connection_id)
         return {"statusCode": 400}
 
-    user_id = conn_info["user_id"]
-
     # Parse the incoming message payload.
     try:
         body = json.loads(event.get("body", "{}"))
@@ -165,6 +191,50 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             "message": "Invalid JSON payload",
         })
         return {"statusCode": 200}
+
+    # Handle first-message auth for unauthenticated connections.
+    if conn_info.get("authenticated") == "false":
+        if body.get("type") == "auth":
+            token = body.get("token", "")
+            # Check auth deadline.
+            deadline = float(conn_info.get("auth_deadline", "0"))
+            if deadline and time.time() > deadline:
+                _post_to_connection(event, connection_id, {
+                    "type": "error",
+                    "message": "Authentication deadline exceeded. Please reconnect.",
+                })
+                return {"statusCode": 200}
+
+            user_id = _validate_cognito_token(token)
+            if not user_id:
+                _post_to_connection(event, connection_id, {
+                    "type": "error",
+                    "message": "Authentication failed. Please reconnect.",
+                })
+                return {"statusCode": 200}
+
+            # Update connection as authenticated.
+            conn_info["user_id"] = user_id
+            conn_info["authenticated"] = "true"
+            _connections[connection_id] = conn_info
+            update_connection(connection_id, {
+                "user_id": user_id,
+                "authenticated": "true",
+            })
+
+            _post_to_connection(event, connection_id, {
+                "type": "auth_success",
+            })
+            logger.info("Chat connection %s authenticated via first-message for user %s", connection_id, user_id)
+            return {"statusCode": 200}
+        else:
+            _post_to_connection(event, connection_id, {
+                "type": "error",
+                "message": "Authentication required. Send {\"type\":\"auth\",\"token\":\"...\"} first.",
+            })
+            return {"statusCode": 200}
+
+    user_id = conn_info["user_id"]
 
     message = body.get("message", "").strip()
     if not message:
@@ -184,7 +254,12 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         _post_to_connection(event, connection_id, data)
 
     # Build a streaming callback that pushes delta chunks to the client.
+    # The connection_stale flag is set by the heartbeat thread if a send fails.
+    connection_stale = threading.Event()
+
     def stream_callback(**kwargs):
+        if connection_stale.is_set():
+            return
         if "data" in kwargs:
             send_ws({"type": "delta", "text": kwargs["data"]})
 
@@ -202,6 +277,22 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     safety_timer = threading.Timer(_LAMBDA_TIMEOUT - _SAFETY_MARGIN, _on_timeout)
     safety_timer.daemon = True
     safety_timer.start()
+
+    # Heartbeat thread: send {"type":"heartbeat"} every 30s to keep the
+    # connection alive and detect stale clients early.
+    streaming_done = threading.Event()
+
+    def _heartbeat_loop():
+        while not streaming_done.wait(timeout=30):
+            try:
+                send_ws({"type": "heartbeat"})
+            except Exception:
+                logger.warning("Heartbeat failed for connection %s, marking stale", connection_id)
+                connection_stale.set()
+                break
+
+    heartbeat_thread = threading.Thread(target=_heartbeat_loop, daemon=True)
+    heartbeat_thread.start()
 
     try:
         from backend.agents.coaching.agent import create_coaching_agent
@@ -222,17 +313,18 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             )
 
         # Only send done if we haven't already sent a timeout error.
-        if not timed_out.is_set():
+        if not timed_out.is_set() and not connection_stale.is_set():
             send_ws({"type": "done", "text": str(result)})
     except Exception:
         logger.exception("Chat stream failed for user %s", user_id)
-        if not timed_out.is_set():
+        if not timed_out.is_set() and not connection_stale.is_set():
             send_ws({
                 "type": "error",
                 "message": "Coaching agent is temporarily unavailable. Please try again.",
             })
     finally:
         safety_timer.cancel()
+        streaming_done.set()
 
     return {"statusCode": 200}
 

@@ -377,28 +377,16 @@ export function useVoicePractice() {
 
     try {
       const token = await getToken();
+      // Connect without token in URL — send auth as first message.
+      // Keep session_type in query params (backend needs it on $connect).
       const ws = new WebSocket(
-        `${VOICE_PRACTICE_WS_URL}?token=${encodeURIComponent(token)}&session_type=${encodeURIComponent(sessionType)}`,
+        `${VOICE_PRACTICE_WS_URL}?session_type=${encodeURIComponent(sessionType)}`,
       );
       wsRef.current = ws;
 
-      ws.onopen = async () => {
-        try {
-          await startCapture();
-          setState((prev) => ({ ...prev, status: 'active' }));
-        } catch (err) {
-          cleanup();
-          setState({
-            status: 'error',
-            error:
-              err instanceof Error ? err.message : 'Microphone access denied',
-            isMuted: false,
-            isAgentSpeaking: false,
-            transcript: [],
-            toolSteps: [],
-            sessionType: null,
-          });
-        }
+      ws.onopen = () => {
+        // Send auth as first WebSocket message instead of query param.
+        ws.send(JSON.stringify({ type: 'auth', token }));
       };
 
       ws.onmessage = (event: MessageEvent) => {
@@ -409,6 +397,28 @@ export function useVoicePractice() {
           >;
 
           switch (msg.type) {
+            case 'auth_success':
+              // Auth confirmed — start audio capture.
+              void (async () => {
+                try {
+                  await startCapture();
+                  setState((prev) => ({ ...prev, status: 'active' }));
+                } catch (err) {
+                  cleanup();
+                  setState({
+                    status: 'error',
+                    error:
+                      err instanceof Error ? err.message : 'Microphone access denied',
+                    isMuted: false,
+                    isAgentSpeaking: false,
+                    transcript: [],
+                    toolSteps: [],
+                    sessionType: null,
+                  });
+                }
+              })();
+              break;
+
             case 'audio': {
               const audioData =
                 typeof msg.data === 'string'

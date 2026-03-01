@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import importlib
 import logging
-import os
 from datetime import date
 from typing import Any
 
@@ -31,23 +30,24 @@ normalize_skill = _taxonomy_mod.normalize_skill
 _db_mod = importlib.import_module("backend.handlers.shared.dynamodb")
 DynamoDBClient = _db_mod.DynamoDBClient
 
+_secrets_mod = importlib.import_module("backend.handlers.shared.secrets")
+get_secret = _secrets_mod.get_secret
+
 logger = logging.getLogger(__name__)
 
 ONET_BASE_URL = "https://services.onetcenter.org/ws/"
 
 
 def _get_auth() -> tuple[str, str]:
-    """Return HTTP Basic Auth tuple from environment variable.
+    """Return HTTP Basic Auth tuple from Secrets Manager (with env var fallback).
 
     Returns:
         Tuple of (api_key, empty_string) for requests auth parameter.
 
     Raises:
-        ValueError: If ONET_API_KEY is not set.
+        ValueError: If the API key cannot be resolved.
     """
-    api_key = os.environ.get("ONET_API_KEY", "")
-    if not api_key:
-        raise ValueError("ONET_API_KEY environment variable is not set")
+    api_key = get_secret("regain/onet-api-key")
     return (api_key, "")
 
 

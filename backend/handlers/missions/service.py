@@ -204,8 +204,24 @@ class MissionsService:
             data: Dict with reflection, optional artifact_url, and skill_tags.
 
         Returns:
-            Dict with success flag and evidence_id.
+            Dict with success flag and evidence_id, or error dict if the
+            mission is not found or not in the expected status.
         """
+        # Guard: verify mission exists and is in the correct state.
+        mission = self.db.get_item(
+            "mission_history",
+            {"userId": user_id, "missionId": mission_id},
+        )
+        if not mission:
+            return {"success": False, "error": "Mission not found"}
+
+        status = mission.get("status", "")
+        if status != "in_progress":
+            return {
+                "success": False,
+                "error": f"Mission is '{status}', expected 'in_progress'",
+            }
+
         now = datetime.now(timezone.utc).isoformat()
         evidence_id = str(uuid.uuid4())
 

@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import NavIcon from './ui/NavIcon';
 import ErrorBoundary from './ErrorBoundary';
 import RouteLoader from './RouteLoader';
+import ConnectionBanner from './ConnectionBanner';
 
 const navItems = [
   { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
@@ -75,6 +76,7 @@ export default function Layout() {
 
       <main className="flex-1 overflow-y-auto bg-surface-2">
         <div className="mx-auto max-w-5xl px-6 py-8">
+          <ConnectionBanner />
           <ErrorBoundary>
             <Suspense fallback={<RouteLoader />}>
               <Outlet />

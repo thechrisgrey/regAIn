@@ -151,7 +151,7 @@ describe('useVoicePractice', () => {
       expect(result.current.status).toBe('connecting');
     });
 
-    it('creates WebSocket with token and session type', async () => {
+    it('creates WebSocket without token in URL and sends auth message', async () => {
       const { result } = renderHook(() => useVoicePractice());
 
       await act(async () => {
@@ -160,11 +160,23 @@ describe('useVoicePractice', () => {
       });
 
       expect(MockWebSocket.instances).toHaveLength(1);
-      expect(MockWebSocket.instances[0].url).toContain('token=');
+      // Token should NOT be in URL (first-message auth).
+      expect(MockWebSocket.instances[0].url).not.toContain('token=');
+      // session_type should still be in query params.
       expect(MockWebSocket.instances[0].url).toContain('session_type=interview');
+
+      // Simulate onopen — hook should send auth message.
+      await act(async () => {
+        MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"auth"'),
+      );
     });
 
-    it('transitions to active after WebSocket open and mic acquired', async () => {
+    it('transitions to active after auth_success and mic acquired', async () => {
       const { result } = renderHook(() => useVoicePractice());
 
       await act(async () => {
@@ -174,6 +186,13 @@ describe('useVoicePractice', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 
@@ -192,7 +211,7 @@ describe('useVoicePractice', () => {
       expect(result.current.sessionType).toBe('mission_discussion');
     });
 
-    it('requests microphone access on open', async () => {
+    it('requests microphone access after auth_success', async () => {
       const { result } = renderHook(() => useVoicePractice());
 
       await act(async () => {
@@ -202,6 +221,13 @@ describe('useVoicePractice', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 
@@ -222,6 +248,13 @@ describe('useVoicePractice', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 
@@ -329,6 +362,13 @@ describe('useVoicePractice', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 

@@ -34,18 +34,54 @@ def store_connection(connection_id: str, data: Dict[str, str]) -> None:
 
     Args:
         connection_id: WebSocket connection ID.
-        data: Dict with user_id and optionally session_type.
+        data: Dict with user_id and optionally session_type and authenticated.
     """
     try:
         item: Dict[str, Any] = {
             "connectionId": connection_id,
-            "userId": data["user_id"],
+            "userId": data.get("user_id", ""),
             "sessionType": data.get("session_type", ""),
+            "authenticated": data.get("authenticated", "true"),
             "ttl": int(time.time()) + 3 * 3600,  # 3-hour TTL
         }
         _get_table().put_item(Item=item)
     except Exception:
         logger.exception("Failed to store connection %s in DynamoDB", connection_id)
+
+
+def update_connection(connection_id: str, data: Dict[str, str]) -> None:
+    """Update connection metadata in DynamoDB after authentication.
+
+    Args:
+        connection_id: WebSocket connection ID.
+        data: Dict with fields to update (user_id, authenticated, etc.).
+    """
+    try:
+        update_parts = []
+        expr_values: Dict[str, Any] = {}
+        expr_names: Dict[str, str] = {}
+
+        if "user_id" in data:
+            update_parts.append("#uid = :uid")
+            expr_values[":uid"] = data["user_id"]
+            expr_names["#uid"] = "userId"
+
+        if "authenticated" in data:
+            update_parts.append("#auth = :auth")
+            expr_values[":auth"] = data["authenticated"]
+            expr_names["#auth"] = "authenticated"
+
+        if not update_parts:
+            return
+
+        _get_table().update_item(
+            Key={"connectionId": connection_id},
+            UpdateExpression="SET " + ", ".join(update_parts),
+            ExpressionAttributeValues=expr_values,
+            ExpressionAttributeNames=expr_names,
+        )
+    except Exception:
+        logger.exception("Failed to update connection %s in DynamoDB", connection_id)
 
 
 def load_connection(connection_id: str) -> Optional[Dict[str, str]]:
@@ -63,8 +99,9 @@ def load_connection(connection_id: str) -> Optional[Dict[str, str]]:
         if not item:
             return None
         return {
-            "user_id": item["userId"],
+            "user_id": item.get("userId", ""),
             "session_type": item.get("sessionType", ""),
+            "authenticated": item.get("authenticated", "true"),
         }
     except Exception:
         logger.exception("Failed to load connection %s from DynamoDB", connection_id)

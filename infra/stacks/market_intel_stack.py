@@ -14,6 +14,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_events as events,
     aws_events_targets as targets,
+    aws_iam as iam,
     aws_lambda as _lambda,
     aws_sns as sns,
     custom_resources as cr,
@@ -133,15 +134,26 @@ class MarketIntelStack(cdk.Stack):
         }
 
     def _grant_permissions(self, lambdas: dict[str, _lambda.Function]) -> None:
-        """Grant DynamoDB permissions to pipeline Lambdas.
+        """Grant DynamoDB and Secrets Manager permissions to pipeline Lambdas.
 
         All Lambdas get read/write on MarketData and read on UserProfiles
         and EvidenceVault (needed for alignment calculation during scoring).
+        Ingestion Lambdas get Secrets Manager access for API keys.
         """
         for fn in lambdas.values():
             self.tables["MarketData"].grant_read_write_data(fn)
             self.tables["UserProfiles"].grant_read_data(fn)
             self.tables["EvidenceVault"].grant_read_data(fn)
+
+        # Secrets Manager access for API keys (Onet and Usajobs ingestion)
+        secrets_policy = iam.PolicyStatement(
+            actions=["secretsmanager:GetSecretValue"],
+            resources=[
+                f"arn:aws:secretsmanager:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:secret:regain/*",
+            ],
+        )
+        lambdas["Onet"].add_to_role_policy(secrets_policy)
+        lambdas["Usajobs"].add_to_role_policy(secrets_policy)
 
     def _create_schedules(self, lambdas: dict[str, _lambda.Function]) -> None:
         """Create EventBridge Scheduler rules for automated ingestion.

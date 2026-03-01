@@ -13,7 +13,6 @@ from __future__ import annotations
 
 import importlib
 import logging
-import os
 from datetime import date
 from typing import Any
 
@@ -32,27 +31,25 @@ normalize_skill = _taxonomy_mod.normalize_skill
 _db_mod = importlib.import_module("backend.handlers.shared.dynamodb")
 DynamoDBClient = _db_mod.DynamoDBClient
 
+_secrets_mod = importlib.import_module("backend.handlers.shared.secrets")
+get_secret = _secrets_mod.get_secret
+
 logger = logging.getLogger(__name__)
 
 USAJOBS_API_URL = "https://data.usajobs.gov/api/search"
 
 
 def _get_headers() -> dict[str, str]:
-    """Build request headers from environment variables.
+    """Build request headers from Secrets Manager (with env var fallback).
 
     Returns:
         Dict with Authorization-Key and User-Agent headers.
 
     Raises:
-        ValueError: If required environment variables are not set.
+        ValueError: If required secrets cannot be resolved.
     """
-    api_key = os.environ.get("USAJOBS_API_KEY", "")
-    if not api_key:
-        raise ValueError("USAJOBS_API_KEY environment variable is not set")
-
-    user_agent = os.environ.get("USAJOBS_USER_AGENT", "")
-    if not user_agent:
-        raise ValueError("USAJOBS_USER_AGENT environment variable is not set")
+    api_key = get_secret("regain/usajobs-api-key")
+    user_agent = get_secret("regain/usajobs-user-agent")
 
     return {
         "Authorization-Key": api_key,

@@ -20,7 +20,7 @@ export interface ToolStep {
 }
 
 interface StreamEvent {
-  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete';
+  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success';
   text?: string;
   message?: string;
   tool?: string;
@@ -114,10 +114,25 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasStepsRef = useRef(false);
 
+  // Stable ref to getToken — ensures reconnection always uses fresh token
+  // after 55-min Cognito refresh (Part C: stale closure fix).
+  const getTokenRef = useRef(getToken);
+
+  // Tracks the last user message that failed due to stream error or disconnect
+  // so it can be auto-resent on reconnect.
+  const lastFailedMessageRef = useRef<{ message: string; sessionType: string } | null>(null);
+  const activeMessageRef = useRef<{ message: string; sessionType: string } | null>(null);
+  const sendMessageRef = useRef<((message: string, sessionType: string) => Promise<boolean>) | undefined>(undefined);
+
   // Persist messages to sessionStorage whenever they change.
   useEffect(() => {
     persistMessages(messages);
   }, [messages]);
+
+  // Keep getTokenRef in sync so reconnection always uses a fresh token.
+  useEffect(() => {
+    getTokenRef.current = getToken;
+  }, [getToken]);
 
   const thinking = toolSteps.some(s => s.status === 'active');
 
@@ -133,6 +148,10 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     clearTimeout(intermediateTimeoutRef.current);
     streamTimeoutRef.current = setTimeout(() => {
       setError('Response timed out. Please try again.');
+      if (activeMessageRef.current) {
+        lastFailedMessageRef.current = activeMessageRef.current;
+        activeMessageRef.current = null;
+      }
       setStreaming(false);
       setStreamingText('');
       setStreamHint(null);
@@ -154,18 +173,42 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
     try {
-      const token = await getToken();
-      const ws = new WebSocket(`${WS_URL}?token=${token}`);
+      // Use getTokenRef to avoid stale closure over getToken (Part C).
+      const token = await getTokenRef.current();
+      // Connect without token in URL — send auth as first message (Part A).
+      const ws = new WebSocket(WS_URL);
 
-      ws.onopen = () => {
-        reconnectAttempt.current = 0;
-        setConnectionStatus('connected');
-        setError(null);
+      ws.onopen = async () => {
+        // Send auth as first WebSocket message instead of query param.
+        ws.send(JSON.stringify({ type: 'auth', token }));
       };
 
       ws.onmessage = (evt) => {
         try {
           const data: StreamEvent = JSON.parse(evt.data);
+
+          // Handle auth success — connection is now authenticated.
+          if (data.type === 'auth_success') {
+            reconnectAttempt.current = 0;
+            setConnectionStatus('connected');
+            setError(null);
+
+            // Auto-resend the last failed message on reconnect.
+            const failed = lastFailedMessageRef.current;
+            if (failed) {
+              lastFailedMessageRef.current = null;
+              setTimeout(() => {
+                void sendMessageRef.current?.(failed.message, failed.sessionType);
+              }, 0);
+            }
+            return;
+          }
+
+          // Handle heartbeat — reset stream timeout to keep connection alive (Part D).
+          if (data.type === 'heartbeat') {
+            resetStreamTimeout();
+            return;
+          }
 
           if (data.type === 'delta' && data.text) {
             setStreamHint(null);
@@ -200,6 +243,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             resetStreamTimeout();
           } else if (data.type === 'done') {
             const finalText = data.text || '';
+            activeMessageRef.current = null;
             setMessages((prev) => [
               ...prev,
               { role: 'assistant', content: finalText },
@@ -210,6 +254,10 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             clearStreamTimeout();
           } else if (data.type === 'error') {
             setError(data.message || 'An error occurred');
+            if (activeMessageRef.current) {
+              lastFailedMessageRef.current = activeMessageRef.current;
+              activeMessageRef.current = null;
+            }
             setStreamingText('');
             setStreaming(false);
             clearToolSteps();
@@ -222,6 +270,16 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
       ws.onclose = () => {
         wsRef.current = null;
+        // If we were streaming when the connection dropped, save the
+        // active message for auto-resend on reconnect.
+        if (activeMessageRef.current) {
+          lastFailedMessageRef.current = activeMessageRef.current;
+          activeMessageRef.current = null;
+          setStreamingText('');
+          setStreaming(false);
+          clearToolSteps();
+          clearStreamTimeout();
+        }
         if (reconnectAttempt.current >= MAX_RECONNECT_ATTEMPTS) {
           setConnectionStatus('disconnected');
           return;
@@ -245,7 +303,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     } catch {
       setError('Failed to connect to coaching session');
     }
-  }, [getToken, resetStreamTimeout, clearStreamTimeout, clearToolSteps]);
+  }, [resetStreamTimeout, clearStreamTimeout, clearToolSteps]);
 
   // Keep connectRef in sync so the onclose handler always calls the latest version.
   useEffect(() => {
@@ -287,8 +345,9 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       setStreamHint(null);
       clearToolSteps();
       resetStreamTimeout();
+      activeMessageRef.current = { message, sessionType };
 
-      const token = await getToken();
+      const token = await getTokenRef.current();
       wsRef.current.send(
         JSON.stringify({
           action: 'sendmessage',
@@ -299,8 +358,13 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       );
       return true;
     },
-    [connect, getToken, resetStreamTimeout, clearToolSteps],
+    [connect, resetStreamTimeout, clearToolSteps],
   );
+
+  // Keep sendMessageRef in sync so the onopen auto-resend uses the latest version.
+  useEffect(() => {
+    sendMessageRef.current = sendMessage;
+  }, [sendMessage]);
 
   const clearConversation = useCallback(() => {
     setMessages([]);

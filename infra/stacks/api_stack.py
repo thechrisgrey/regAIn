@@ -92,6 +92,7 @@ class ApiStack(cdk.Stack):
         name: str,
         handler_path: str,
         layers: list[_lambda.LayerVersion] | None = None,
+        memory_size: int = 256,
     ) -> _lambda.Function:
         """Create a single Lambda function.
 
@@ -99,6 +100,7 @@ class ApiStack(cdk.Stack):
             name: Logical name for the function (e.g. "Onboarding").
             handler_path: Dotted handler path (e.g. "backend.handlers.onboarding.handler.lambda_handler").
             layers: Optional Lambda Layers to attach.
+            memory_size: Memory allocation in MB (default 256).
 
         Returns:
             The Lambda function construct.
@@ -116,7 +118,7 @@ class ApiStack(cdk.Stack):
             layers=layers or [],
             environment=self._table_env(),
             timeout=cdk.Duration.seconds(30),
-            memory_size=256,
+            memory_size=memory_size,
             tracing=_lambda.Tracing.ACTIVE,
         )
 
@@ -131,11 +133,14 @@ class ApiStack(cdk.Stack):
             "Profile": "backend.handlers.profile.handler.lambda_handler",
             "Onet": "backend.handlers.onet.handler.lambda_handler",
         }
+        # Missions Lambda gets 512MB for mission generation + scoring workload
+        memory_overrides = {"Missions": 512}
         result = {
             name: self._create_lambda_function(
                 name,
                 path,
                 layers=[self.strands_layer] if name == "Coaching" and self.strands_layer else None,
+                memory_size=memory_overrides.get(name, 256),
             )
             for name, path in handlers.items()
         }
@@ -411,7 +416,7 @@ class ApiStack(cdk.Stack):
                 exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
             environment=self._table_env(),
-            timeout=cdk.Duration.seconds(120),
+            timeout=cdk.Duration.seconds(300),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
         )
@@ -454,6 +459,12 @@ class ApiStack(cdk.Stack):
         for name, fn in lambdas.items():
             add_lambda_alarms(self, fn, alert_topic, name=name, timeout_seconds=30)
 
+        # Cleanup Lambda alarms (separate because it's not in the main lambdas dict)
+        add_lambda_alarms(
+            self, self.cleanup_lambda, alert_topic,
+            name="Cleanup", timeout_seconds=300,
+        )
+
         # API Gateway 5xx alarm
         api_5xx_metric = cloudwatch.Metric(
             namespace="AWS/ApiGateway",
@@ -472,3 +483,87 @@ class ApiStack(cdk.Stack):
             treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
         )
         api_5xx_alarm.add_alarm_action(cw_actions.SnsAction(alert_topic))
+
+        # DynamoDB monitoring dashboard
+        self._create_dynamodb_dashboard()
+
+    def _create_dynamodb_dashboard(self) -> None:
+        """Create a CloudWatch dashboard with DynamoDB throttle and capacity widgets."""
+        # Monitor the 6 data tables (skip ephemeral WebSocketConnections and IdempotencyKeys)
+        monitored_tables = [
+            "UserProfiles", "Campaigns", "MissionHistory",
+            "EvidenceVault", "MarketData", "VoiceSessions",
+        ]
+
+        throttle_widgets: list[cloudwatch.IWidget] = []
+        capacity_widgets: list[cloudwatch.IWidget] = []
+
+        for table_name in monitored_tables:
+            if table_name not in self.tables:
+                continue
+            table = self.tables[table_name]
+            dimensions = {"TableName": table.table_name}
+
+            throttle_widgets.append(
+                cloudwatch.GraphWidget(
+                    title=f"{table_name} Throttled Events",
+                    left=[
+                        cloudwatch.Metric(
+                            namespace="AWS/DynamoDB",
+                            metric_name="ReadThrottleEvents",
+                            dimensions_map=dimensions,
+                            statistic="Sum",
+                            period=cdk.Duration.minutes(5),
+                        ),
+                        cloudwatch.Metric(
+                            namespace="AWS/DynamoDB",
+                            metric_name="WriteThrottleEvents",
+                            dimensions_map=dimensions,
+                            statistic="Sum",
+                            period=cdk.Duration.minutes(5),
+                        ),
+                    ],
+                    width=8,
+                )
+            )
+
+            capacity_widgets.append(
+                cloudwatch.GraphWidget(
+                    title=f"{table_name} Consumed Capacity",
+                    left=[
+                        cloudwatch.Metric(
+                            namespace="AWS/DynamoDB",
+                            metric_name="ConsumedReadCapacityUnits",
+                            dimensions_map=dimensions,
+                            statistic="Sum",
+                            period=cdk.Duration.minutes(5),
+                        ),
+                        cloudwatch.Metric(
+                            namespace="AWS/DynamoDB",
+                            metric_name="ConsumedWriteCapacityUnits",
+                            dimensions_map=dimensions,
+                            statistic="Sum",
+                            period=cdk.Duration.minutes(5),
+                        ),
+                    ],
+                    width=8,
+                )
+            )
+
+        cloudwatch.Dashboard(
+            self,
+            "RegainDynamoDBDashboard",
+            dashboard_name="Regain-DynamoDB",
+            widgets=[
+                [cloudwatch.TextWidget(
+                    markdown="## DynamoDB Throttled Events",
+                    width=24,
+                )],
+                throttle_widgets,
+                [cloudwatch.TextWidget(
+                    markdown="## DynamoDB Consumed Capacity",
+                    width=24,
+                )],
+                capacity_widgets,
+            ],
+        )

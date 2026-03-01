@@ -108,6 +108,7 @@ class AgentStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
+            reserved_concurrent_executions=50,
         )
 
     def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
@@ -163,7 +164,10 @@ class AgentStack(cdk.Stack):
                 "bedrock:InvokeModelWithResponseStream",
                 "bedrock:InvokeModelWithBidirectionalStream",
             ],
-            resources=["arn:aws:bedrock:*:*:*"],
+            resources=[
+                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-lite-v1:0",
+                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-2-sonic-v1:0",
+            ],
         )
 
     def _agentcore_memory_policy(self) -> iam.PolicyStatement:
@@ -286,6 +290,7 @@ class AgentStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
+            reserved_concurrent_executions=50,
         )
 
     def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:

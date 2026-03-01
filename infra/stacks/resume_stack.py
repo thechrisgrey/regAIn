@@ -76,6 +76,7 @@ class ResumeStack(cdk.Stack):
             },
             timeout=cdk.Duration.seconds(60),
             memory_size=256,
+            reserved_concurrent_executions=10,
         )
 
     def _grant_permissions(self, tables: dict[str, dynamodb.Table]) -> None:

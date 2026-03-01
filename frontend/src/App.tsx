@@ -1,3 +1,4 @@
+import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { CoachingProvider } from './hooks/CoachingContext';
@@ -11,13 +12,14 @@ import Onboarding from './pages/Onboarding';
 import Dashboard from './pages/Dashboard';
 import Missions from './pages/Missions';
 import Evidence from './pages/Evidence';
-import ResumePage from './pages/ResumePage';
 import Profile from './pages/Profile';
-import CoachingPage from './pages/CoachingPage';
-import VoicePracticePage from './pages/VoicePracticePage';
-import VoiceSessionDetailPage from './pages/VoiceSessionDetailPage';
-import OnetPage from './pages/OnetPage';
 import NotFound from './pages/NotFound';
+
+const CoachingPage = lazy(() => import('./pages/CoachingPage'));
+const VoicePracticePage = lazy(() => import('./pages/VoicePracticePage'));
+const VoiceSessionDetailPage = lazy(() => import('./pages/VoiceSessionDetailPage'));
+const ResumePage = lazy(() => import('./pages/ResumePage'));
+const OnetPage = lazy(() => import('./pages/OnetPage'));
 
 function App() {
   return (

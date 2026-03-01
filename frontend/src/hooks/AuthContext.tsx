@@ -3,6 +3,7 @@ import {
   useEffect,
   useState,
   useCallback,
+  useRef,
   type ReactNode,
 } from 'react';
 import {
@@ -86,15 +87,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const signOut = useCallback(async () => {
     await amplifySignOut();
+    tokenCache.current = null;
     setUser(null);
   }, []);
 
+  const tokenCache = useRef<{ token: string; expiresAt: number } | null>(null);
+
   const getToken = useCallback(async (): Promise<string> => {
+    const cached = tokenCache.current;
+    if (cached && Date.now() < cached.expiresAt - 60_000) {
+      return cached.token;
+    }
+
     const session = await fetchAuthSession();
     const token = session.tokens?.idToken?.toString();
     if (!token) {
       throw new Error('No access token available');
     }
+
+    // Cognito tokens expire in 1 hour; cache for 55 minutes
+    tokenCache.current = { token, expiresAt: Date.now() + 55 * 60 * 1000 };
     return token;
   }, []);
 

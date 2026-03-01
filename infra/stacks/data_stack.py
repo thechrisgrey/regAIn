@@ -33,6 +33,7 @@ class DataStack(cdk.Stack):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
         )
 
     def _create_campaigns_table(self) -> None:
@@ -49,6 +50,7 @@ class DataStack(cdk.Stack):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
             index_name="status-index",
@@ -75,6 +77,7 @@ class DataStack(cdk.Stack):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
             index_name="status-index",
@@ -110,6 +113,7 @@ class DataStack(cdk.Stack):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
             index_name="skill-index",
@@ -136,6 +140,7 @@ class DataStack(cdk.Stack):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
             index_name="role-title-index",
@@ -159,6 +164,7 @@ class DataStack(cdk.Stack):
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
             index_name="type-date-index",

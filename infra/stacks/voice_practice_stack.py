@@ -111,6 +111,7 @@ class VoicePracticeStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
+            reserved_concurrent_executions=30,
         )
 
     def _create_ws_api(self) -> None:
@@ -284,7 +285,10 @@ class VoicePracticeStack(cdk.Stack):
                     "bedrock:InvokeModelWithResponseStream",
                     "bedrock:InvokeModelWithBidirectionalStream",
                 ],
-                resources=["arn:aws:bedrock:*:*:*"],
+                resources=[
+                    f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-lite-v1:0",
+                    f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-2-sonic-v1:0",
+                ],
             )
         )
 

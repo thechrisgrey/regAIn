@@ -22,6 +22,7 @@ const VoicePracticePage = lazy(() => import('./pages/VoicePracticePage'));
 const VoiceSessionDetailPage = lazy(() => import('./pages/VoiceSessionDetailPage'));
 const ResumePage = lazy(() => import('./pages/ResumePage'));
 const OnetPage = lazy(() => import('./pages/OnetPage'));
+const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 
 function App() {
   return (
@@ -53,6 +54,7 @@ function App() {
             <Route path="voice-practice/:sessionId" element={<VoiceSessionDetailPage />} />
             <Route path="missions" element={<Missions />} />
             <Route path="evidence" element={<Evidence />} />
+            <Route path="analytics" element={<AnalyticsPage />} />
             <Route path="resume" element={<ResumePage />} />
             <Route path="onet" element={<OnetPage />} />
             <Route path="profile" element={<Profile />} />

@@ -207,33 +207,32 @@ class MissionsService:
             Dict with success flag and evidence_id, or error dict if the
             mission is not found or not in the expected status.
         """
-        # Guard: verify mission exists and is in the correct state.
-        mission = self.db.get_item(
-            "mission_history",
-            {"userId": user_id, "missionId": mission_id},
-        )
-        if not mission:
-            return {"success": False, "error": "Mission not found"}
-
-        status = mission.get("status", "")
-        if status != "in_progress":
-            return {
-                "success": False,
-                "error": f"Mission is '{status}', expected 'in_progress'",
-            }
-
         now = datetime.now(timezone.utc).isoformat()
         evidence_id = str(uuid.uuid4())
 
-        self.db.update_item(
-            "mission_history",
-            key={"userId": user_id, "missionId": mission_id},
-            updates={
-                "status": "completed",
-                "completedDate": now,
-                "evidenceId": evidence_id,
-            },
-        )
+        # Atomic conditional update: only succeeds if the mission exists
+        # and is in_progress, preventing double-completion races.
+        table = self.db._get_table("mission_history")
+        try:
+            table.update_item(
+                Key={"userId": user_id, "missionId": mission_id},
+                UpdateExpression="SET #s = :completed, completedDate = :now, evidenceId = :eid",
+                ConditionExpression=(
+                    boto3_attr("status").eq("in_progress")
+                    & boto3_attr("userId").eq(user_id)
+                ),
+                ExpressionAttributeNames={"#s": "status"},
+                ExpressionAttributeValues={
+                    ":completed": "completed",
+                    ":now": now,
+                    ":eid": evidence_id,
+                },
+            )
+        except table.meta.client.exceptions.ConditionalCheckFailedException:
+            return {
+                "success": False,
+                "error": "Mission not found or already completed",
+            }
 
         evidence = Evidence(
             user_id=user_id,

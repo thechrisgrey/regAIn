@@ -12,6 +12,7 @@ const navItems = [
   { to: '/voice-practice', label: 'Voice Practice', icon: 'voice-practice' },
   { to: '/missions', label: 'Missions', icon: 'missions' },
   { to: '/evidence', label: 'Evidence', icon: 'evidence' },
+  { to: '/analytics', label: 'Analytics', icon: 'analytics' },
   { to: '/resume', label: 'Resume', icon: 'resume' },
   { to: '/onet', label: 'ONET', icon: 'onet' },
   { to: '/onboarding', label: 'Onboarding', icon: 'onboarding' },

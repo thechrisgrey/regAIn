@@ -48,18 +48,29 @@ export function useMissions() {
     async (missionId: string, data: CompleteData): Promise<CompleteResponse | null> => {
       setLoading(true);
       setError(null);
+
+      // Optimistic update: immediately mark mission as completed.
+      const previousMissions = missions;
+      setMissions((prev) =>
+        prev.map((m) =>
+          m.missionId === missionId ? { ...m, status: 'completed' as const } : m,
+        ),
+      );
+
       try {
         const token = await getToken();
         const result = await api.missions.complete(missionId, data, token);
         return result;
       } catch (err) {
+        // Rollback optimistic update on failure.
+        setMissions(previousMissions);
         setError(err instanceof Error ? err.message : 'An error occurred');
         return null;
       } finally {
         setLoading(false);
       }
     },
-    [getToken],
+    [getToken, missions],
   );
 
   const generateMission = useCallback(async (): Promise<GenerateResponse | null> => {

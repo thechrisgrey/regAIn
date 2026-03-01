@@ -101,11 +101,22 @@ def create_coaching_agent(
     Returns:
         A configured Strands Agent.
     """
-    if _is_gateway_available():
-        logger.info("Using AgentCore Gateway tools")
-        tools = _get_gateway_tools(jwt_token)
+    from backend.agents.coaching.circuit_breaker import gateway_circuit
+
+    if _is_gateway_available() and not gateway_circuit.is_open:
+        try:
+            logger.info("Using AgentCore Gateway tools")
+            tools = _get_gateway_tools(jwt_token)
+            gateway_circuit.record_success()
+        except Exception:
+            logger.warning("Gateway tool discovery failed, falling back to direct tools")
+            gateway_circuit.record_failure()
+            tools = _get_direct_tools()
     else:
-        logger.info("Gateway not provisioned, using direct tool invocation")
+        if gateway_circuit.is_open:
+            logger.info("Gateway circuit open, using direct tool invocation")
+        else:
+            logger.info("Gateway not provisioned, using direct tool invocation")
         tools = _get_direct_tools()
 
     # Inject the user's campaign skill tags into the system prompt so

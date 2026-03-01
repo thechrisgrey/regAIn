@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """REGAIN Platform — CDK Application Entry Point."""
+import os
+
 import aws_cdk as cdk
 from stacks.auth_stack import AuthStack
 from stacks.data_stack import DataStack
@@ -10,11 +12,14 @@ from stacks.market_intel_stack import MarketIntelStack
 from stacks.resume_stack import ResumeStack
 from stacks.voice_practice_stack import VoicePracticeStack
 
+_ACCOUNT = os.environ.get("CDK_DEFAULT_ACCOUNT", "563170906428")
+_REGION = os.environ.get("CDK_DEFAULT_REGION", "us-east-1")
+
 app = cdk.App()
 
 env = cdk.Environment(
-    account="563170906428",
-    region="us-east-1",
+    account=_ACCOUNT,
+    region=_REGION,
 )
 
 auth_stack = AuthStack(app, "RegainAuthStack", env=env)
@@ -76,8 +81,8 @@ agent_stack = AgentStack(
     coaching_lambda=api_stack.coaching_lambda,
     # Use plain strings (not construct references) to avoid cyclic dependency:
     # ResumeStack → ApiStack (for api) would cycle with ApiStack → ResumeStack.
-    resume_lambda_arn=f"arn:aws:lambda:us-east-1:563170906428:function:RegainResume",
-    resume_bucket_name=f"regain-resume-563170906428",
+    resume_lambda_arn=f"arn:aws:lambda:{_REGION}:{_ACCOUNT}:function:RegainResume",
+    resume_bucket_name=f"regain-resume-{_ACCOUNT}",
     gateway_id=agentcore_stack.gateway_id,
     gateway_endpoint=agentcore_stack.gateway_endpoint,
     env=env,
@@ -85,5 +90,18 @@ agent_stack = AgentStack(
 
 cdk.Tags.of(app).add("Project", "REGAIN")
 cdk.Tags.of(app).add("Environment", "dev")
+
+# Cost allocation tags per stack
+for stack, service in [
+    (auth_stack, "Auth"),
+    (data_stack, "Data"),
+    (api_stack, "Api"),
+    (resume_stack, "Resume"),
+    (voice_practice_stack, "VoicePractice"),
+    (market_intel_stack, "MarketIntel"),
+    (agentcore_stack, "AgentCore"),
+    (agent_stack, "Agent"),
+]:
+    cdk.Tags.of(stack).add("Service", service)
 
 app.synth()

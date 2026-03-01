@@ -10,6 +10,7 @@ import {
   signIn as amplifySignIn,
   signUp as amplifySignUp,
   confirmSignUp as amplifyConfirmSignUp,
+  confirmSignIn as amplifyConfirmSignIn,
   resendSignUpCode as amplifyResendSignUpCode,
   signOut as amplifySignOut,
   getCurrentUser,
@@ -24,7 +25,9 @@ interface AuthUser {
 export interface AuthContextType {
   user: AuthUser | null;
   loading: boolean;
+  mfaPending: boolean;
   signIn: (email: string, password: string) => Promise<void>;
+  confirmMfa: (code: string) => Promise<void>;
   signUp: (email: string, password: string, name: string) => Promise<void>;
   confirmSignUp: (email: string, code: string) => Promise<void>;
   resendConfirmationCode: (email: string) => Promise<void>;
@@ -32,11 +35,19 @@ export interface AuthContextType {
   getToken: () => Promise<string>;
 }
 
+export class MfaRequiredError extends Error {
+  constructor() {
+    super('MFA verification required');
+    this.name = 'MfaRequiredError';
+  }
+}
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mfaPending, setMfaPending] = useState(false);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -64,6 +75,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         userId: currentUser.userId,
         username: currentUser.username,
       });
+      setMfaPending(false);
+    } else if (
+      result.nextStep?.signInStep === 'CONFIRM_SIGN_IN_WITH_TOTP_CODE'
+    ) {
+      setMfaPending(true);
+      throw new MfaRequiredError();
+    }
+  }, []);
+
+  const confirmMfa = useCallback(async (code: string) => {
+    const result = await amplifyConfirmSignIn({ challengeResponse: code });
+    if (result.isSignedIn) {
+      const currentUser = await getCurrentUser();
+      setUser({
+        userId: currentUser.userId,
+        username: currentUser.username,
+      });
+      setMfaPending(false);
     }
   }, []);
 
@@ -111,7 +140,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, confirmSignUp, resendConfirmationCode, signOut, getToken }}>
+    <AuthContext.Provider value={{ user, loading, mfaPending, signIn, confirmMfa, signUp, confirmSignUp, resendConfirmationCode, signOut, getToken }}>
       {children}
     </AuthContext.Provider>
   );

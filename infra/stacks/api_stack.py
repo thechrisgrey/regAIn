@@ -12,6 +12,7 @@ from aws_cdk import (
     aws_events_targets as targets,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_logs as logs,
     aws_sns as sns,
     aws_wafv2 as wafv2,
 )
@@ -120,6 +121,7 @@ class ApiStack(cdk.Stack):
             timeout=cdk.Duration.seconds(30),
             memory_size=memory_size,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _create_lambda_functions(self) -> dict[str, _lambda.Function]:
@@ -209,6 +211,17 @@ class ApiStack(cdk.Stack):
         # Missions + Resume need IdempotencyKeys table for idempotent mutations
         if "IdempotencyKeys" in self.tables:
             self.tables["IdempotencyKeys"].grant_read_write_data(lambdas["Missions"])
+
+        # CloudWatch PutMetricData for business metrics (all Lambdas)
+        metrics_policy = iam.PolicyStatement(
+            actions=["cloudwatch:PutMetricData"],
+            resources=["*"],
+            conditions={
+                "StringEquals": {"cloudwatch:namespace": "REGAIN/Business"},
+            },
+        )
+        for fn in lambdas.values():
+            fn.add_to_role_policy(metrics_policy)
 
     def _create_api(
         self,
@@ -419,6 +432,7 @@ class ApiStack(cdk.Stack):
             timeout=cdk.Duration.seconds(300),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
         # Grant same permissions as Profile Lambda (cascade delete across all tables)
@@ -486,6 +500,7 @@ class ApiStack(cdk.Stack):
 
         # DynamoDB monitoring dashboard
         self._create_dynamodb_dashboard()
+        self._create_business_dashboard()
 
     def _create_dynamodb_dashboard(self) -> None:
         """Create a CloudWatch dashboard with DynamoDB throttle and capacity widgets."""
@@ -565,5 +580,60 @@ class ApiStack(cdk.Stack):
                     width=24,
                 )],
                 capacity_widgets,
+            ],
+        )
+
+    def _create_business_dashboard(self) -> None:
+        """Create a CloudWatch dashboard with business KPI widgets."""
+        ns = "REGAIN/Business"
+        period = cdk.Duration.hours(1)
+
+        def _metric(name: str, statistic: str = "Sum") -> cloudwatch.Metric:
+            return cloudwatch.Metric(
+                namespace=ns,
+                metric_name=name,
+                statistic=statistic,
+                period=period,
+            )
+
+        cloudwatch.Dashboard(
+            self,
+            "RegainBusinessDashboard",
+            dashboard_name="REGAIN-Business",
+            widgets=[
+                [
+                    cloudwatch.GraphWidget(
+                        title="Missions Completed",
+                        left=[_metric("missions_completed")],
+                        width=8,
+                    ),
+                    cloudwatch.GraphWidget(
+                        title="Evidence Logged",
+                        left=[_metric("evidence_logged")],
+                        width=8,
+                    ),
+                    cloudwatch.GraphWidget(
+                        title="Resumes Generated",
+                        left=[_metric("resume_generated")],
+                        width=8,
+                    ),
+                ],
+                [
+                    cloudwatch.GraphWidget(
+                        title="Coaching Sessions Started",
+                        left=[_metric("coaching_session_started")],
+                        width=8,
+                    ),
+                    cloudwatch.GraphWidget(
+                        title="Coaching Session Duration (avg)",
+                        left=[_metric("coaching_session_duration", "Average")],
+                        width=8,
+                    ),
+                    cloudwatch.GraphWidget(
+                        title="Voice Sessions Completed",
+                        left=[_metric("voice_session_completed")],
+                        width=8,
+                    ),
+                ],
             ],
         )

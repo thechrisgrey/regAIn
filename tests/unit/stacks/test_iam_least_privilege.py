@@ -50,11 +50,12 @@ def _synth_api_template() -> dict:
 
 
 def _get_lambda_functions(template: dict) -> list[tuple[str, dict]]:
-    """Extract all AWS::Lambda::Function resources."""
+    """Extract all AWS::Lambda::Function resources (excluding LogRetention provider Lambdas)."""
     return [
         (lid, res)
         for lid, res in template.get("Resources", {}).items()
         if res.get("Type") == "AWS::Lambda::Function"
+        and "LogRetention" not in lid
     ]
 
 

@@ -10,7 +10,7 @@ const SESSION_TYPES = [
 ] as const;
 
 export default function CoachingPage() {
-  const { messages, streaming, streamingText, toolSteps, error, connectionStatus, streamHint, sendMessage, clearConversation } = useCoaching();
+  const { messages, streaming, streamingText, toolSteps, error, connectionStatus, streamHint, sendMessage, clearConversation, setSessionType: setCtxSessionType } = useCoaching();
   const { isActive: voiceActive, error: voiceError, fallbackToText, startSession, stopSession } = useVoiceSession();
 
   const [input, setInput] = useState('');
@@ -22,6 +22,11 @@ export default function CoachingPage() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, streamingText]);
+
+  // Keep context session type in sync with the dropdown selection.
+  useEffect(() => {
+    setCtxSessionType(sessionType);
+  }, [sessionType, setCtxSessionType]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -44,7 +49,7 @@ export default function CoachingPage() {
   };
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3rem)] animate-fade-in">
+    <div className="flex flex-col h-[calc(100dvh-60px)] md:h-[calc(100vh-3rem)] animate-fade-in">
       {/* Header */}
       <div className="flex items-center justify-between pb-4 border-b border-neutral-100">
         <div>
@@ -110,7 +115,7 @@ export default function CoachingPage() {
             className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <div
-              className={`max-w-[75%] px-4 py-2 text-sm animate-scale-in ${
+              className={`max-w-[90%] sm:max-w-[75%] px-4 py-2 text-sm animate-scale-in ${
                 msg.role === 'user'
                   ? 'bg-primary-500 text-white rounded-2xl rounded-br-sm whitespace-pre-wrap'
                   : 'bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm'
@@ -129,7 +134,7 @@ export default function CoachingPage() {
         {/* Streaming bubble — shows text as it arrives */}
         {streaming && streamingText && (
           <div className="flex justify-start">
-            <div className="max-w-[75%] px-4 py-2 text-sm bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm">
+            <div className="max-w-[90%] sm:max-w-[75%] px-4 py-2 text-sm bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm">
               <MarkdownMessage content={streamingText} />
               <span className="inline-block w-1.5 h-4 bg-primary-500 ml-0.5 animate-pulse align-text-bottom" />
             </div>

@@ -162,7 +162,7 @@ export default function VoicePracticePage() {
           : 'Listening...';
 
     return (
-      <div className="flex flex-col h-[calc(100vh-3rem)] animate-fade-in">
+      <div className="flex flex-col h-[calc(100dvh-60px)] md:h-[calc(100vh-3rem)] animate-fade-in">
         {/* Header */}
         <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
           <h1 className="text-2xl font-bold text-neutral-900">Voice Practice</h1>
@@ -198,7 +198,7 @@ export default function VoicePracticePage() {
               className={`flex ${entry.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[75%] px-4 py-2 text-sm animate-scale-in ${
+                className={`max-w-[90%] sm:max-w-[75%] px-4 py-2 text-sm animate-scale-in ${
                   entry.role === 'user'
                     ? 'bg-primary-500 text-white rounded-2xl rounded-br-sm whitespace-pre-wrap'
                     : 'bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm'

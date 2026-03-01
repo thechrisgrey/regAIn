@@ -25,6 +25,8 @@ class AuthStack(cdk.Stack):
             ),
             account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
             removal_policy=cdk.RemovalPolicy.DESTROY,
+            mfa=cognito.Mfa.OPTIONAL,
+            mfa_second_factor=cognito.MfaSecondFactor(sms=False, otp=True),
         )
 
         self.user_pool_client = self.user_pool.add_client(

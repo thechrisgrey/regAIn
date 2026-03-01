@@ -89,6 +89,9 @@ class ResumeService:
         generated_at = datetime.now(timezone.utc).isoformat()
         storage = self._store(user_id, content, generated_at)
 
+        from backend.handlers.shared.metrics import emit_metric
+        emit_metric("resume_generated")
+
         presigned_url = self.s3.generate_presigned_url(
             "get_object",
             Params={"Bucket": self.bucket_name, "Key": storage["latest_key"]},

@@ -59,7 +59,9 @@ describe('Property 11: Protected Route Authentication', () => {
         mockedUseAuth.mockReturnValue({
           user: null,
           loading: false,
+          mfaPending: false,
           signIn: vi.fn(),
+          confirmMfa: vi.fn(),
           signUp: vi.fn(),
           confirmSignUp: vi.fn(),
           resendConfirmationCode: vi.fn(),
@@ -96,7 +98,9 @@ describe('Property 11: Protected Route Authentication', () => {
         mockedUseAuth.mockReturnValue({
           user: { userId: 'user-123', username: 'test@example.com' },
           loading: false,
+          mfaPending: false,
           signIn: vi.fn(),
+          confirmMfa: vi.fn(),
           signUp: vi.fn(),
           confirmSignUp: vi.fn(),
           resendConfirmationCode: vi.fn(),
@@ -135,7 +139,9 @@ describe('Property 11: Protected Route Authentication', () => {
         mockedUseAuth.mockReturnValue({
           user: null,
           loading: true,
+          mfaPending: false,
           signIn: vi.fn(),
+          confirmMfa: vi.fn(),
           signUp: vi.fn(),
           confirmSignUp: vi.fn(),
           resendConfirmationCode: vi.fn(),

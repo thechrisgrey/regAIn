@@ -59,11 +59,12 @@
 # Frontend
 cd frontend && npm run dev      # Dev server
 cd frontend && npm run build    # tsc + vite build
-cd frontend && npx vitest --run # Run tests (45 tests)
+cd frontend && npx vitest --run # Run tests (112 tests)
 cd frontend && npm run lint     # ESLint
 
 # Backend
-.venv/bin/pytest tests/ -x -q   # Run tests (~635 tests, ~8 min)
+.venv/bin/pytest tests/ -x -q   # Run tests (~665 tests, ~8 min)
+.venv/bin/pytest tests/integration/ -x -q -v  # Integration tests only (30 tests, ~2s)
 
 # Build Strands Lambda Layer (requires Docker)
 bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
@@ -189,4 +190,8 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **`useBlocker` (React Router v7.13)**: Only blocks React Router navigation — does NOT fire for in-component state changes (e.g. `setStep(1)`). The `isDirty` predicate must cover all form steps, not just the currently visible one, since a user can be on Step 2 and navigate away via the sidebar
 - **`Button` supports `forwardRef`**: `components/ui/Button.tsx` wraps with `forwardRef<HTMLButtonElement, ButtonProps>` — needed by `ConfirmDialog` for auto-focus on cancel button. Fully backward-compatible with existing call sites
 - **`useVoicePractice` has no public idle reset from assessing state**: `stopSession()` transitions to `'assessing'`, not `'idle'`. To escape the assessing view (e.g. on timeout), use `navigate(0)` to reload the route and remount the hook
-- **`main` branch is protected**: Direct push to `main` is blocked by 2 required status checks (frontend + backend CI). Must use feature branch + PR. Squash merge creates a divergent local history — use `git pull --rebase` to sync after merge
+- **`main` branch is protected**: Direct push to `main` is blocked by 3 required status checks (frontend + backend + infra CI). Must use feature branch + PR. Squash merge creates a divergent local history — use `git pull --rebase` to sync after merge
+- **Voice hook tests need `vi.resetModules()` + dynamic import**: `useVoicePractice` and `useVoiceOnboarding` capture `import.meta.env.VITE_*` as module-level consts. To test the "env var missing" path, use `vi.resetModules()` then `await import(...)` to re-evaluate the module with the env var deleted
+- **Moto `cognitoidp` requires `joserfc`**: Cognito user pool mocking in moto needs the `joserfc` package (`pip install joserfc`). Without it, `create_user_pool` raises an import error
+- **Integration tests: S3/Cognito need standalone `mock_aws()` contexts**: When testing cascade deletion across DynamoDB + S3 + Cognito, the test must create all mocked services within the same `mock_aws()` context. The `integration_tables` fixture uses its own context, so cascade tests use a standalone context that creates all resources together
+- **CI has 3 required status checks**: `backend`, `frontend`, and `infra` jobs all run in parallel. The `infra` job synthesizes CDK stacks and validates 8+ templates are produced (currently 9: 8 app stacks + 1 layer stack)

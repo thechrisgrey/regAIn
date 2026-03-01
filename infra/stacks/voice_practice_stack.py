@@ -284,7 +284,10 @@ class VoicePracticeStack(cdk.Stack):
                     "bedrock:InvokeModelWithResponseStream",
                     "bedrock:InvokeModelWithBidirectionalStream",
                 ],
-                resources=["arn:aws:bedrock:*:*:*"],
+                resources=[
+                    f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-lite-v1:0",
+                    f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-2-sonic-v1:0",
+                ],
             )
         )
 

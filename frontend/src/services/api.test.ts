@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach, type Mock } from 'vitest';
 import { api, ApiError } from './api';
+import { requestCache } from './cache';
 
 const MOCK_TOKEN = 'test-jwt-token';
 
@@ -28,6 +29,7 @@ describe('API service', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    requestCache.clear();
   });
 
   describe('apiRequest authentication headers', () => {

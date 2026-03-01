@@ -37,9 +37,26 @@
 - `NavIcon` — SVG icon map for sidebar nav items
 - Barrel export from `components/ui/index.ts`
 
+### Route-Level Components (`frontend/src/components/`)
+- `ErrorBoundary` — class component wrapping `<Outlet>` that catches render errors and shows recovery Card with "Reload page" button. Order: `ErrorBoundary > Suspense > Outlet` (in `Layout.tsx`)
+- `RouteLoader` — minimal centered spinner shown as Suspense fallback during lazy route loading
+
+### Code Splitting
+- Heavy routes are lazy-loaded via `React.lazy()` in `App.tsx`: `CoachingPage`, `VoicePracticePage`, `VoiceSessionDetailPage`, `ResumePage`, `OnetPage`
+- Core routes are eagerly loaded: `Dashboard`, `Missions`, `Evidence`, `Profile`, `Onboarding`, `Login`
+- Three.js is isolated into a `three` manual chunk via `vite.config.ts` `rolldownOptions` — only loads when navigating to Voice Practice
+- `vite.config.ts` uses `build.rolldownOptions` (NOT `build.rollupOptions` — deprecated in Vite 8)
+
 ### Shared Hooks
 - `hooks/MutationBusContext.tsx` + `hooks/useMutationBus.ts` — ref-based event bus for cross-page data freshness. `emit({ type: 'mission:completed' })` from Missions.tsx triggers auto-refresh in `useDashboard` and `useEvidence` via `useOnMutation`. No re-renders from subscribe/unsubscribe
 - `hooks/CoachingContext.tsx` — exposes `connectionStatus` ('connected' | 'reconnecting' | 'disconnected'), `streamHint` (45s intermediate warning), `sendMessage` returns `Promise<boolean>` for draft recovery
+
+### Shared Services (`frontend/src/services/`)
+- `cache.ts` — `RequestCache` class with SWR (stale-while-revalidate) strategy. `get(key, fetcher, ttlMs)` deduplicates in-flight requests, returns stale data while revalidating in background. `invalidate(prefix)` clears matching entries, `clear()` resets all. Singleton exported as `requestCache`
+- `api.ts` — uses `cachedGet()` for read endpoints (`/dashboard`, `/missions`, `/evidence`) with 30s TTL. Mutations (`missions.complete`, `missions.generate`) call `invalidateCache()` after success. `apiRequest()` includes AbortController timeout (30s) and retry on 5xx for GET requests (2 retries, 100ms/200ms delays)
+
+### Auth Token Caching
+- `AuthContext.tsx` caches Cognito idToken in a `useRef` for 55 minutes (1-min buffer before 1-hour expiry). Cleared on sign-out. Eliminates redundant `fetchAuthSession()` calls
 
 ### Shared Utilities
 - `utils/campaign.ts` — `phaseIndex`, `phaseLabel`, `phaseProgress`, `daysActive`, `formatDate`
@@ -98,6 +115,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Mission seeding**: `OnboardingService._seed_first_missions()` calls `generate_daily_mission()` during onboarding so users have missions from day 1
 - **MarketData GSI**: `role-title-index` on `roleTitle` allows lookup by human-readable role name
 - **Thin handler pattern**: Each Lambda handler validates input, delegates to a service class, returns via `success_response`/`error_response` — no business logic in handlers
+- **Dashboard query parallelization**: `DashboardService.get_dashboard()` runs 3 DynamoDB `query_all()` calls in parallel via `ThreadPoolExecutor(max_workers=3)`, same pattern as `resume/service.py`
 - **Profile (delete account)**: `backend/handlers/profile/` — cascading hard delete across 5 DynamoDB tables + 3 S3 buckets + AgentCore Memory + Cognito `AdminDeleteUser`. DynamoDB first, S3 second, AgentCore Memory third, Cognito last for recoverability
 - **Cascade deletion**: Uses `delete_all_by_partition_key()` with `batch_writer()` (25-item batches) for tables with composite keys (Campaigns, MissionHistory, EvidenceVault, VoiceSessions)
 - **Shared `get_user_id()`**: `backend/handlers/shared/auth.py` — extracted from 8 handler files. Import: `from backend.handlers.shared.auth import get_user_id`
@@ -105,6 +123,9 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Atomic rate limiting pattern**: Resume rate limit (`_enforce_rate_limit()`) uses conditional DynamoDB updates — same pattern as mission rate limiting in `tools.py:337-382`. Two-step: reset date counter, then atomically increment with `< limit` condition
 - **Resume Lambda wiring**: Coaching Lambda has `RESUME_LAMBDA_ARN` and `RESUME_BUCKET_NAME` env vars + IAM permissions, set by AgentStack using plain string ARNs (not construct references) to avoid cyclic CDK dependency
 - **Strands Lambda Layer**: Each stack that needs it (ApiStack, AgentStack) creates its own inline `LayerVersion` from `infra/layer_build/`. No cross-stack layer reference — avoids CloudFormation export update failures when layer code changes
+- **DynamoDB PITR**: Point-in-time recovery enabled on all 6 data tables (UserProfiles, Campaigns, MissionHistory, EvidenceVault, MarketData, VoiceSessions). NOT on WebSocketConnections (ephemeral, TTL-based)
+- **Lambda concurrency**: Account limit is only 10 (not the default 1000). Reserved concurrency is NOT set — all Lambdas share the unreserved pool. Request a quota increase via Service Quotas before adding `reserved_concurrent_executions`
+- **Bedrock IAM scoped to models**: `agent_stack.py` and `voice_practice_stack.py` scope `bedrock:InvokeModel*` to `amazon.nova-lite-v1:0` and `amazon.nova-2-sonic-v1:0` ARNs (not `arn:aws:bedrock:*:*:*`). `resume_stack.py` already scoped to `nova-lite-v1:0` only
 - **Agent Gateway fallback**: `backend/agents/coaching/agent.py` checks `AGENTCORE_GATEWAY_ENDPOINT` — if `"pending-agentcore-deploy"` or empty, uses direct `@tool` functions from `tools.py` instead of `GatewayToolClient`. All imports are lazy to avoid circular dependencies
 - **AgentCore Gateway wiring**: `agentcore_stack.py` exposes `gateway_id` and `gateway_endpoint` properties. `app.py` creates AgentCoreStack before AgentStack and passes these values. AgentStack uses them in `_bedrock_env()` with sentinel fallback (`self.gateway_id or "pending-agentcore-deploy"`). All three agent Lambdas (voice, coaching, chat stream) get `bedrock:InvokeAgent` + `bedrock:InvokeAgentCore` IAM permissions on `gateway/*`
 - **Session tracing**: `SessionTracer` from `instrumentation.py` wraps all coaching agent invocations. `stream_handler.py` uses `connection_id` as session ID; `service.py` uses `uuid.uuid4()`. `_flush_spans()` emits structured JSON `TRACE` logs to CloudWatch (parseable by Insights). Enabled via `REGAIN_TRACING_ENABLED=true` env var set in `_bedrock_env()`
@@ -195,3 +216,6 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Moto `cognitoidp` requires `joserfc`**: Cognito user pool mocking in moto needs the `joserfc` package (`pip install joserfc`). Without it, `create_user_pool` raises an import error
 - **Integration tests: S3/Cognito need standalone `mock_aws()` contexts**: When testing cascade deletion across DynamoDB + S3 + Cognito, the test must create all mocked services within the same `mock_aws()` context. The `integration_tables` fixture uses its own context, so cascade tests use a standalone context that creates all resources together
 - **CI has 3 required status checks**: `backend`, `frontend`, and `infra` jobs all run in parallel. The `infra` job synthesizes CDK stacks and validates 8+ templates are produced (currently 9: 8 app stacks + 1 layer stack)
+- **Vite 8 uses `build.rolldownOptions` not `build.rollupOptions`**: `rollupOptions` is deprecated. `manualChunks` must be a function (not an object) — Rolldown's type system differs from Rollup. Match module IDs by checking `id.includes('node_modules/<pkg>/')` inside the function
+- **Request cache breaks PBT tests**: When `api.ts` uses `cachedGet()` for GET endpoints, property-based tests that call the same endpoint 100 times with different tokens get cache hits instead of fresh `fetch` calls. Fix: call `requestCache.clear()` at the start of each `fc.asyncProperty` callback, and in `afterEach` for regular tests
+- **API retry delays affect test timeouts**: GET retry logic with 1s/2s delays causes 500-error tests to timeout (retries × delays × 2 calls > 5s). Use 100ms/200ms delays instead — still useful in production, doesn't block tests

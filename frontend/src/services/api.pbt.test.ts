@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import * as fc from 'fast-check';
 import { api } from './api';
+import { requestCache } from './cache';
 
 /**
  * Property 12: API Request Authentication
@@ -33,6 +34,7 @@ describe('Property 12: API Request Authentication', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
+    requestCache.clear();
   });
 
   it('onboarding.create includes Authorization: Bearer {token}', async () => {
@@ -54,6 +56,7 @@ describe('Property 12: API Request Authentication', () => {
   it('missions.list includes Authorization: Bearer {token}', async () => {
     await fc.assert(
       fc.asyncProperty(arbToken, async (token) => {
+        requestCache.clear();
         const calls = mockFetch();
         await api.missions.list(token);
         expect(calls).toHaveLength(1);
@@ -84,6 +87,7 @@ describe('Property 12: API Request Authentication', () => {
   it('evidence.list includes Authorization: Bearer {token}', async () => {
     await fc.assert(
       fc.asyncProperty(arbToken, async (token) => {
+        requestCache.clear();
         const calls = mockFetch();
         await api.evidence.list(token);
         expect(calls).toHaveLength(1);
@@ -97,6 +101,7 @@ describe('Property 12: API Request Authentication', () => {
   it('evidence.list with skillTag includes Authorization: Bearer {token}', async () => {
     await fc.assert(
       fc.asyncProperty(arbToken, fc.string({ minLength: 1 }), async (token, skillTag) => {
+        requestCache.clear();
         const calls = mockFetch();
         await api.evidence.list(token, skillTag);
         expect(calls).toHaveLength(1);
@@ -110,6 +115,7 @@ describe('Property 12: API Request Authentication', () => {
   it('dashboard.get includes Authorization: Bearer {token}', async () => {
     await fc.assert(
       fc.asyncProperty(arbToken, async (token) => {
+        requestCache.clear();
         const calls = mockFetch();
         await api.dashboard.get(token);
         expect(calls).toHaveLength(1);

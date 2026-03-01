@@ -15,7 +15,7 @@ export default function AgentActivityFeed({ steps, visible }: AgentActivityFeedP
         visible ? 'opacity-100 translate-y-0' : 'opacity-0 -translate-y-2 pointer-events-none'
       }`}
     >
-      <div className="bg-surface-2 border border-neutral-200/60 rounded-[var(--radius-card)] rounded-bl-sm px-4 py-3 max-w-[75%]">
+      <div className="bg-surface-2 border border-neutral-200/60 rounded-[var(--radius-card)] rounded-bl-sm px-4 py-3 max-w-[90%] sm:max-w-[75%]">
         <SectionLabel>Working on it</SectionLabel>
         <div className="mt-2 space-y-1.5">
           {steps.map((step, i) => (

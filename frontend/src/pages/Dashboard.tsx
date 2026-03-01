@@ -153,7 +153,7 @@ function CampaignStatus({
       <ProgressBar value={progress} className="mt-3" />
 
       {/* Metrics as distinct cells */}
-      <div className="mt-6 grid grid-cols-3 gap-4">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
           <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {missionsCompleted}

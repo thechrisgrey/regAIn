@@ -1,9 +1,10 @@
 import { useState, useMemo, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { MfaRequiredError } from '../hooks/AuthContext';
 import { Button, Input } from './ui';
 
-type Mode = 'signin' | 'signup' | 'confirm';
+type Mode = 'signin' | 'signup' | 'confirm' | 'mfa';
 
 // ---------------------------------------------------------------------------
 // Password strength helpers
@@ -141,10 +142,11 @@ export default function Login() {
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
   const [code, setCode] = useState('');
+  const [mfaCode, setMfaCode] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const { signIn, signUp, confirmSignUp, resendConfirmationCode } = useAuth();
+  const { signIn, confirmMfa, signUp, confirmSignUp, resendConfirmationCode } = useAuth();
   const navigate = useNavigate();
 
   const allPasswordRulesPassed = useMemo(
@@ -170,13 +172,19 @@ export default function Login() {
       await signIn(email, password);
       navigate('/dashboard');
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : '';
-      const name = (err as { name?: string })?.name ?? '';
-      if (name === 'UserNotConfirmedException' || msg.includes('not confirmed')) {
-        setMode('confirm');
+      if (err instanceof MfaRequiredError) {
+        setMode('mfa');
+        setMfaCode('');
         setError('');
       } else {
-        setError(msg || 'Sign in failed. Please try again.');
+        const msg = err instanceof Error ? err.message : '';
+        const name = (err as { name?: string })?.name ?? '';
+        if (name === 'UserNotConfirmedException' || msg.includes('not confirmed')) {
+          setMode('confirm');
+          setError('');
+        } else {
+          setError(msg || 'Sign in failed. Please try again.');
+        }
       }
     } finally {
       setLoading(false);
@@ -227,6 +235,23 @@ export default function Login() {
     } catch (err) {
       setError(
         err instanceof Error ? err.message : 'Confirmation failed. Please try again.'
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function handleMfa(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+    try {
+      await confirmMfa(mfaCode);
+      setMfaCode('');
+      navigate('/dashboard');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'MFA verification failed. Please try again.',
       );
     } finally {
       setLoading(false);
@@ -350,7 +375,7 @@ export default function Login() {
 
               <form onSubmit={handleSignUp} className="mt-6 space-y-4">
                 {/* First / Last name side by side */}
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Input
                     id="first-name"
                     type="text"
@@ -480,6 +505,50 @@ export default function Login() {
               </p>
 
               <p className="mt-3 text-center text-sm text-neutral-500">
+                <button
+                  type="button"
+                  onClick={() => switchMode('signin')}
+                  className="font-medium text-primary-600 hover:text-primary-700 transition-colors"
+                >
+                  Back to sign in
+                </button>
+              </p>
+            </>
+          )}
+
+          {/* ---------- MFA ---------- */}
+          {mode === 'mfa' && (
+            <>
+              <h1 className="text-2xl font-bold text-neutral-900">Two-factor authentication</h1>
+              <p className="mt-1 text-sm text-neutral-500">
+                Enter the verification code from your authenticator app.
+              </p>
+
+              {error && (
+                <div role="alert" className="mt-4 rounded-[var(--radius-button)] bg-error-50 border border-error-100 p-3 text-sm text-error-700">
+                  {error}
+                </div>
+              )}
+
+              <form onSubmit={handleMfa} className="mt-6 space-y-4">
+                <Input
+                  id="mfa-code"
+                  type="text"
+                  label="Verification code"
+                  required
+                  value={mfaCode}
+                  onChange={(e) => setMfaCode(e.target.value)}
+                  placeholder="123456"
+                  autoComplete="one-time-code"
+                  inputMode="numeric"
+                  maxLength={6}
+                />
+                <Button type="submit" disabled={loading || !mfaCode.trim()} size="lg" className="w-full">
+                  {loading ? 'Verifying...' : 'Verify'}
+                </Button>
+              </form>
+
+              <p className="mt-6 text-center text-sm text-neutral-500">
                 <button
                   type="button"
                   onClick={() => switchMode('signin')}

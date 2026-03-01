@@ -184,7 +184,7 @@ function SkillCoverageBar({
         dimmed ? 'opacity-30' : ''
       }`}
     >
-      <span className="w-32 shrink-0 truncate text-sm text-neutral-600">
+      <span className="w-24 sm:w-32 shrink-0 truncate text-sm text-neutral-600">
         {skill}
       </span>
       <ProgressBar
@@ -424,7 +424,7 @@ export default function Evidence() {
         )}
 
         {/* Summary numbers */}
-        <div className="mt-6 grid grid-cols-2 gap-4">
+        <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
             <p className="stat-value text-3xl font-medium font-mono tabular-nums">
               {evidence.length}

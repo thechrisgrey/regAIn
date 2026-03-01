@@ -56,6 +56,7 @@ export interface CoachingContextType {
   streamHint: string | null;
   sendMessage: (message: string, sessionType: string) => Promise<boolean>;
   clearConversation: () => void;
+  setSessionType: (st: string) => void;
 }
 
 const WS_URL = import.meta.env.VITE_CHAT_WS_URL as string | undefined;
@@ -123,6 +124,10 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const lastFailedMessageRef = useRef<{ message: string; sessionType: string } | null>(null);
   const activeMessageRef = useRef<{ message: string; sessionType: string } | null>(null);
   const sendMessageRef = useRef<((message: string, sessionType: string) => Promise<boolean>) | undefined>(undefined);
+
+  // Proactive greeting: prevent double-sends on reconnect and track session type.
+  const greetingSentRef = useRef(false);
+  const sessionTypeRef = useRef('checkin');
 
   // Persist messages to sessionStorage whenever they change.
   useEffect(() => {
@@ -199,6 +204,12 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
               lastFailedMessageRef.current = null;
               setTimeout(() => {
                 void sendMessageRef.current?.(failed.message, failed.sessionType);
+              }, 0);
+            } else if (!greetingSentRef.current && loadPersistedMessages().length === 0) {
+              // First connection with no prior messages — trigger proactive greeting.
+              greetingSentRef.current = true;
+              setTimeout(() => {
+                void sendMessageRef.current?.('[greeting_request]', sessionTypeRef.current);
               }, 0);
             }
             return;
@@ -339,7 +350,10 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         return false;
       }
 
-      setMessages((prev) => [...prev, { role: 'user', content: message }]);
+      // Skip user bubble for internal greeting requests.
+      if (!message.startsWith('[greeting_request]')) {
+        setMessages((prev) => [...prev, { role: 'user', content: message }]);
+      }
       setStreaming(true);
       setStreamingText('');
       setStreamHint(null);
@@ -372,7 +386,13 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     setError(null);
     clearToolSteps();
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
+    // Prevent re-greeting after manual clear.
+    greetingSentRef.current = true;
   }, [clearToolSteps]);
+
+  const setSessionType = useCallback((st: string) => {
+    sessionTypeRef.current = st;
+  }, []);
 
   return (
     <CoachingContext.Provider
@@ -387,6 +407,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         streamHint,
         sendMessage,
         clearConversation,
+        setSessionType,
       }}
     >
       {children}

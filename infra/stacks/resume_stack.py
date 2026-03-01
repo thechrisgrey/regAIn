@@ -8,6 +8,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_logs as logs,
     aws_s3 as s3,
     aws_sns as sns,
 )
@@ -48,6 +49,7 @@ class ResumeStack(cdk.Stack):
             "RegainResumeBucket",
             bucket_name=f"regain-resume-{cdk.Aws.ACCOUNT_ID}",
             versioned=True,
+            encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             auto_delete_objects=True,
@@ -84,6 +86,7 @@ class ResumeStack(cdk.Stack):
             timeout=cdk.Duration.seconds(60),
             memory_size=512,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _grant_permissions(self, tables: dict[str, dynamodb.Table]) -> None:
@@ -109,6 +112,17 @@ class ResumeStack(cdk.Stack):
                 resources=[
                     f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-lite-v1:0",
                 ],
+            )
+        )
+
+        # CloudWatch PutMetricData for business metrics
+        self.resume_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+                conditions={
+                    "StringEquals": {"cloudwatch:namespace": "REGAIN/Business"},
+                },
             )
         )
 

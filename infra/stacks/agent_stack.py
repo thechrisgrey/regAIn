@@ -9,6 +9,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_logs as logs,
     aws_sns as sns,
 )
 from constructs import Construct
@@ -110,6 +111,7 @@ class AgentStack(cdk.Stack):
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
@@ -292,6 +294,7 @@ class AgentStack(cdk.Stack):
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:
@@ -349,6 +352,17 @@ class AgentStack(cdk.Stack):
 
         for table in self.tables.values():
             table.grant_read_write_data(chat_stream_lambda)
+
+        # CloudWatch PutMetricData for business metrics
+        chat_stream_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+                conditions={
+                    "StringEquals": {"cloudwatch:namespace": "REGAIN/Business"},
+                },
+            )
+        )
 
     def _create_monitoring(
         self,

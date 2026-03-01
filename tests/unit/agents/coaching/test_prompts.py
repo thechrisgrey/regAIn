@@ -82,3 +82,38 @@ class TestGetSystemPrompt:
 
         assert "Machine Learning" in prompt
         assert "use ONLY these prescribed skill tags" in prompt
+
+    def test_includes_session_opening_section(self) -> None:
+        """The prompt should include a Session Opening section."""
+        prompt = get_system_prompt()
+
+        assert "## Session Opening" in prompt
+
+    def test_session_opening_references_greeting_request(self) -> None:
+        """Session Opening should reference the [greeting_request] trigger."""
+        prompt = get_system_prompt()
+
+        assert "[greeting_request]" in prompt
+
+    def test_session_opening_lists_required_tools(self) -> None:
+        """Session Opening should instruct calling required tools."""
+        prompt = get_system_prompt()
+
+        # Extract just the Session Opening section.
+        start = prompt.index("## Session Opening")
+        end = prompt.index("## Behavioral Rules")
+        section = prompt[start:end]
+
+        assert "read_user_profile" in section
+        assert "recall_memory" in section
+        assert "get_current_mission" in section
+        assert "get_campaign_status" in section
+
+    def test_session_opening_before_behavioral_rules(self) -> None:
+        """Session Opening section must appear before Behavioral Rules."""
+        prompt = get_system_prompt()
+
+        opening_idx = prompt.index("## Session Opening")
+        rules_idx = prompt.index("## Behavioral Rules")
+
+        assert opening_idx < rules_idx

@@ -16,6 +16,7 @@ from aws_cdk import (
     aws_events_targets as targets,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_logs as logs,
     aws_sns as sns,
     custom_resources as cr,
 )
@@ -99,6 +100,7 @@ class MarketIntelStack(cdk.Stack):
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _create_lambda_functions(self) -> dict[str, _lambda.Function]:

@@ -524,6 +524,9 @@ def log_evidence(
     try:
         db.put_item("evidence_vault", item)
 
+        from backend.handlers.shared.metrics import emit_metric
+        emit_metric("evidence_logged")
+
         # Count all evidence for this user + skill_tag
         all_evidence = db.query(
             "evidence_vault",
@@ -633,6 +636,9 @@ def complete_mission(
         completion_dict["skill_evidence_count"] = evidence_result.get(
             "skill_evidence_count", 0
         )
+
+        from backend.handlers.shared.metrics import emit_metric
+        emit_metric("missions_completed")
 
         # --- Async resume triggers (fire-and-forget) ---
         _trigger_resume_generation(user_id, "mission_completion")

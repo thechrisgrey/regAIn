@@ -631,6 +631,9 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception:
         logger.exception("Failed to write VoiceSessions record for session %s", session_id)
 
+    from backend.handlers.shared.metrics import emit_metric
+    emit_metric("voice_session_completed")
+
     # Store memory summary (lazy-import to avoid cold start penalty).
     try:
         global _tools_mod

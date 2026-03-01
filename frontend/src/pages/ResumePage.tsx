@@ -121,20 +121,20 @@ function ResumeMetadata({ frontmatter }: { frontmatter: ResumeFrontmatter }) {
     <Card className="p-6">
       <SectionLabel>Resume Overview</SectionLabel>
 
-      <div className="mt-5 flex gap-12">
-        <div>
+      <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
           <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
             {frontmatter.missions_completed}
           </p>
           <p className="mt-0.5 text-xs text-neutral-400">missions completed</p>
         </div>
-        <div>
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
           <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
             {frontmatter.evidence_items}
           </p>
           <p className="mt-0.5 text-xs text-neutral-400">evidence items</p>
         </div>
-        <div>
+        <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
           <p className="text-3xl font-medium font-mono tabular-nums text-neutral-900">
             {frontmatter.market_alignment_score}%
           </p>
@@ -252,7 +252,7 @@ export default function ResumePage() {
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Header with version + actions */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-xs text-neutral-400">
             Version {resume.version} — Generated {relativeTime(resume.generatedAt)}

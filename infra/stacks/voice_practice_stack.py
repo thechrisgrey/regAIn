@@ -10,6 +10,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_logs as logs,
     aws_s3 as s3,
     aws_sns as sns,
 )
@@ -69,6 +70,7 @@ class VoicePracticeStack(cdk.Stack):
             "RegainVoicePracticeBucket",
             bucket_name=f"regain-voice-practice-{cdk.Aws.ACCOUNT_ID}",
             versioned=True,
+            encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             auto_delete_objects=True,
@@ -119,6 +121,7 @@ class VoicePracticeStack(cdk.Stack):
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _create_ws_api(self) -> None:
@@ -173,6 +176,7 @@ class VoicePracticeStack(cdk.Stack):
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
             tracing=_lambda.Tracing.ACTIVE,
+            log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
     def _create_api_routes(self, api: apigw.RestApi) -> None:
@@ -337,6 +341,16 @@ class VoicePracticeStack(cdk.Stack):
 
         # REST Lambda: VoiceSessions read
         self.tables["VoiceSessions"].grant_read_data(self.rest_lambda)
+
+        # CloudWatch PutMetricData for business metrics
+        metrics_policy = iam.PolicyStatement(
+            actions=["cloudwatch:PutMetricData"],
+            resources=["*"],
+            conditions={
+                "StringEquals": {"cloudwatch:namespace": "REGAIN/Business"},
+            },
+        )
+        self.ws_lambda.add_to_role_policy(metrics_policy)
 
     def _grant_profile_lambda_permissions(self) -> None:
         """Grant the Profile Lambda permissions for voice practice cascade delete.

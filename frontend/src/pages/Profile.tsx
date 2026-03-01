@@ -120,7 +120,7 @@ function IdentitySummary({
         <span className="text-sm text-neutral-400">{username}</span>
       </div>
 
-      <div className="mt-8 grid grid-cols-3 gap-4">
+      <div className="mt-8 grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
           <p className="stat-value text-3xl font-medium font-mono tabular-nums">{days}</p>
           <p className="mt-0.5 text-xs text-neutral-500">days active</p>
@@ -335,7 +335,7 @@ function SkillDevelopmentChart() {
               className="flex items-center gap-4 animate-fade-in-up"
               style={{ animationDelay: `${i * 60}ms` }}
             >
-              <span className="w-32 shrink-0 truncate text-sm text-neutral-600">
+              <span className="w-24 sm:w-32 shrink-0 truncate text-sm text-neutral-600">
                 {stat.skill}
               </span>
               <ProgressBar
@@ -351,7 +351,7 @@ function SkillDevelopmentChart() {
         })}
       </div>
 
-      <div className="mt-6 grid grid-cols-2 gap-4">
+      <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div className="rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
           <p className="stat-value text-3xl font-medium font-mono tabular-nums">
             {evidence.length}

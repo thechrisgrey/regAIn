@@ -196,7 +196,7 @@ export default function VoiceSessionDetailPage() {
                   className={`flex ${turn.role === 'user' ? 'justify-end' : 'justify-start'}`}
                 >
                   <div
-                    className={`max-w-[75%] px-4 py-2 text-sm ${
+                    className={`max-w-[90%] sm:max-w-[75%] px-4 py-2 text-sm ${
                       turn.role === 'user'
                         ? 'bg-primary-500 text-white rounded-2xl rounded-br-sm whitespace-pre-wrap'
                         : 'bg-surface-3 text-neutral-900 rounded-2xl rounded-bl-sm'

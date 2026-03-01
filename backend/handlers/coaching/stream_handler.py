@@ -129,9 +129,16 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Auth failed for chat connection %s", connection_id)
             return {"statusCode": 401}
 
-        conn_data = {"user_id": user_id, "authenticated": "true"}
+        conn_data = {
+            "user_id": user_id,
+            "authenticated": "true",
+            "connect_time": str(time.time()),
+        }
         _connections[connection_id] = conn_data
         store_connection(connection_id, conn_data)
+
+        from backend.handlers.shared.metrics import emit_metric
+        emit_metric("coaching_session_started")
 
         logger.info("Chat connection %s established for user %s", connection_id, user_id)
         return {"statusCode": 200}
@@ -150,10 +157,43 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Clean up on WebSocket disconnect."""
+    """Clean up on WebSocket disconnect and persist session memory."""
     connection_id = event["requestContext"]["connectionId"]
-    _connections.pop(connection_id, None)
+    conn_info = _connections.pop(connection_id, None)
+
+    # Also try DynamoDB in case module-level dict missed the connection.
+    if not conn_info:
+        conn_info = load_connection(connection_id)
+
     delete_connection(connection_id)
+
+    # Store session-end memory for continuity across sessions.
+    user_id = conn_info.get("user_id", "") if conn_info else ""
+    if user_id:
+        try:
+            from backend.agents.coaching.tools import store_memory
+
+            session_type = conn_info.get("session_type", "general") if conn_info else "general"
+            store_memory(
+                user_id=user_id,
+                content=f"Text coaching session ended. Session type: {session_type}. "
+                "The user disconnected from the chat interface.",
+            )
+        except Exception:
+            logger.exception(
+                "Failed to store disconnect memory for user %s", user_id
+            )
+
+    # Emit coaching session duration metric.
+    connect_time_str = conn_info.get("connect_time", "") if conn_info else ""
+    if connect_time_str:
+        try:
+            duration = time.time() - float(connect_time_str)
+            from backend.handlers.shared.metrics import emit_metric
+            emit_metric("coaching_session_duration", value=duration, unit="Seconds")
+        except (ValueError, TypeError):
+            pass
+
     logger.info("Chat connection %s disconnected", connection_id)
     return {"statusCode": 200}
 
@@ -216,15 +256,21 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             # Update connection as authenticated.
             conn_info["user_id"] = user_id
             conn_info["authenticated"] = "true"
+            conn_info["connect_time"] = str(time.time())
             _connections[connection_id] = conn_info
             update_connection(connection_id, {
                 "user_id": user_id,
                 "authenticated": "true",
+                "connect_time": conn_info["connect_time"],
             })
 
             _post_to_connection(event, connection_id, {
                 "type": "auth_success",
             })
+
+            from backend.handlers.shared.metrics import emit_metric
+            emit_metric("coaching_session_started")
+
             logger.info("Chat connection %s authenticated via first-message for user %s", connection_id, user_id)
             return {"statusCode": 200}
         else:
@@ -245,6 +291,11 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"statusCode": 200}
 
     session_type = body.get("session_type", "checkin")
+
+    # Track session type on the connection for disconnect memory.
+    if conn_info and "session_type" not in conn_info:
+        conn_info["session_type"] = session_type
+        _connections[connection_id] = conn_info
 
     # Token from payload (used by create_coaching_agent for REST API calls).
     jwt_token = body.get("token", "")

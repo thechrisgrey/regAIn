@@ -32,7 +32,7 @@ class TestVoicePracticeApiHandler:
     def test_list_sessions_returns_200(self):
         with patch("backend.handlers.voice_practice.api_handler.VoicePracticeService") as MockService:
             mock_svc = MockService.return_value
-            mock_svc.list_sessions.return_value = []
+            mock_svc.list_sessions.return_value = {"items": [], "nextCursor": None}
 
             response = lambda_handler(_make_event(), None)
 

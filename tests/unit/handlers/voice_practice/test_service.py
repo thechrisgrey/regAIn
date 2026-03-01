@@ -22,23 +22,26 @@ class TestVoicePracticeService:
         )
         self.service.bucket_name = "test-bucket"
 
-    def test_list_sessions_returns_sorted(self):
-        self.mock_db.query.return_value = [
-            {"sessionId": "a", "createdAt": "2024-01-02T00:00:00Z"},
-            {"sessionId": "b", "createdAt": "2024-01-01T00:00:00Z"},
-        ]
+    def test_list_sessions_returns_items(self):
+        self.mock_db.query_page.return_value = {
+            "items": [
+                {"sessionId": "a", "createdAt": "2024-01-02T00:00:00Z"},
+                {"sessionId": "b", "createdAt": "2024-01-01T00:00:00Z"},
+            ],
+            "nextCursor": None,
+        }
 
         result = self.service.list_sessions("user-123")
 
-        assert len(result) == 2
-        self.mock_db.query.assert_called_once()
+        assert len(result["items"]) == 2
+        self.mock_db.query_page.assert_called_once()
 
     def test_list_sessions_empty(self):
-        self.mock_db.query.return_value = []
+        self.mock_db.query_page.return_value = {"items": [], "nextCursor": None}
 
         result = self.service.list_sessions("user-123")
 
-        assert result == []
+        assert result["items"] == []
 
     def test_get_session_detail_with_transcript(self):
         self.mock_db.get_item.return_value = {

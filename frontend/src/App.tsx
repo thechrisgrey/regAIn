@@ -5,6 +5,7 @@ import { CoachingProvider } from './hooks/CoachingContext';
 import { MutationBusProvider } from './hooks/MutationBusContext';
 import { ToastProvider } from './components/ui';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import GlobalErrorHandler from './components/GlobalErrorHandler';
 import IntroVideo from './components/IntroVideo';
 import Layout from './components/Layout';
 import Login from './components/Login';
@@ -26,6 +27,7 @@ function App() {
     <AuthProvider>
       <MutationBusProvider>
       <ToastProvider>
+      <GlobalErrorHandler />
       <IntroVideo />
       <BrowserRouter>
         <Routes>

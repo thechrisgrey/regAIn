@@ -1,6 +1,6 @@
 """Integration tests for cascade deletion.
 
-Verifies ProfileService.delete_user_account() correctly deletes across
+Verifies ProfileService._hard_delete_user_account() correctly deletes across
 all DynamoDB tables, S3 buckets, and Cognito.
 """
 
@@ -146,7 +146,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["user_profiles"] == 1
         assert db.get_item("user_profiles", {"userId": user_id}) is None
@@ -158,7 +158,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["campaigns"] == 2
         from boto3.dynamodb.conditions import Key
@@ -172,7 +172,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["mission_history"] == 5
         from boto3.dynamodb.conditions import Key
@@ -186,7 +186,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["evidence_vault"] == 3
         from boto3.dynamodb.conditions import Key
@@ -200,7 +200,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["voice_sessions"] == 2
         from boto3.dynamodb.conditions import Key
@@ -216,7 +216,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_b)
 
         service = _make_profile_service(db)
-        service.delete_user_account(user_a)
+        service._hard_delete_user_account(user_a)
 
         # user-B data should remain intact.
         assert db.get_item("user_profiles", {"userId": user_b}) is not None
@@ -233,7 +233,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["user_profiles"] == 1
         assert result["campaigns"] == 2
@@ -345,7 +345,7 @@ class TestS3CascadeDeletion:
                 cognito_client=None,
                 s3_client=s3_client,
             )
-            result = service.delete_user_account(user_id)
+            result = service._hard_delete_user_account(user_id)
 
             assert result["voice_practice_s3"] == 2
             assert result["resume_s3"] == 2
@@ -367,7 +367,7 @@ class TestS3CascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["voice_practice_s3"] == 0
         assert result["resume_s3"] == 0
@@ -472,7 +472,7 @@ class TestCognitoCascadeDeletion:
                 cognito_client=cognito,
                 s3_client=None,
             )
-            result = service.delete_user_account(user_id)
+            result = service._hard_delete_user_account(user_id)
 
             assert result["cognito"] == 1
 
@@ -495,6 +495,6 @@ class TestCognitoCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service.delete_user_account(user_id)
+        result = service._hard_delete_user_account(user_id)
 
         assert result["cognito"] == 0

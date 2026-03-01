@@ -45,8 +45,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return error_response("Session not found", 404)
             return success_response(result)
         else:
-            sessions = service.list_sessions(user_id)
-            return success_response({"sessions": sessions})
+            params = event.get("queryStringParameters") or {}
+            limit = min(int(params.get("limit", "50")), 200)
+            cursor = params.get("cursor")
+            page = service.list_sessions(user_id, limit=limit, cursor=cursor)
+            return success_response({
+                "sessions": page["items"],
+                "items": page["items"],
+                "nextCursor": page["nextCursor"],
+            })
     except Exception:
         logger.exception("Voice practice handler failed")
         return error_response("Internal server error", 500)

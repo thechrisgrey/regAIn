@@ -4,6 +4,8 @@ Provides a centralized client for all DynamoDB operations.
 Table names are read from environment variables.
 """
 
+import base64
+import json
 import os
 import logging
 from typing import Any, Dict, List, Optional
@@ -126,6 +128,62 @@ class DynamoDBClient:
                 break
             kwargs["ExclusiveStartKey"] = response["LastEvaluatedKey"]
         return items
+
+    def query_page(
+        self,
+        table_name: str,
+        key_condition: Any,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+        index_name: Optional[str] = None,
+        filter_expression: Any = None,
+        scan_forward: bool = True,
+    ) -> Dict[str, Any]:
+        """Query a table with cursor-based pagination.
+
+        Args:
+            table_name: Logical table name.
+            key_condition: A boto3 Key condition expression.
+            limit: Maximum items to return (capped at 200).
+            cursor: Base64-encoded LastEvaluatedKey from a previous page.
+            index_name: Optional GSI name to query.
+            filter_expression: Optional filter applied after key matching.
+            scan_forward: True for ascending sort key order.
+
+        Returns:
+            Dict with "items" (list) and "nextCursor" (str or None).
+        """
+        table = self._get_table(table_name)
+        effective_limit = min(max(limit, 1), 200)
+
+        kwargs: Dict[str, Any] = {
+            "KeyConditionExpression": key_condition,
+            "Limit": effective_limit,
+            "ScanIndexForward": scan_forward,
+        }
+        if index_name:
+            kwargs["IndexName"] = index_name
+        if filter_expression is not None:
+            kwargs["FilterExpression"] = filter_expression
+        if cursor:
+            try:
+                kwargs["ExclusiveStartKey"] = json.loads(
+                    base64.urlsafe_b64decode(cursor).decode("utf-8")
+                )
+            except Exception:
+                logger.warning("Invalid pagination cursor: %s", cursor)
+
+        response = table.query(**kwargs)
+        items = response.get("Items", [])
+
+        next_cursor: Optional[str] = None
+        last_key = response.get("LastEvaluatedKey")
+        if last_key:
+            next_cursor = base64.urlsafe_b64encode(
+                json.dumps(last_key, default=str).encode("utf-8")
+            ).decode("utf-8")
+
+        return {"items": items, "nextCursor": next_cursor}
 
     def update_item(
         self,

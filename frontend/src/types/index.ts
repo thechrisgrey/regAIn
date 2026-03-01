@@ -88,6 +88,8 @@ export interface OnboardingResponse {
 
 export interface MissionsResponse {
   missions: Mission[];
+  items?: Mission[];
+  nextCursor: string | null;
   dailyRemaining: number;
   dailyLimit: number;
 }
@@ -105,6 +107,8 @@ export interface CompleteResponse {
 
 export interface EvidenceResponse {
   evidence: Evidence[];
+  items?: Evidence[];
+  nextCursor: string | null;
 }
 
 export interface DashboardResponse {
@@ -177,6 +181,8 @@ export interface VoicePracticeAssessment {
 
 export interface VoiceSessionsResponse {
   sessions: VoicePracticeSession[];
+  items?: VoicePracticeSession[];
+  nextCursor: string | null;
 }
 
 // O*NET types (v2 API)

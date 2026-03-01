@@ -16,21 +16,22 @@ from infra.stacks.api_stack import ApiStack
 
 
 # Expected Lambda count in the API stack.
-EXPECTED_LAMBDA_COUNT = 7
+EXPECTED_LAMBDA_COUNT = 8
 
 # Map each Lambda logical-name fragment to the tables it MAY access.
 # Derived from ApiStack._grant_permissions.
 ALLOWED_TABLES: dict[str, set[str]] = {
     "Onboarding": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"},
-    "Missions": {"MissionHistory", "EvidenceVault", "Campaigns", "UserProfiles", "MarketData"},
+    "Missions": {"MissionHistory", "EvidenceVault", "Campaigns", "UserProfiles", "MarketData", "IdempotencyKeys"},
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},
     "Dashboard": {"Campaigns", "MissionHistory", "EvidenceVault"},
     "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
+    "Cleanup": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
     "Onet": set(),
 }
 
-ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections"}
+ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections", "IdempotencyKeys"}
 
 
 def _synth_api_template() -> dict:

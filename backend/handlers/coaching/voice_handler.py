@@ -6,7 +6,6 @@ $default, $disconnect) and bridges audio between the frontend and
 Amazon Bedrock Nova Sonic via the shared NovaSonicSession client.
 """
 
-import base64
 import importlib
 import inspect
 import json
@@ -111,8 +110,8 @@ def _post_to_connection(
 def _validate_cognito_token(token: str) -> Optional[str]:
     """Validate a Cognito JWT token and extract the user ID.
 
-    Decodes the JWT payload without full verification -- API Gateway
-    authorizer handles primary auth.
+    Verifies the RS256 signature against the Cognito JWKS endpoint,
+    checks expiry, issuer, and token_use claims.
 
     Args:
         token: The JWT token string from the query string.
@@ -120,22 +119,9 @@ def _validate_cognito_token(token: str) -> Optional[str]:
     Returns:
         The user_id (sub claim) if valid, None otherwise.
     """
-    if not token:
-        return None
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        payload = parts[1]
-        padding = 4 - len(payload) % 4
-        if padding != 4:
-            payload += "=" * padding
-        decoded = json.loads(base64.urlsafe_b64decode(payload))
-        user_id = decoded.get("sub")
-        return user_id if user_id else None
-    except Exception:
-        logger.warning("Token validation failed")
-        return None
+    from backend.handlers.shared.jwt import verify_cognito_token
+
+    return verify_cognito_token(token)
 
 
 def _get_system_prompt(user_id: str) -> str:
@@ -195,7 +181,7 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Auth failed for connection %s", connection_id)
         return {"statusCode": 401}
 
-    conn_data = {"user_id": user_id, "jwt_token": token}
+    conn_data = {"user_id": user_id}
     _connections[connection_id] = conn_data
     store_connection(connection_id, conn_data)
 

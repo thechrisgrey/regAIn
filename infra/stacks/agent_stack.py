@@ -88,6 +88,7 @@ class AgentStack(cdk.Stack):
             "AGENTCORE_GATEWAY_ID": self.gateway_id or "pending-agentcore-deploy",
             "AGENTCORE_GATEWAY_ENDPOINT": self.gateway_endpoint or "pending-agentcore-deploy",
             "REGAIN_TRACING_ENABLED": "true",
+            "USER_POOL_ID": self.user_pool.user_pool_id,
         }
 
     def _create_voice_lambda(self) -> _lambda.Function:
@@ -108,6 +109,7 @@ class AgentStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
     def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
@@ -289,6 +291,7 @@ class AgentStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
     def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:

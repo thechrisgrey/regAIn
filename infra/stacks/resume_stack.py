@@ -73,9 +73,11 @@ class ResumeStack(cdk.Stack):
                 "MARKET_DATA_TABLE": tables["MarketData"].table_name,
                 "RESUME_BUCKET_NAME": self.bucket.bucket_name,
                 "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
+                **({"IDEMPOTENCY_TABLE": tables["IdempotencyKeys"].table_name} if "IdempotencyKeys" in tables else {}),
             },
             timeout=cdk.Duration.seconds(60),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
     def _grant_permissions(self, tables: dict[str, dynamodb.Table]) -> None:
@@ -86,6 +88,10 @@ class ResumeStack(cdk.Stack):
         # Read-only access on the other 4 tables
         for name in ("Campaigns", "MissionHistory", "EvidenceVault", "MarketData"):
             tables[name].grant_read_data(self.resume_lambda)
+
+        # IdempotencyKeys table for idempotent resume generation
+        if "IdempotencyKeys" in tables:
+            tables["IdempotencyKeys"].grant_read_write_data(self.resume_lambda)
 
         # Read/write on Resume bucket
         self.bucket.grant_read_write(self.resume_lambda)

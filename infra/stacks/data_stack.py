@@ -19,6 +19,7 @@ class DataStack(cdk.Stack):
         self._create_market_data_table()
         self._create_voice_sessions_table()
         self._create_ws_connections_table()
+        self._create_idempotency_keys_table()
 
         self._create_outputs()
 
@@ -194,6 +195,24 @@ class DataStack(cdk.Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             time_to_live_attribute="ttl",
+        )
+
+    def _create_idempotency_keys_table(self) -> None:
+        """Create IdempotencyKeys table (PK: idempotencyKey) with TTL.
+
+        Stores cached mutation responses for 24 hours to prevent
+        duplicate operations on retry.
+        """
+        self.tables["IdempotencyKeys"] = dynamodb.Table(
+            self,
+            "RegainIdempotencyKeys",
+            table_name="RegainIdempotencyKeys",
+            partition_key=dynamodb.Attribute(
+                name="idempotencyKey", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=cdk.RemovalPolicy.DESTROY,
+            time_to_live_attribute="expiresAt",
         )
 
     def _create_outputs(self) -> None:

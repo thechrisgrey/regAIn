@@ -90,14 +90,14 @@ class TestMissionListing:
 
         service = MissionsService(db_client=db)
 
-        missions_a = service.list_missions(user_a)
-        missions_b = service.list_missions(user_b)
+        page_a = service.list_missions(user_a)
+        page_b = service.list_missions(user_b)
 
-        assert len(missions_a) == 3
-        assert len(missions_b) == 2
+        assert len(page_a["items"]) == 3
+        assert len(page_b["items"]) == 2
         # All missions for user-A belong to user-A.
-        assert all(m["userId"] == user_a for m in missions_a)
-        assert all(m["userId"] == user_b for m in missions_b)
+        assert all(m["userId"] == user_a for m in page_a["items"])
+        assert all(m["userId"] == user_b for m in page_b["items"])
 
     def test_list_with_status_filter(self, seeded_user, integration_tables):
         """Seed mixed statuses, filter by pending."""
@@ -114,9 +114,9 @@ class TestMissionListing:
         pending = service.list_missions(user_id, status="pending")
         in_progress = service.list_missions(user_id, status="in_progress")
 
-        assert len(pending) == 3  # 3 from onboarding
-        assert len(in_progress) == 1
-        assert in_progress[0]["missionId"] == ip_mission.mission_id
+        assert len(pending["items"]) == 3  # 3 from onboarding
+        assert len(in_progress["items"]) == 1
+        assert in_progress["items"][0]["missionId"] == ip_mission.mission_id
 
     def test_list_uses_query_all_pagination(self, integration_tables):
         """Seed 30+ missions to verify query_all follows pagination."""
@@ -128,9 +128,10 @@ class TestMissionListing:
             db.put_item("mission_history", m.to_dynamodb_item())
 
         service = MissionsService(db_client=db)
-        all_missions = service.list_missions(user_id)
+        # With pagination, fetch all pages to verify total count.
+        page = service.list_missions(user_id, limit=200)
 
-        assert len(all_missions) == 35
+        assert len(page["items"]) == 35
 
 
 class TestMissionCompletion:

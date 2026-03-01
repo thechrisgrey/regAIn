@@ -3,7 +3,7 @@
 Contains business logic for querying the Evidence Vault.
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from boto3.dynamodb.conditions import Attr, Key
 
@@ -17,25 +17,35 @@ class EvidenceService:
         self.db = db_client or DynamoDBClient()
 
     def list_evidence(
-        self, user_id: str, skill_tag: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
-        """List evidence for a user, optionally filtered by skill tag.
+        self,
+        user_id: str,
+        skill_tag: Optional[str] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List evidence for a user with cursor-based pagination.
 
         Args:
             user_id: The authenticated user's ID.
             skill_tag: Optional skill tag to filter by.
+            limit: Maximum items per page (capped at 200).
+            cursor: Opaque pagination cursor from a previous response.
 
         Returns:
-            List of evidence items belonging to the user.
+            Dict with "items" list and "nextCursor" (str or None).
         """
         if skill_tag:
-            return self.db.query_all(
+            return self.db.query_page(
                 "evidence_vault",
                 Key("userId").eq(user_id),
+                limit=limit,
+                cursor=cursor,
                 filter_expression=Attr("skillTag").eq(skill_tag),
             )
 
-        return self.db.query_all(
+        return self.db.query_page(
             "evidence_vault",
             Key("userId").eq(user_id),
+            limit=limit,
+            cursor=cursor,
         )

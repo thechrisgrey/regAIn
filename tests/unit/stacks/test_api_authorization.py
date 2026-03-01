@@ -62,12 +62,12 @@ def _get_authorizer_ids(template: dict) -> set[str]:
     }
 
 
-# The API stack defines exactly 10 non-OPTIONS methods:
+# The API stack defines exactly 11 non-OPTIONS methods:
 # POST /onboarding, GET /missions, POST /missions/generate,
 # POST /missions/{missionId}/complete, GET /evidence,
 # POST /coaching/checkin, GET /dashboard, DELETE /profile,
-# GET /onet/search, GET /onet/careers/{soc_code}
-EXPECTED_METHOD_COUNT = 10
+# POST /profile/recover, GET /onet/search, GET /onet/careers/{soc_code}
+EXPECTED_METHOD_COUNT = 11
 
 
 @given(

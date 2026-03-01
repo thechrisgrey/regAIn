@@ -6,7 +6,6 @@ Strands SDK callback_handler to push text chunks to the client as
 they are generated, and Strands hooks to send tool execution status.
 """
 
-import base64
 import json
 import logging
 import os
@@ -97,27 +96,14 @@ class _StreamingToolHooks:
 
 
 def _validate_cognito_token(token: str) -> Optional[str]:
-    """Decode a Cognito JWT and return the sub claim.
+    """Validate a Cognito JWT token and extract the user ID.
 
-    Full signature verification is handled by API Gateway; this
-    extracts the user ID from an already-authenticated token.
+    Verifies the RS256 signature against the Cognito JWKS endpoint,
+    checks expiry, issuer, and token_use claims.
     """
-    if not token:
-        return None
-    try:
-        parts = token.split(".")
-        if len(parts) != 3:
-            return None
-        payload = parts[1]
-        padding = 4 - len(payload) % 4
-        if padding != 4:
-            payload += "=" * padding
-        decoded = json.loads(base64.urlsafe_b64decode(payload))
-        user_id = decoded.get("sub")
-        return user_id if user_id else None
-    except Exception:
-        logger.warning("Token validation failed")
-        return None
+    from backend.handlers.shared.jwt import verify_cognito_token
+
+    return verify_cognito_token(token)
 
 
 def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -131,7 +117,7 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.warning("Auth failed for chat connection %s", connection_id)
         return {"statusCode": 401}
 
-    conn_data = {"user_id": user_id, "jwt_token": token}
+    conn_data = {"user_id": user_id}
     _connections[connection_id] = conn_data
     store_connection(connection_id, conn_data)
 
@@ -169,7 +155,6 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         return {"statusCode": 400}
 
     user_id = conn_info["user_id"]
-    jwt_token = conn_info["jwt_token"]
 
     # Parse the incoming message payload.
     try:
@@ -191,9 +176,8 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
     session_type = body.get("session_type", "checkin")
 
-    # Override token from payload if provided (reconnection scenario).
-    if body.get("token"):
-        jwt_token = body["token"]
+    # Token from payload (used by create_coaching_agent for REST API calls).
+    jwt_token = body.get("token", "")
 
     # Helper that captures event/connection_id for WebSocket sends.
     def send_ws(data: Dict[str, Any]) -> None:

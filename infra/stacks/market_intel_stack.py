@@ -97,6 +97,7 @@ class MarketIntelStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
     def _create_lambda_functions(self) -> dict[str, _lambda.Function]:

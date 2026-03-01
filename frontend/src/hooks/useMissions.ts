@@ -8,6 +8,7 @@ export function useMissions() {
   const [missions, setMissions] = useState<Mission[]>([]);
   const [dailyRemaining, setDailyRemaining] = useState<number | null>(null);
   const [dailyLimit, setDailyLimit] = useState<number | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,6 +19,7 @@ export function useMissions() {
       const token = await getToken();
       const result = await api.missions.list(token);
       setMissions(result.missions);
+      setNextCursor(result.nextCursor);
       setDailyRemaining(result.dailyRemaining);
       setDailyLimit(result.dailyLimit);
     } catch (err) {
@@ -26,6 +28,21 @@ export function useMissions() {
       setLoading(false);
     }
   }, [getToken]);
+
+  const loadMore = useCallback(async () => {
+    if (!nextCursor) return;
+    setLoading(true);
+    try {
+      const token = await getToken();
+      const result = await api.missions.list(token, 50, nextCursor);
+      setMissions((prev) => [...prev, ...result.missions]);
+      setNextCursor(result.nextCursor);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  }, [getToken, nextCursor]);
 
   const completeMission = useCallback(
     async (missionId: string, data: CompleteData): Promise<CompleteResponse | null> => {
@@ -79,9 +96,11 @@ export function useMissions() {
     missions,
     dailyRemaining,
     dailyLimit,
+    nextCursor,
     loading,
     error,
     fetchMissions,
+    loadMore,
     completeMission,
     generateMission,
   };

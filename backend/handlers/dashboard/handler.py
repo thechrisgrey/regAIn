@@ -8,6 +8,7 @@ from typing import Any, Dict
 
 from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.responses import error_response, success_response
+from backend.handlers.shared.structured_log import get_logger
 from backend.handlers.dashboard.service import DashboardService
 
 logger = logging.getLogger(__name__)
@@ -23,6 +24,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway-compatible response.
     """
+    slog = get_logger(event, __name__)
     user_id = get_user_id(event)
     if not user_id:
         return error_response("Unauthorized", 401)
@@ -32,5 +34,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         result = service.get_dashboard(user_id)
         return success_response(result)
     except Exception:
-        logger.exception("Dashboard handler failed")
+        slog.exception("Dashboard handler failed")
         return error_response("Internal server error", 500)

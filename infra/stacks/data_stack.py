@@ -1,6 +1,11 @@
 """REGAIN Data Stack — DynamoDB Tables."""
 import aws_cdk as cdk
-from aws_cdk import aws_dynamodb as dynamodb
+from aws_cdk import (
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cw_actions,
+    aws_dynamodb as dynamodb,
+    aws_sns as sns,
+)
 from constructs import Construct
 
 
@@ -21,6 +26,7 @@ class DataStack(cdk.Stack):
         self._create_ws_connections_table()
         self._create_idempotency_keys_table()
 
+        self._create_monitoring()
         self._create_outputs()
 
     def _create_user_profiles_table(self) -> None:
@@ -214,6 +220,63 @@ class DataStack(cdk.Stack):
             removal_policy=cdk.RemovalPolicy.DESTROY,
             time_to_live_attribute="expiresAt",
         )
+
+    def _create_monitoring(self) -> None:
+        """Add CloudWatch throttle alarms for the 6 data tables.
+
+        Creates its own SNS topic for DynamoDB alerts to avoid a cyclic
+        dependency with AgentCoreStack (which owns the main alert topic
+        but depends on ApiStack which depends on DataStack).
+
+        Skips ephemeral tables (WebSocketConnections, IdempotencyKeys)
+        since they use TTL-based cleanup and don't hold durable data.
+        """
+        alert_topic = sns.Topic(
+            self,
+            "RegainDynamoDBAlerts",
+            topic_name="RegainDynamoDBAlerts",
+        )
+        cdk.CfnOutput(
+            self,
+            "DynamoDBAlertTopicArn",
+            value=alert_topic.topic_arn,
+            export_name="RegainDynamoDBAlertTopicArn",
+        )
+        sns_action = cw_actions.SnsAction(alert_topic)
+
+        monitored_tables = [
+            "UserProfiles", "Campaigns", "MissionHistory",
+            "EvidenceVault", "MarketData", "VoiceSessions",
+        ]
+
+        for table_name in monitored_tables:
+            table = self.tables[table_name]
+            dimensions = {"TableName": table.table_name}
+
+            for metric_name, label in [
+                ("ReadThrottleEvents", "ReadThrottle"),
+                ("WriteThrottleEvents", "WriteThrottle"),
+            ]:
+                alarm = cloudwatch.Metric(
+                    namespace="AWS/DynamoDB",
+                    metric_name=metric_name,
+                    dimensions_map=dimensions,
+                    statistic="Sum",
+                    period=cdk.Duration.minutes(5),
+                ).create_alarm(
+                    self,
+                    f"{table_name}{label}Alarm",
+                    alarm_name=f"Regain-{table_name}-{label}",
+                    alarm_description=(
+                        f"{table_name} DynamoDB {label} events > 0 "
+                        "over two consecutive 5-minute periods"
+                    ),
+                    threshold=0,
+                    evaluation_periods=2,
+                    comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                    treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+                )
+                alarm.add_alarm_action(sns_action)
 
     def _create_outputs(self) -> None:
         """Create CloudFormation outputs for all table names and ARNs."""

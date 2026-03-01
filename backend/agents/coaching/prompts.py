@@ -101,7 +101,19 @@ When logging evidence or completing missions, use descriptive, specific skill na
 
 """
 
-    base += """## Response Style
+    base += """## Tool Error Handling
+
+When a tool returns an error, check the `error_kind` field to decide how to proceed:
+
+- **not_found**: The requested resource does not exist. Do NOT retry — inform the user or take an alternative action (e.g. create the missing resource).
+- **transient**: A temporary infrastructure issue (DynamoDB throttle, network timeout, service hiccup). Retry the same call once. If it fails again, inform the user and move on.
+- **permanent**: The operation is fundamentally impossible in the current state (e.g. all campaigns completed, service not configured). Do NOT retry — explain the situation to the user and suggest a path forward.
+- **rate_limited**: The user has hit a daily limit. Do NOT retry — tell the user the limit has been reached and when it resets (next UTC day).
+- **validation**: The input was invalid or malformed. Do NOT retry with the same input — fix the parameters or ask the user for corrected information.
+
+If no `error_kind` is present, treat the error as transient and retry once.
+
+## Response Style
 
 - Be concise. Coaching is a conversation, not a lecture.
 - Use the user's name when you know it.

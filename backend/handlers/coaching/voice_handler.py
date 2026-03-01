@@ -11,6 +11,7 @@ import inspect
 import json
 import logging
 import os
+import time
 from typing import Any, Dict, Optional
 
 import boto3
@@ -25,6 +26,7 @@ from backend.handlers.shared.ws_connections import (
     delete_connection,
     load_connection,
     store_connection,
+    update_connection,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,6 +42,9 @@ _sessions: Dict[str, Dict[str, Any]] = {}  # connection_id -> session state
 _apigw_clients: Dict[str, Any] = {}  # endpoint -> client
 
 # Load Strands tools for Nova Sonic tool registration.
+# Auth deadline: max seconds to send auth message after unauthenticated $connect.
+_AUTH_DEADLINE_SECONDS = 10
+
 _tools_mod = importlib.import_module("backend.agents.coaching.tools")
 _TOOL_FUNCTIONS = [
     _tools_mod.read_user_profile,
@@ -163,8 +168,9 @@ def _execute_tool(user_id: str, tool_name: str, tool_use_id: str, args: dict) ->
 def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
     """Handle WebSocket $connect event.
 
-    Extracts the Cognito token from the query string, validates it,
-    and stores the connection_id -> user_id mapping.
+    Supports both query-param auth (legacy) and first-message auth.
+    If a token is present in query params, validate immediately.
+    Otherwise, accept unauthenticated and require auth in $default.
 
     Args:
         event: API Gateway WebSocket $connect event.
@@ -176,26 +182,41 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
     query_params = event.get("queryStringParameters") or {}
     token = query_params.get("token", "")
 
-    user_id = _validate_cognito_token(token)
-    if not user_id:
-        logger.warning("Auth failed for connection %s", connection_id)
-        return {"statusCode": 401}
+    # Try query-param auth first (legacy path).
+    if token:
+        user_id = _validate_cognito_token(token)
+        if not user_id:
+            logger.warning("Auth failed for connection %s", connection_id)
+            return {"statusCode": 401}
 
-    conn_data = {"user_id": user_id}
+        conn_data = {"user_id": user_id, "authenticated": "true"}
+        _connections[connection_id] = conn_data
+        store_connection(connection_id, conn_data)
+
+        logger.info(
+            "Connection %s established for user %s", connection_id, user_id
+        )
+        return {"statusCode": 200}
+
+    # No token in query params — accept unauthenticated, require first-message auth.
+    conn_data = {
+        "user_id": "",
+        "authenticated": "false",
+        "auth_deadline": str(time.time() + _AUTH_DEADLINE_SECONDS),
+    }
     _connections[connection_id] = conn_data
     store_connection(connection_id, conn_data)
 
-    logger.info(
-        "Connection %s established for user %s", connection_id, user_id
-    )
+    logger.info("Voice connection %s accepted unauthenticated (first-message auth required)", connection_id)
     return {"statusCode": 200}
 
 
 def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
-    """Handle WebSocket $default event (audio frames).
+    """Handle WebSocket $default event (audio frames or auth message).
 
-    On the first frame, creates a NovaSonicSession with coaching tools
-    and system prompt. Subsequent frames forward audio to Nova Sonic.
+    On first-message auth connections, expects a JSON auth message before
+    audio. On the first audio frame, creates a NovaSonicSession with
+    coaching tools and system prompt. Subsequent frames forward audio.
 
     Args:
         event: API Gateway WebSocket $default event.
@@ -214,6 +235,55 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     if not conn_info:
         logger.warning("No user mapping for connection %s", connection_id)
         return {"statusCode": 400}
+
+    # Handle first-message auth for unauthenticated connections.
+    if conn_info.get("authenticated") == "false":
+        try:
+            body = json.loads(event.get("body", "{}"))
+        except (json.JSONDecodeError, TypeError):
+            _post_to_connection(event, connection_id, {
+                "type": "error",
+                "message": "Invalid JSON payload",
+            })
+            return {"statusCode": 200}
+
+        if body.get("type") == "auth":
+            token = body.get("token", "")
+            deadline = float(conn_info.get("auth_deadline", "0"))
+            if deadline and time.time() > deadline:
+                _post_to_connection(event, connection_id, {
+                    "type": "error",
+                    "message": "Authentication deadline exceeded. Please reconnect.",
+                })
+                return {"statusCode": 200}
+
+            user_id = _validate_cognito_token(token)
+            if not user_id:
+                _post_to_connection(event, connection_id, {
+                    "type": "error",
+                    "message": "Authentication failed. Please reconnect.",
+                })
+                return {"statusCode": 200}
+
+            conn_info["user_id"] = user_id
+            conn_info["authenticated"] = "true"
+            _connections[connection_id] = conn_info
+            update_connection(connection_id, {
+                "user_id": user_id,
+                "authenticated": "true",
+            })
+
+            _post_to_connection(event, connection_id, {
+                "type": "auth_success",
+            })
+            logger.info("Voice connection %s authenticated via first-message for user %s", connection_id, user_id)
+            return {"statusCode": 200}
+        else:
+            _post_to_connection(event, connection_id, {
+                "type": "error",
+                "message": "Authentication required. Send auth message first.",
+            })
+            return {"statusCode": 200}
 
     user_id = conn_info["user_id"]
 

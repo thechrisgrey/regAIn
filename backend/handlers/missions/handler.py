@@ -75,6 +75,13 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return error_response(str(exc), 400)
 
             result = service.complete_mission(user_id, mission_id, body)
+
+            if result.get("success") is False:
+                error_msg = result.get("error", "")
+                if "not found" in error_msg.lower():
+                    return error_response(error_msg, 404)
+                return error_response(error_msg, 409)
+
             return success_response(result)
 
         return error_response("Not found", 404)

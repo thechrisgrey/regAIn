@@ -72,6 +72,7 @@ class TestLoadConnection:
         assert result == {
             "user_id": "user-def",
             "session_type": "mission_discussion",
+            "authenticated": "true",
         }
 
     def test_returns_none_when_not_found(self, mock_table: MagicMock) -> None:

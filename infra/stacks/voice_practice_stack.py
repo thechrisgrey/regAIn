@@ -63,7 +63,7 @@ class VoicePracticeStack(cdk.Stack):
         }
 
     def _create_bucket(self) -> s3.Bucket:
-        """Create the Voice Practice S3 bucket with versioning and public access blocked."""
+        """Create the Voice Practice S3 bucket with versioning, lifecycle rules, and public access blocked."""
         return s3.Bucket(
             self,
             "RegainVoicePracticeBucket",
@@ -72,6 +72,12 @@ class VoicePracticeStack(cdk.Stack):
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
             removal_policy=cdk.RemovalPolicy.DESTROY,
             auto_delete_objects=True,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    noncurrent_versions_to_retain=2,
+                    noncurrent_version_expiration=cdk.Duration.days(30),
+                ),
+            ],
         )
 
     def _create_strands_layer(self) -> _lambda.LayerVersion:

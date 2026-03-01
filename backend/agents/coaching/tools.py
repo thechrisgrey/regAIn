@@ -33,6 +33,14 @@ from backend.engine.models import GenerationResult, CompletionResult  # noqa: E4
 
 logger = logging.getLogger(__name__)
 
+# Typed error kind constants for structured tool error responses.
+# These allow the LLM to reason about retry-ability and error handling.
+ERR_NOT_FOUND = "not_found"
+ERR_TRANSIENT = "transient"
+ERR_PERMANENT = "permanent"
+ERR_RATE_LIMITED = "rate_limited"
+ERR_VALIDATION = "validation"
+
 db = DynamoDBClient()
 
 # Lazy-load taxonomy normalization
@@ -84,14 +92,15 @@ def read_user_profile(user_id: str) -> dict[str, Any]:
         if item is None:
             return {
                 "error": "not_found",
+                "error_kind": ERR_NOT_FOUND,
                 "message": f"No profile found for user '{user_id}'.",
             }
         return item
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to read user profile for %s", user_id)
-        return {"error": "read_failed", "message": str(exc)}
+        return {"error": "read_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -117,7 +126,7 @@ def update_user_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]
         the update), or an error dict if the update fails.
     """
     if not updates:
-        return {"error": "invalid_input", "message": "No updates provided."}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": "No updates provided."}
 
     try:
         response = db.update_item(
@@ -127,10 +136,10 @@ def update_user_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]
         )
         return response.get("Attributes", {})
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to update user profile for %s", user_id)
-        return {"error": "write_failed", "message": str(exc)}
+        return {"error": "write_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -160,14 +169,15 @@ def get_campaign_status(user_id: str) -> dict[str, Any]:
         if not items:
             return {
                 "error": "not_found",
+                "error_kind": ERR_NOT_FOUND,
                 "message": f"No active campaign found for user '{user_id}'.",
             }
         return items[0]
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to get campaign status for %s", user_id)
-        return {"error": "read_failed", "message": str(exc)}
+        return {"error": "read_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -210,10 +220,10 @@ def create_campaign(
         db.put_item("campaigns", item)
         return item
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to create campaign for %s", user_id)
-        return {"error": "write_failed", "message": str(exc)}
+        return {"error": "write_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 def _analyze_patterns(missions: list[dict[str, Any]]) -> dict[str, Any]:
@@ -318,6 +328,7 @@ def get_current_mission(user_id: str) -> dict[str, Any]:
         if not current:
             return {
                 "error": "not_found",
+                "error_kind": ERR_NOT_FOUND,
                 "message": f"No pending or in-progress mission for user '{user_id}'.",
                 "patterns": patterns,
             }
@@ -326,10 +337,10 @@ def get_current_mission(user_id: str) -> dict[str, Any]:
         mission["patterns"] = patterns
         return mission
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to get current mission for %s", user_id)
-        return {"error": "read_failed", "message": str(exc)}
+        return {"error": "read_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 class _RateLimitExceeded(Exception):
@@ -416,11 +427,12 @@ def generate_mission(
     except _RateLimitExceeded:
         return {
             "error": "daily_limit_reached",
+            "error_kind": ERR_RATE_LIMITED,
             "message": "Daily mission generation limit reached (3 per day).",
         }
     except Exception as exc:
         logger.exception("Rate limit check failed for %s", user_id)
-        return {"error": "rate_limit_check_failed", "message": str(exc)}
+        return {"error": "rate_limit_check_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
     try:
         result = engine_generate_mission(
@@ -436,7 +448,7 @@ def generate_mission(
         return dataclasses.asdict(result)
     except Exception as exc:
         logger.exception("Failed to generate mission for %s", user_id)
-        return {"error": "generation_failed", "message": str(exc)}
+        return {"error": "generation_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -482,6 +494,7 @@ def log_evidence(
         if completed and not active:
             return {
                 "error": "campaign_completed",
+                "error_kind": ERR_PERMANENT,
                 "message": (
                     "Cannot log evidence — all campaigns for this user are "
                     "completed. Start a new campaign first."
@@ -489,7 +502,7 @@ def log_evidence(
             }
     except Exception as exc:
         logger.exception("Failed to check campaign status for %s", user_id)
-        return {"error": "read_failed", "message": str(exc)}
+        return {"error": "read_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
     # Normalize the skill tag to a canonical name when possible.
     normalized = _normalize_skill(skill_tag)
@@ -524,10 +537,10 @@ def log_evidence(
             "skill_evidence_count": skill_evidence_count,
         }
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to log evidence for %s", user_id)
-        return {"error": "write_failed", "message": str(exc)}
+        return {"error": "write_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 # Phase transitions that should trigger resume regeneration.
@@ -631,7 +644,7 @@ def complete_mission(
         return completion_dict
     except Exception as exc:
         logger.exception("Failed to complete mission %s for %s", mission_id, user_id)
-        return {"error": "completion_failed", "message": str(exc)}
+        return {"error": "completion_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -677,10 +690,10 @@ def get_evidence_summary(user_id: str) -> dict[str, Any]:
             "total_count": len(items),
         }
     except ValueError as exc:
-        return {"error": "invalid_input", "message": str(exc)}
+        return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": str(exc)}
     except Exception as exc:
         logger.exception("Failed to get evidence summary for %s", user_id)
-        return {"error": "read_failed", "message": str(exc)}
+        return {"error": "read_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -709,6 +722,7 @@ def get_market_insights(role_id: str) -> dict[str, Any]:
         if demand is None:
             return {
                 "error": "not_found",
+                "error_kind": ERR_NOT_FOUND,
                 "message": f"No market data found for role '{role_id}'.",
             }
 
@@ -725,7 +739,7 @@ def get_market_insights(role_id: str) -> dict[str, Any]:
         }
     except Exception as exc:
         logger.exception("Failed to get market insights for role %s", role_id)
-        return {"error": "read_failed", "message": str(exc)}
+        return {"error": "read_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -758,7 +772,7 @@ def get_alignment(user_id: str, target_role_id: str) -> dict[str, Any]:
             user_id,
             target_role_id,
         )
-        return {"error": "alignment_failed", "message": str(exc)}
+        return {"error": "alignment_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 # ---------------------------------------------------------------------------
@@ -860,6 +874,7 @@ def store_memory(user_id: str, content: str) -> dict[str, Any]:
     if client is None:
         return {
             "status": "unavailable",
+            "error_kind": ERR_TRANSIENT,
             "message": "Memory service client could not be initialized.",
         }
 
@@ -877,6 +892,7 @@ def store_memory(user_id: str, content: str) -> dict[str, Any]:
         )
         return {
             "status": "unavailable",
+            "error_kind": ERR_TRANSIENT,
             "message": f"Memory service unavailable: {exc}",
         }
 
@@ -905,7 +921,7 @@ def generate_resume(user_id: str) -> dict[str, Any]:
     """
     arn = os.environ.get("RESUME_LAMBDA_ARN")
     if not arn:
-        return {"error": "resume_unavailable", "message": "Resume service is not configured."}
+        return {"error": "resume_unavailable", "error_kind": ERR_PERMANENT, "message": "Resume service is not configured."}
 
     try:
         lambda_client = boto3.client("lambda")
@@ -920,6 +936,7 @@ def generate_resume(user_id: str) -> dict[str, Any]:
         if result.get("statusCode", 200) != 200:
             return {
                 "error": "generation_failed",
+                "error_kind": ERR_TRANSIENT,
                 "message": body.get("error", "Resume generation failed."),
             }
 
@@ -931,7 +948,7 @@ def generate_resume(user_id: str) -> dict[str, Any]:
         }
     except Exception as exc:
         logger.exception("generate_resume tool failed for user %s", user_id)
-        return {"error": "generation_failed", "message": str(exc)}
+        return {"error": "generation_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
 
 
 @tool
@@ -958,7 +975,7 @@ def get_resume(user_id: str) -> dict[str, Any]:
     try:
         profile = db.get_item("user_profiles", {"userId": user_id})
         if not profile:
-            return {"error": "not_found", "message": "User profile not found."}
+            return {"error": "not_found", "error_kind": ERR_NOT_FOUND, "message": "User profile not found."}
 
         s3_key = profile.get("resumeS3Key")
         if not s3_key:
@@ -986,4 +1003,4 @@ def get_resume(user_id: str) -> dict[str, Any]:
         }
     except Exception as exc:
         logger.exception("get_resume tool failed for user %s", user_id)
-        return {"error": "retrieval_failed", "message": str(exc)}
+        return {"error": "retrieval_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}

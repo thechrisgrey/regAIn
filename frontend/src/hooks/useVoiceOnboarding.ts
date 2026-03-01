@@ -387,26 +387,13 @@ export function useVoiceOnboarding() {
 
     try {
       const token = await getToken();
-      const ws = new WebSocket(
-        `${VOICE_WS_URL}?token=${encodeURIComponent(token)}`,
-      );
+      // Connect without token in URL — send auth as first message.
+      const ws = new WebSocket(VOICE_WS_URL);
       wsRef.current = ws;
 
-      ws.onopen = async () => {
-        try {
-          await startCapture();
-          setState((prev) => ({ ...prev, status: 'active' }));
-        } catch (err) {
-          cleanup();
-          setState({
-            status: 'error',
-            error:
-              err instanceof Error ? err.message : 'Microphone access denied',
-            isMuted: false,
-            isAgentSpeaking: false,
-            transcript: [],
-          });
-        }
+      ws.onopen = () => {
+        // Send auth as first WebSocket message instead of query param.
+        ws.send(JSON.stringify({ type: 'auth', token }));
       };
 
       ws.onmessage = (event: MessageEvent) => {
@@ -417,6 +404,26 @@ export function useVoiceOnboarding() {
           >;
 
           switch (msg.type) {
+            case 'auth_success':
+              // Auth confirmed — start audio capture.
+              void (async () => {
+                try {
+                  await startCapture();
+                  setState((prev) => ({ ...prev, status: 'active' }));
+                } catch (err) {
+                  cleanup();
+                  setState({
+                    status: 'error',
+                    error:
+                      err instanceof Error ? err.message : 'Microphone access denied',
+                    isMuted: false,
+                    isAgentSpeaking: false,
+                    transcript: [],
+                  });
+                }
+              })();
+              break;
+
             case 'audio': {
               // Backend sends: {"type": "audio", "data": "<base64>"}
               const audioData =

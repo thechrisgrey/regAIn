@@ -135,7 +135,7 @@ describe('useVoiceOnboarding', () => {
       expect(result.current.status).toBe('connecting');
     });
 
-    it('creates WebSocket with token', async () => {
+    it('creates WebSocket without token in URL and sends auth message', async () => {
       const { result } = renderHook(() => useVoiceOnboarding());
 
       await act(async () => {
@@ -144,10 +144,21 @@ describe('useVoiceOnboarding', () => {
       });
 
       expect(MockWebSocket.instances).toHaveLength(1);
-      expect(MockWebSocket.instances[0].url).toContain('token=');
+      // Token should NOT be in URL (first-message auth).
+      expect(MockWebSocket.instances[0].url).not.toContain('token=');
+
+      // Simulate onopen — hook should send auth message.
+      await act(async () => {
+        MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      expect(MockWebSocket.instances[0].send).toHaveBeenCalledWith(
+        expect.stringContaining('"type":"auth"'),
+      );
     });
 
-    it('transitions to active after open', async () => {
+    it('transitions to active after auth_success', async () => {
       const { result } = renderHook(() => useVoiceOnboarding());
 
       await act(async () => {
@@ -157,6 +168,13 @@ describe('useVoiceOnboarding', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 
@@ -164,7 +182,7 @@ describe('useVoiceOnboarding', () => {
       expect(mockGetUserMedia).toHaveBeenCalled();
     });
 
-    it('requests microphone access', async () => {
+    it('requests microphone access after auth_success', async () => {
       const { result } = renderHook(() => useVoiceOnboarding());
 
       await act(async () => {
@@ -174,6 +192,13 @@ describe('useVoiceOnboarding', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 
@@ -194,6 +219,13 @@ describe('useVoiceOnboarding', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 
@@ -294,6 +326,13 @@ describe('useVoiceOnboarding', () => {
 
       await act(async () => {
         MockWebSocket.instances[0].simulateOpen();
+        await new Promise((r) => setTimeout(r, 10));
+      });
+
+      await act(async () => {
+        MockWebSocket.instances[0].simulateMessage(
+          JSON.stringify({ type: 'auth_success' }),
+        );
         await new Promise((r) => setTimeout(r, 50));
       });
 

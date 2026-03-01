@@ -129,22 +129,25 @@ class TestConnectSuccess:
             result = vh.lambda_handler(event, None)
 
         assert result["statusCode"] == 200
-        assert vh._connections["conn-1"] == {"user_id": "user-abc"}
+        assert vh._connections["conn-1"]["user_id"] == "user-abc"
+        assert vh._connections["conn-1"]["authenticated"] == "true"
 
 
 class TestConnectMissingToken:
-    """Test $connect with missing token."""
+    """Test $connect with missing token accepts unauthenticated (first-message auth)."""
 
     def test_connect_missing_token(self) -> None:
-        """No token in query string returns 401."""
+        """No token in query string returns 200 (unauthenticated, awaiting first-message auth)."""
         vh = _load_voice_handler()
         event = _connect_event(connection_id="conn-2")
         # No queryStringParameters at all
 
         result = vh.lambda_handler(event, None)
 
-        assert result["statusCode"] == 401
-        assert "conn-2" not in vh._connections
+        assert result["statusCode"] == 200
+        assert "conn-2" in vh._connections
+        assert vh._connections["conn-2"]["authenticated"] == "false"
+        assert vh._connections["conn-2"]["user_id"] == ""
 
 
 class TestConnectInvalidToken:

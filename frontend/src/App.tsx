@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { CoachingProvider } from './hooks/CoachingContext';
+import { NetworkStatusProvider } from './hooks/useNetworkStatus';
 import { MutationBusProvider } from './hooks/MutationBusContext';
 import { ToastProvider } from './components/ui';
 import { ProtectedRoute } from './components/ProtectedRoute';
@@ -37,7 +38,9 @@ function App() {
             element={
               <ProtectedRoute>
                 <CoachingProvider>
-                  <Layout />
+                  <NetworkStatusProvider>
+                    <Layout />
+                  </NetworkStatusProvider>
                 </CoachingProvider>
               </ProtectedRoute>
             }

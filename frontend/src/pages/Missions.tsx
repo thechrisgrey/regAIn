@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import { useMissions } from '../hooks/useMissions';
 import { useDashboard } from '../hooks/useDashboard';
 import { useMutationBus } from '../hooks/useMutationBus';
+import { useAuth } from '../hooks/useAuth';
+import { api } from '../services/api';
 import type { Mission, CompleteData } from '../types';
 import { Card, SectionLabel, Button, Badge, SkeletonBlock, useToast } from '../components/ui';
 
@@ -228,11 +230,25 @@ function CompletionForm({
   completing: boolean;
   completionError: string | null;
 }) {
+  const { getToken } = useAuth();
   const [reflection, setReflection] = useState('');
   const [artifactUrl, setArtifactUrl] = useState('');
   const [skillTags, setSkillTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  const fetchSuggestions = useCallback(async (text: string) => {
+    if (text.trim().length < 20) return;
+    try {
+      const token = await getToken();
+      const result = await api.evidence.suggestTags(text, token);
+      // Filter out already-selected tags.
+      setSuggestions(result.suggestions.filter(s => !skillTags.includes(s)));
+    } catch {
+      // Silently fail — suggestions are non-critical.
+    }
+  }, [getToken, skillTags]);
 
   function addTag(tag: string) {
     const trimmed = tag.trim();
@@ -272,6 +288,7 @@ function CompletionForm({
             setReflection(e.target.value);
             if (validationError) setValidationError(null);
           }}
+          onBlur={() => void fetchSuggestions(reflection)}
           placeholder="Describe what you did and what you learned..."
           rows={4}
           className="mt-2 block w-full resize-y rounded-[var(--radius-button)] border border-neutral-200 bg-white px-4 py-3 text-sm leading-relaxed text-neutral-900 placeholder:text-neutral-300 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-shadow"
@@ -345,6 +362,24 @@ function CompletionForm({
             className="min-w-[120px] flex-1 border-0 bg-transparent py-1 text-xs text-neutral-900 placeholder:text-neutral-300 focus:outline-none"
           />
         </div>
+        {suggestions.length > 0 && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {suggestions.map(tag => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => {
+                  addTag(tag);
+                  setSuggestions(prev => prev.filter(s => s !== tag));
+                }}
+                className="inline-flex items-center gap-1 rounded-[var(--radius-badge)] bg-accent-50 px-2.5 py-1 text-xs text-accent-600 hover:bg-accent-100 transition-colors"
+              >
+                <span>+</span>
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {completionError && (
@@ -691,7 +726,6 @@ export default function Missions() {
         setPrimaryOverride(null);
         setTimeout(() => {
           setCompletedResult(null);
-          void fetchMissions();
         }, 2000);
       } else {
         setCompletionError(
@@ -699,7 +733,7 @@ export default function Missions() {
         );
       }
     },
-    [completeMission, fetchMissions, emit],
+    [completeMission, emit],
   );
 
   const { toast } = useToast();

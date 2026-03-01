@@ -25,6 +25,21 @@ def _generate_mission(user_id: str, service: MissionsService) -> Dict[str, Any]:
     return success_response(result)
 
 
+def _complete_mission(
+    user_id: str, mission_id: str, body: Dict[str, Any], service: MissionsService,
+) -> Dict[str, Any]:
+    """Execute mission completion and return API Gateway response."""
+    result = service.complete_mission(user_id, mission_id, body)
+
+    if result.get("success") is False:
+        error_msg = result.get("error", "")
+        if "not found" in error_msg.lower():
+            return error_response(error_msg, 404, error_kind="NOT_FOUND")
+        return error_response(error_msg, 409, error_kind="CONFLICT")
+
+    return success_response(result)
+
+
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """Handle missions API requests.
 
@@ -74,25 +89,27 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             except ValueError as exc:
                 return error_response(str(exc), 400)
 
-            result = service.complete_mission(user_id, mission_id, body)
+            # Inject deterministic idempotency key if not provided.
+            headers = event.get("headers") or {}
+            if not (headers.get("Idempotency-Key") or headers.get("idempotency-key")):
+                if event.get("headers") is None:
+                    event["headers"] = {}
+                event["headers"]["Idempotency-Key"] = f"complete:{user_id}:{mission_id}"
 
-            if result.get("success") is False:
-                error_msg = result.get("error", "")
-                if "not found" in error_msg.lower():
-                    return error_response(error_msg, 404)
-                return error_response(error_msg, 409)
+            def _do_complete(e):
+                return _complete_mission(user_id, mission_id, body, service)
 
-            return success_response(result)
+            return with_idempotency(event, _do_complete)
 
         return error_response("Not found", 404)
 
     except _GenerateRateLimitExceeded:
-        tomorrow = datetime.now(timezone.utc).strftime("%Y-%m-%d") + "T00:00:00Z"
         return error_response(
             "Daily mission generation limit reached. Try again tomorrow.",
             429,
+            error_kind="RATE_LIMITED",
         )
 
     except Exception:
         slog.exception("Missions handler failed")
-        return error_response("Internal server error", 500)
+        return error_response("Internal server error", 500, error_kind="TRANSIENT")

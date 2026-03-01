@@ -303,6 +303,44 @@ export interface OnetCareerReport {
   explore_more?: { careers: OnetRelatedCareer[] } | null;
 }
 
+// Analytics types
+
+export interface SkillBreakdownItem {
+  skill: string;
+  count: number;
+  ratio: number;
+}
+
+export interface ActivityHeatmapDay {
+  date: string;
+  count: number;
+}
+
+export interface VelocityWeek {
+  weekStart: string;
+  weekEnd: string;
+  completed: number;
+}
+
+export interface CampaignEta {
+  estimatedDaysRemaining: number;
+  completionRate: number;
+  dailyRate: number;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface AnalyticsResponse {
+  skillBreakdown: SkillBreakdownItem[];
+  activityHeatmap: ActivityHeatmapDay[];
+  velocityTrend: { weeks: VelocityWeek[] };
+  campaignEta: CampaignEta | null;
+  skillSuggestions: string[];
+}
+
+export interface SkillSuggestionsResponse {
+  suggestions: string[];
+}
+
 export interface VoiceSessionDetailResponse {
   sessionId: string;
   sessionType: VoicePracticeSessionType;

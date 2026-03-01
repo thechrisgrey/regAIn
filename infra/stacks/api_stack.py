@@ -290,6 +290,14 @@ class ApiStack(cdk.Stack):
             **auth_kwargs,
         )
 
+        # GET /evidence/suggest-tags
+        evidence_suggest = evidence.add_resource("suggest-tags")
+        evidence_suggest.add_method(
+            "GET",
+            apigw.LambdaIntegration(lambdas["Evidence"]),
+            **auth_kwargs,
+        )
+
         # POST /coaching/checkin
         coaching = self.api.root.add_resource("coaching")
         checkin = coaching.add_resource("checkin")
@@ -302,6 +310,14 @@ class ApiStack(cdk.Stack):
         # GET /dashboard
         dashboard = self.api.root.add_resource("dashboard")
         dashboard.add_method(
+            "GET",
+            apigw.LambdaIntegration(lambdas["Dashboard"]),
+            **auth_kwargs,
+        )
+
+        # GET /analytics
+        analytics = self.api.root.add_resource("analytics")
+        analytics.add_method(
             "GET",
             apigw.LambdaIntegration(lambdas["Dashboard"]),
             **auth_kwargs,

@@ -3,12 +3,17 @@
 Contains business logic for aggregating campaign statistics.
 """
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from typing import Any, Dict, List
 
 from boto3.dynamodb.conditions import Key
 
 from backend.handlers.shared.dynamodb import DynamoDBClient
+
+logger = logging.getLogger(__name__)
+
+_QUERY_TIMEOUT_SECONDS = 8
 
 
 class DashboardService:
@@ -39,9 +44,13 @@ class DashboardService:
                 self.db.query_all, "evidence_vault", key_condition
             )
 
-            campaigns = campaigns_future.result()
-            missions = missions_future.result()
-            evidence = evidence_future.result()
+            try:
+                campaigns = campaigns_future.result(timeout=_QUERY_TIMEOUT_SECONDS)
+                missions = missions_future.result(timeout=_QUERY_TIMEOUT_SECONDS)
+                evidence = evidence_future.result(timeout=_QUERY_TIMEOUT_SECONDS)
+            except FuturesTimeoutError:
+                logger.error("Dashboard query timed out after %ds", _QUERY_TIMEOUT_SECONDS)
+                raise
 
         active_campaign = next(
             (c for c in campaigns if c.get("status") == "active"), None

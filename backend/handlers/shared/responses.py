@@ -32,18 +32,27 @@ def success_response(data: Dict[str, Any], status_code: int = 200) -> Dict[str, 
     }
 
 
-def error_response(message: str, status_code: int = 400) -> Dict[str, Any]:
+def error_response(
+    message: str,
+    status_code: int = 400,
+    error_kind: str | None = None,
+) -> Dict[str, Any]:
     """Return an error API response.
 
     Args:
         message: Human-readable error message.
         status_code: HTTP status code (default 400).
+        error_kind: Optional machine-readable error category
+            (e.g. NOT_FOUND, CONFLICT, RATE_LIMITED, TRANSIENT).
 
     Returns:
         API Gateway-compatible response dict.
     """
+    body: Dict[str, Any] = {"error": message}
+    if error_kind is not None:
+        body["errorKind"] = error_kind
     return {
         "statusCode": status_code,
         "headers": CORS_HEADERS,
-        "body": json.dumps({"error": message}),
+        "body": json.dumps(body),
     }

@@ -13,6 +13,8 @@ import type {
   VoiceSessionDetailResponse,
   OnetSearchResponse,
   OnetCareerReport,
+  AnalyticsResponse,
+  SkillSuggestionsResponse,
 } from '../types';
 import type { ResumeResponse } from '../types/resume';
 
@@ -22,6 +24,9 @@ const API_BASE_URL = import.meta.env.VITE_API_URL;
 const REQUEST_TIMEOUT_MS = 30_000;
 const DEFAULT_CACHE_TTL_MS = 30_000;
 const MAX_RETRIES = 2;
+const MUTATION_RETRY_DELAY_MS = 500;
+
+export type ErrorKind = 'NOT_FOUND' | 'CONFLICT' | 'RATE_LIMITED' | 'TRANSIENT' | 'VALIDATION' | 'UNKNOWN';
 
 interface ApiRequestOptions {
   method: 'GET' | 'POST' | 'PUT' | 'DELETE';
@@ -31,11 +36,13 @@ interface ApiRequestOptions {
 
 export class ApiError extends Error {
   public readonly statusCode: number;
+  public readonly errorKind: ErrorKind;
 
-  constructor(message: string, statusCode: number) {
+  constructor(message: string, statusCode: number, errorKind?: ErrorKind) {
     super(message);
     this.name = 'ApiError';
     this.statusCode = statusCode;
+    this.errorKind = errorKind ?? 'UNKNOWN';
   }
 }
 
@@ -71,9 +78,11 @@ async function apiRequest<T>(
       const errorData = await response
         .json()
         .catch(() => ({ error: response.statusText }));
+      const parsed = errorData as { error?: string; errorKind?: ErrorKind };
       throw new ApiError(
-        (errorData as { error?: string }).error ?? 'Request failed',
+        parsed.error ?? 'Request failed',
         response.status,
+        parsed.errorKind,
       );
     }
 
@@ -97,6 +106,22 @@ async function apiRequest<T>(
         }
       }
       throw lastError;
+    }
+    // Retry on 5xx/408 for POST/PUT mutations (1 retry, skip CONFLICT).
+    if (options.method === 'POST' || options.method === 'PUT') {
+      try {
+        return await doFetch();
+      } catch (err) {
+        if (
+          err instanceof ApiError &&
+          (err.statusCode >= 500 || err.statusCode === 408) &&
+          err.errorKind !== 'CONFLICT'
+        ) {
+          await new Promise((r) => setTimeout(r, MUTATION_RETRY_DELAY_MS));
+          return await doFetch();
+        }
+        throw err;
+      }
     }
     return await doFetch();
   } finally {
@@ -162,10 +187,20 @@ export const api = {
       const qs = params.toString();
       return cachedGet<EvidenceResponse>(`/evidence${qs ? `?${qs}` : ''}`, token);
     },
+    suggestTags: (reflection: string, token: string) =>
+      cachedGet<SkillSuggestionsResponse>(
+        `/evidence/suggest-tags?reflection=${encodeURIComponent(reflection.slice(0, 500))}`,
+        token,
+        10_000,
+      ),
   },
   dashboard: {
     get: (token: string) =>
       cachedGet<DashboardResponse>('/dashboard', token),
+  },
+  analytics: {
+    get: (token: string) =>
+      cachedGet<AnalyticsResponse>('/analytics', token, 60_000),
   },
   coaching: {
     checkin: (data: CoachingRequest, token: string) =>

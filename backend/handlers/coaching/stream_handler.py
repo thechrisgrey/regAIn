@@ -11,6 +11,7 @@ import logging
 import os
 import threading
 import time
+import uuid
 from typing import Any, Callable, Dict, Optional
 
 import boto3
@@ -129,10 +130,12 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
             logger.warning("Auth failed for chat connection %s", connection_id)
             return {"statusCode": 401}
 
+        trace_id = str(uuid.uuid4())
         conn_data = {
             "user_id": user_id,
             "authenticated": "true",
             "connect_time": str(time.time()),
+            "trace_id": trace_id,
         }
         _connections[connection_id] = conn_data
         store_connection(connection_id, conn_data)
@@ -140,14 +143,16 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
         from backend.handlers.shared.metrics import emit_metric
         emit_metric("coaching_session_started")
 
-        logger.info("Chat connection %s established for user %s", connection_id, user_id)
+        logger.info("Chat connection %s established for user %s (trace=%s)", connection_id, user_id, trace_id)
         return {"statusCode": 200}
 
     # No token in query params — accept unauthenticated, require first-message auth.
+    trace_id = str(uuid.uuid4())
     conn_data = {
         "user_id": "",
         "authenticated": "false",
         "auth_deadline": str(time.time() + _AUTH_DEADLINE_SECONDS),
+        "trace_id": trace_id,
     }
     _connections[connection_id] = conn_data
     store_connection(connection_id, conn_data)
@@ -167,9 +172,13 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
 
     delete_connection(connection_id)
 
+    trace_id = conn_info.get("trace_id", "") if conn_info else ""
+
     # Store session-end memory for continuity across sessions.
+    # Only store memory for fully authenticated connections.
     user_id = conn_info.get("user_id", "") if conn_info else ""
-    if user_id:
+    authenticated = conn_info.get("authenticated", "false") if conn_info else "false"
+    if user_id and authenticated == "true":
         try:
             from backend.agents.coaching.tools import store_memory
 
@@ -181,12 +190,12 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
             )
         except Exception:
             logger.exception(
-                "Failed to store disconnect memory for user %s", user_id
+                "Failed to store disconnect memory for user %s (trace=%s)", user_id, trace_id
             )
 
-    # Emit coaching session duration metric.
+    # Emit coaching session duration metric (only for authenticated sessions).
     connect_time_str = conn_info.get("connect_time", "") if conn_info else ""
-    if connect_time_str:
+    if connect_time_str and authenticated == "true":
         try:
             duration = time.time() - float(connect_time_str)
             from backend.handlers.shared.metrics import emit_metric
@@ -194,7 +203,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    logger.info("Chat connection %s disconnected", connection_id)
+    logger.info("Chat connection %s disconnected (trace=%s)", connection_id, trace_id)
     return {"statusCode": 200}
 
 
@@ -281,6 +290,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             return {"statusCode": 200}
 
     user_id = conn_info["user_id"]
+    trace_id = conn_info.get("trace_id", "")
 
     message = body.get("message", "").strip()
     if not message:
@@ -367,7 +377,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         if not timed_out.is_set() and not connection_stale.is_set():
             send_ws({"type": "done", "text": str(result)})
     except Exception:
-        logger.exception("Chat stream failed for user %s", user_id)
+        logger.exception("Chat stream failed for user %s (trace=%s)", user_id, trace_id)
         if not timed_out.is_set() and not connection_stale.is_set():
             send_ws({
                 "type": "error",

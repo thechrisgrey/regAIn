@@ -85,7 +85,7 @@ jobs:
 
       - name: Synthesize all stacks
         working-directory: infra
-        run: cdk synth --quiet 2>&1 | tail -20
+        run: cdk synth --quiet --app "python app.py"
 
       - name: Validate synthesis produced all 8 stacks
         working-directory: infra

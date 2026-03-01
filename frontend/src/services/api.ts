@@ -125,8 +125,13 @@ export const api = {
       ),
   },
   missions: {
-    list: (token: string) =>
-      cachedGet<MissionsResponse>('/missions', token),
+    list: (token: string, limit?: number, cursor?: string) => {
+      const params = new URLSearchParams();
+      if (limit) params.set('limit', String(limit));
+      if (cursor) params.set('cursor', cursor);
+      const qs = params.toString();
+      return cachedGet<MissionsResponse>(`/missions${qs ? `?${qs}` : ''}`, token);
+    },
     complete: (missionId: string, data: CompleteData, token: string) =>
       apiRequest<CompleteResponse>(
         `/missions/${missionId}/complete`,
@@ -136,22 +141,27 @@ export const api = {
         invalidateCache('/missions', '/dashboard', '/evidence');
         return res;
       }),
-    generate: (token: string) =>
-      apiRequest<GenerateResponse>(
+    generate: (token: string) => {
+      const idempotencyKey = crypto.randomUUID();
+      return apiRequest<GenerateResponse>(
         '/missions/generate',
-        { method: 'POST' },
+        { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } },
         token,
       ).then((res) => {
         invalidateCache('/missions');
         return res;
-      }),
+      });
+    },
   },
   evidence: {
-    list: (token: string, skillTag?: string) =>
-      cachedGet<EvidenceResponse>(
-        `/evidence${skillTag ? `?skill_tag=${skillTag}` : ''}`,
-        token,
-      ),
+    list: (token: string, skillTag?: string, limit?: number, cursor?: string) => {
+      const params = new URLSearchParams();
+      if (skillTag) params.set('skill_tag', skillTag);
+      if (limit) params.set('limit', String(limit));
+      if (cursor) params.set('cursor', cursor);
+      const qs = params.toString();
+      return cachedGet<EvidenceResponse>(`/evidence${qs ? `?${qs}` : ''}`, token);
+    },
   },
   dashboard: {
     get: (token: string) =>
@@ -172,12 +182,14 @@ export const api = {
         { method: 'GET' },
         token,
       ),
-    generate: (token: string) =>
-      apiRequest<ResumeResponse>(
+    generate: (token: string) => {
+      const idempotencyKey = crypto.randomUUID();
+      return apiRequest<ResumeResponse>(
         '/resume/generate',
-        { method: 'POST' },
+        { method: 'POST', headers: { 'Idempotency-Key': idempotencyKey } },
         token,
-      ),
+      );
+    },
   },
   voicePractice: {
     listSessions: (token: string) =>
@@ -195,9 +207,15 @@ export const api = {
   },
   profile: {
     delete: (token: string) =>
-      apiRequest<{ message: string }>(
+      apiRequest<{ status: string; deletionDate: string }>(
         '/profile',
         { method: 'DELETE' },
+        token,
+      ),
+    recover: (token: string) =>
+      apiRequest<{ status: string }>(
+        '/profile/recover',
+        { method: 'POST' },
         token,
       ),
   },

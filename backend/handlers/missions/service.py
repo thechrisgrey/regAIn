@@ -103,26 +103,38 @@ class MissionsService:
     # List missions
     # ------------------------------------------------------------------
 
-    def list_missions(self, user_id: str, status: Optional[str] = None) -> List[Dict[str, Any]]:
-        """List missions for a user, optionally filtered by status.
+    def list_missions(
+        self,
+        user_id: str,
+        status: Optional[str] = None,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List missions for a user with cursor-based pagination.
 
         Args:
             user_id: The authenticated user's ID.
             status: Optional status filter.
+            limit: Maximum items per page (capped at 200).
+            cursor: Opaque pagination cursor from a previous response.
 
         Returns:
-            List of mission items.
+            Dict with "items" list and "nextCursor" (str or None).
         """
         if status:
-            return self.db.query_all(
+            return self.db.query_page(
                 "mission_history",
                 Key("status").eq(status) & Key("userId").eq(user_id),
+                limit=limit,
+                cursor=cursor,
                 index_name="status-index",
             )
 
-        return self.db.query_all(
+        return self.db.query_page(
             "mission_history",
             Key("userId").eq(user_id),
+            limit=limit,
+            cursor=cursor,
         )
 
     # ------------------------------------------------------------------

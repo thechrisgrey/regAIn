@@ -34,7 +34,6 @@ class TestStoreConnection:
 
         store_connection("conn-1", {
             "user_id": "user-abc",
-            "jwt_token": "tok-xyz",
             "session_type": "interview",
         })
 
@@ -42,7 +41,7 @@ class TestStoreConnection:
         item = mock_table.put_item.call_args[1]["Item"]
         assert item["connectionId"] == "conn-1"
         assert item["userId"] == "user-abc"
-        assert item["jwtToken"] == "tok-xyz"
+        assert "jwtToken" not in item
         assert item["sessionType"] == "interview"
         assert "ttl" in item
 
@@ -64,7 +63,6 @@ class TestLoadConnection:
             "Item": {
                 "connectionId": "conn-2",
                 "userId": "user-def",
-                "jwtToken": "tok-abc",
                 "sessionType": "mission_discussion",
             }
         }
@@ -73,7 +71,6 @@ class TestLoadConnection:
 
         assert result == {
             "user_id": "user-def",
-            "jwt_token": "tok-abc",
             "session_type": "mission_discussion",
         }
 

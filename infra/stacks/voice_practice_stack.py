@@ -95,6 +95,7 @@ class VoicePracticeStack(cdk.Stack):
             "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
             "AWS_REGION_NAME": "us-east-1",
+            "USER_POOL_ID": self.user_pool.user_pool_id,
         }
 
         return _lambda.Function(
@@ -111,6 +112,7 @@ class VoicePracticeStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(120),
             memory_size=512,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
     def _create_ws_api(self) -> None:
@@ -164,6 +166,7 @@ class VoicePracticeStack(cdk.Stack):
             environment=env,
             timeout=cdk.Duration.seconds(30),
             memory_size=256,
+            tracing=_lambda.Tracing.ACTIVE,
         )
 
     def _create_api_routes(self, api: apigw.RestApi) -> None:

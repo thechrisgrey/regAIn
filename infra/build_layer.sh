@@ -19,7 +19,7 @@ $DOCKER run --rm \
   --platform linux/amd64 \
   -v "$(pwd)/infra/layer_build/python:/out" \
   python:3.12-slim \
-  bash -c "pip install strands-agents strands-agents-tools aws-sdk-bedrock-runtime --target /out --no-cache-dir && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
+  bash -c "pip install strands-agents strands-agents-tools aws-sdk-bedrock-runtime 'PyJWT[crypto]' --target /out --no-cache-dir && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
 
 echo "Layer size: $(du -sh infra/layer_build/python | cut -f1)"
 echo "Done."

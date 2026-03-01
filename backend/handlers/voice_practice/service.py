@@ -33,27 +33,35 @@ class VoicePracticeService:
         self.s3 = s3_client or boto3.client("s3")
         self.bucket_name = os.environ.get("VOICE_PRACTICE_BUCKET_NAME", "")
 
-    def list_sessions(self, user_id: str) -> List[Dict[str, Any]]:
-        """List all voice practice sessions for a user.
+    def list_sessions(
+        self,
+        user_id: str,
+        limit: int = 50,
+        cursor: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """List voice practice sessions for a user with cursor-based pagination.
 
         Queries the VoiceSessions table by userId and returns session
-        metadata sorted by createdAt descending. No S3 reads are
+        metadata sorted by sessionId descending. No S3 reads are
         performed.
 
         Args:
             user_id: The authenticated user's ID.
+            limit: Maximum items per page (capped at 200).
+            cursor: Opaque pagination cursor from a previous response.
 
         Returns:
-            List of session metadata dicts, most recent first.
+            Dict with "items" list and "nextCursor" (str or None).
         """
-        items = self.db.query(
+        page = self.db.query_page(
             "voice_sessions",
             Key("userId").eq(user_id),
+            limit=limit,
+            cursor=cursor,
+            scan_forward=False,
         )
 
-        items.sort(key=lambda x: x.get("createdAt", ""), reverse=True)
-
-        return [
+        page["items"] = [
             {
                 "sessionId": item.get("sessionId", ""),
                 "sessionType": item.get("sessionType", ""),
@@ -65,8 +73,10 @@ class VoicePracticeService:
                 "assessmentSummary": item.get("assessmentSummary", ""),
                 "createdAt": item.get("createdAt", ""),
             }
-            for item in items
+            for item in page["items"]
         ]
+
+        return page
 
     def get_session_detail(
         self, user_id: str, session_id: str

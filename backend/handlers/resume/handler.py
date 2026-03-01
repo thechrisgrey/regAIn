@@ -10,7 +10,9 @@ import logging
 from typing import Any, Dict
 
 from backend.handlers.shared.auth import get_user_id
+from backend.handlers.shared.idempotency import with_idempotency
 from backend.handlers.shared.responses import error_response, success_response
+from backend.handlers.shared.structured_log import get_logger
 from backend.handlers.resume.service import (
     ResumeGenerationError,
     ResumeResult,
@@ -130,18 +132,19 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway-compatible response or simple dict for async.
     """
+    slog = get_logger(event if _is_api_gateway_event(event) else None, __name__)
     service = ResumeService()
 
     # Async event: has user_id and trigger, no httpMethod
     if not _is_api_gateway_event(event):
         user_id = event.get("user_id")
         if not user_id:
-            logger.error("Async event missing user_id: %s", event)
+            slog.error("Async event missing user_id: %s", event)
             return {"status": "error", "message": "Missing user_id"}
         try:
             return _handle_async(user_id, service)
         except Exception:
-            logger.exception("Async resume generation failed for user %s", user_id)
+            slog.exception("Async resume generation failed for user %s", user_id)
             return {"status": "error", "message": "Generation failed"}
 
     # API Gateway event: extract user from Cognito claims
@@ -155,10 +158,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if http_method == "GET":
             return _handle_get(user_id, service)
         if http_method == "POST":
-            return _handle_post(user_id, service)
+            return with_idempotency(event, lambda e: _handle_post(user_id, service))
         return error_response("Method not allowed", 400)
     except ResumeGenerationError as exc:
         return error_response(str(exc), exc.status_code)
     except Exception:
-        logger.exception("Resume handler failed")
+        slog.exception("Resume handler failed")
         return error_response("Internal server error", 500)

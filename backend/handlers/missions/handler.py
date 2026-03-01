@@ -10,10 +10,19 @@ from datetime import datetime, timezone
 from typing import Any, Dict
 
 from backend.handlers.shared.auth import get_user_id
+from backend.handlers.shared.idempotency import with_idempotency
 from backend.handlers.shared.responses import error_response, success_response
+from backend.handlers.shared.structured_log import get_logger
+from backend.handlers.shared.validation import validate_body
 from backend.handlers.missions.service import MissionsService, _GenerateRateLimitExceeded
 
 logger = logging.getLogger(__name__)
+
+
+def _generate_mission(user_id: str, service: MissionsService) -> Dict[str, Any]:
+    """Execute mission generation and return API Gateway response."""
+    result = service.generate_mission(user_id)
+    return success_response(result)
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -26,6 +35,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway-compatible response.
     """
+    slog = get_logger(event, __name__)
     user_id = get_user_id(event)
     if not user_id:
         return error_response("Unauthorized", 401)
@@ -38,13 +48,21 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if http_method == "GET" and resource == "/missions":
             params = event.get("queryStringParameters") or {}
-            missions = service.list_missions(user_id, status=params.get("status"))
+            limit = min(int(params.get("limit", "50")), 200)
+            cursor = params.get("cursor")
+            page = service.list_missions(
+                user_id, status=params.get("status"), limit=limit, cursor=cursor,
+            )
             remaining = service.get_daily_remaining(user_id)
-            return success_response({"missions": missions, **remaining})
+            return success_response({
+                "missions": page["items"],
+                "items": page["items"],
+                "nextCursor": page["nextCursor"],
+                **remaining,
+            })
 
         if http_method == "POST" and resource == "/missions/generate":
-            result = service.generate_mission(user_id)
-            return success_response(result)
+            return with_idempotency(event, lambda e: _generate_mission(user_id, service))
 
         if http_method == "POST" and "/complete" in resource:
             mission_id = (event.get("pathParameters") or {}).get("missionId")
@@ -52,9 +70,9 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 return error_response("Missing missionId path parameter", 400)
 
             try:
-                body = json.loads(event.get("body", "{}"))
-            except (json.JSONDecodeError, TypeError):
-                return error_response("Invalid JSON body", 400)
+                body = validate_body(event)
+            except ValueError as exc:
+                return error_response(str(exc), 400)
 
             result = service.complete_mission(user_id, mission_id, body)
             return success_response(result)
@@ -69,5 +87,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         )
 
     except Exception:
-        logger.exception("Missions handler failed")
+        slog.exception("Missions handler failed")
         return error_response("Internal server error", 500)

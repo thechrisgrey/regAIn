@@ -34,13 +34,12 @@ def store_connection(connection_id: str, data: Dict[str, str]) -> None:
 
     Args:
         connection_id: WebSocket connection ID.
-        data: Dict with user_id, jwt_token, and optionally session_type.
+        data: Dict with user_id and optionally session_type.
     """
     try:
         item: Dict[str, Any] = {
             "connectionId": connection_id,
             "userId": data["user_id"],
-            "jwtToken": data.get("jwt_token", ""),
             "sessionType": data.get("session_type", ""),
             "ttl": int(time.time()) + 3 * 3600,  # 3-hour TTL
         }
@@ -56,7 +55,7 @@ def load_connection(connection_id: str) -> Optional[Dict[str, str]]:
         connection_id: WebSocket connection ID.
 
     Returns:
-        Dict with user_id, jwt_token, session_type, or None if not found.
+        Dict with user_id and session_type, or None if not found.
     """
     try:
         response = _get_table().get_item(Key={"connectionId": connection_id})
@@ -65,7 +64,6 @@ def load_connection(connection_id: str) -> Optional[Dict[str, str]]:
             return None
         return {
             "user_id": item["userId"],
-            "jwt_token": item.get("jwtToken", ""),
             "session_type": item.get("sessionType", ""),
         }
     except Exception:

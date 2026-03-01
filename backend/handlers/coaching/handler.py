@@ -9,6 +9,8 @@ from typing import Any, Dict
 
 from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.responses import error_response, success_response
+from backend.handlers.shared.structured_log import get_logger
+from backend.handlers.shared.validation import validate_body, validate_string_field
 from backend.handlers.coaching.service import CoachingService
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway-compatible response.
     """
+    slog = get_logger(event, __name__)
     user_id = get_user_id(event)
     if not user_id:
         return error_response("Unauthorized", 401)
@@ -52,13 +55,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         return error_response("Missing authorization token", 401)
 
     try:
-        body = json.loads(event.get("body", "{}"))
-    except (json.JSONDecodeError, TypeError):
-        return error_response("Invalid JSON body", 400)
+        body = validate_body(event, max_bytes=51_200)  # 50 KB
+    except ValueError as exc:
+        return error_response(str(exc), 400)
 
-    message = body.get("message", "")
-    if not message:
-        return error_response("Missing required field: message", 400)
+    try:
+        message = validate_string_field(body, "message", max_length=10_000, required=True)
+    except ValueError as exc:
+        return error_response(str(exc), 400)
 
     session_type = body.get("session_type", "checkin")
 
@@ -67,5 +71,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         result = service.checkin(user_id, message, jwt_token=jwt_token, session_type=session_type)
         return success_response(result)
     except Exception:
-        logger.exception("Coaching handler failed")
+        slog.exception("Coaching handler failed")
         return error_response("Internal server error", 500)

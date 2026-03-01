@@ -10,6 +10,8 @@ from typing import Any, Dict
 
 from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.responses import error_response, success_response
+from backend.handlers.shared.structured_log import get_logger
+from backend.handlers.shared.validation import validate_body
 from backend.handlers.onboarding.service import OnboardingService
 
 logger = logging.getLogger(__name__)
@@ -57,14 +59,15 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     Returns:
         API Gateway-compatible response.
     """
+    slog = get_logger(event, __name__)
     user_id = get_user_id(event)
     if not user_id:
         return error_response("Unauthorized", 401)
 
     try:
-        body = _normalize_keys(json.loads(event.get("body", "{}")))
-    except (json.JSONDecodeError, TypeError):
-        return error_response("Invalid JSON body", 400)
+        body = _normalize_keys(validate_body(event))
+    except ValueError as exc:
+        return error_response(str(exc), 400)
 
     validation_error = _validate_input(body)
     if validation_error:
@@ -75,5 +78,5 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         result = service.create_profile(user_id, body)
         return success_response(result, 201)
     except Exception:
-        logger.exception("Onboarding failed")
+        slog.exception("Onboarding failed")
         return error_response("Internal server error", 500)

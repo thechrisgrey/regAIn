@@ -385,6 +385,7 @@ function DeleteAccount({
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [scheduledDate, setScheduledDate] = useState('');
 
   const handleDelete = useCallback(async () => {
     if (confirmText !== 'DELETE') return;
@@ -392,9 +393,10 @@ function DeleteAccount({
     setDeleteError('');
     try {
       const token = await getToken();
-      await api.profile.delete(token);
-      await signOut();
-      navigate('/login');
+      const result = await api.profile.delete(token);
+      setScheduledDate(result.deletionDate ?? '');
+      setShowConfirm(false);
+      setConfirmText('');
     } catch (err) {
       setDeleteError(
         err instanceof Error ? err.message : 'Failed to delete account',
@@ -402,61 +404,91 @@ function DeleteAccount({
     } finally {
       setDeleting(false);
     }
-  }, [confirmText, getToken, signOut, navigate]);
+  }, [confirmText, getToken]);
+
+  const handleSignOut = useCallback(async () => {
+    await signOut();
+    navigate('/login');
+  }, [signOut, navigate]);
 
   return (
     <Card className="p-6">
       <SectionLabel>Account</SectionLabel>
 
       <div className="mt-5 border-t border-neutral-100 pt-5">
-        <p className="text-sm font-medium text-neutral-900">Delete account</p>
-        <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
-          This will permanently delete your account and all associated data
-          including your profile, campaigns, missions, and evidence vault.
-          This action cannot be undone.
-        </p>
-
-        {deleteError && (
-          <p className="mt-3 text-sm text-error-600">{deleteError}</p>
-        )}
-
-        {!showConfirm ? (
-          <button
-            onClick={() => setShowConfirm(true)}
-            className="mt-4 text-sm font-medium text-error-600 hover:text-error-700 transition-colors"
-          >
-            Delete my account
-          </button>
-        ) : (
-          <div className="mt-4 space-y-3">
-            <Input
-              label="Type DELETE to confirm"
-              placeholder="DELETE"
-              value={confirmText}
-              onChange={(e) => setConfirmText(e.target.value)}
-              autoComplete="off"
-            />
-            <div className="flex items-center gap-3">
-              <Button
-                variant="destructive"
-                size="sm"
-                disabled={confirmText !== 'DELETE' || deleting}
-                onClick={() => void handleDelete()}
-              >
-                {deleting ? 'Deleting...' : 'Confirm deletion'}
-              </Button>
-              <button
-                onClick={() => {
-                  setShowConfirm(false);
-                  setConfirmText('');
-                  setDeleteError('');
-                }}
-                className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
+        {scheduledDate ? (
+          <div>
+            <p className="text-sm font-medium text-neutral-900">
+              Account scheduled for deletion
+            </p>
+            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
+              Your account data will be permanently deleted on{' '}
+              <span className="font-medium text-neutral-700">
+                {new Date(scheduledDate).toLocaleDateString()}
+              </span>.
+              You have 30 days to recover your account by logging back in.
+            </p>
+            <Button
+              variant="secondary"
+              size="sm"
+              className="mt-4"
+              onClick={() => void handleSignOut()}
+            >
+              Sign out
+            </Button>
           </div>
+        ) : (
+          <>
+            <p className="text-sm font-medium text-neutral-900">Delete account</p>
+            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
+              Your account will be scheduled for deletion with a 30-day grace
+              period. During this time you can recover your account by logging
+              back in. After 30 days, all data will be permanently removed.
+            </p>
+
+            {deleteError && (
+              <p className="mt-3 text-sm text-error-600">{deleteError}</p>
+            )}
+
+            {!showConfirm ? (
+              <button
+                onClick={() => setShowConfirm(true)}
+                className="mt-4 text-sm font-medium text-error-600 hover:text-error-700 transition-colors"
+              >
+                Delete my account
+              </button>
+            ) : (
+              <div className="mt-4 space-y-3">
+                <Input
+                  label="Type DELETE to confirm"
+                  placeholder="DELETE"
+                  value={confirmText}
+                  onChange={(e) => setConfirmText(e.target.value)}
+                  autoComplete="off"
+                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={confirmText !== 'DELETE' || deleting}
+                    onClick={() => void handleDelete()}
+                  >
+                    {deleting ? 'Scheduling...' : 'Confirm deletion'}
+                  </Button>
+                  <button
+                    onClick={() => {
+                      setShowConfirm(false);
+                      setConfirmText('');
+                      setDeleteError('');
+                    }}
+                    className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </>
         )}
       </div>
     </Card>

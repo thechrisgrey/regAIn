@@ -87,4 +87,43 @@ describe('RequestCache', () => {
     expect(result).toEqual({ recovered: true });
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
+
+  it('clear() empties the entire cache', async () => {
+    const fetcher = vi.fn().mockResolvedValue({ data: 'cached' });
+
+    await requestCache.get('/clear-test', fetcher, 30_000);
+    requestCache.clear();
+
+    const newFetcher = vi.fn().mockResolvedValue({ data: 'fresh' });
+    const result = await requestCache.get('/clear-test', newFetcher, 30_000);
+
+    expect(result).toEqual({ data: 'fresh' });
+    expect(newFetcher).toHaveBeenCalledOnce();
+  });
+
+  it('concurrent stale reads trigger only one background revalidation', async () => {
+    let resolveReval: (v: unknown) => void;
+    const initialFetcher = vi.fn().mockResolvedValue({ version: 1 });
+    const revalFetcher = vi.fn().mockImplementation(
+      () => new Promise((resolve) => { resolveReval = resolve; }),
+    );
+
+    // Populate cache
+    await requestCache.get('/stale-dedup', initialFetcher, 30_000);
+
+    // Two concurrent stale reads (TTL=0 forces stale)
+    const r1 = await requestCache.get('/stale-dedup', revalFetcher, 0);
+    const r2 = await requestCache.get('/stale-dedup', revalFetcher, 0);
+
+    // Both return stale data immediately
+    expect(r1).toEqual({ version: 1 });
+    expect(r2).toEqual({ version: 1 });
+
+    // Only one background fetch should have been triggered
+    expect(revalFetcher).toHaveBeenCalledTimes(1);
+
+    // Resolve the background revalidation
+    resolveReval!({ version: 2 });
+    await new Promise((r) => setTimeout(r, 10));
+  });
 });

@@ -50,20 +50,22 @@ def with_idempotency(
         logger.info("Idempotency cache hit for key: %s", key)
         return json.loads(cached["responseBody"])
 
-    # Execute and cache.
+    # Execute and cache (only cache non-5xx responses).
     response = handler_fn(event)
 
-    try:
-        table.put_item(
-            Item={
-                "idempotencyKey": key,
-                "responseBody": json.dumps(response, default=str),
-                "statusCode": response.get("statusCode", 200),
-                "expiresAt": int(time.time()) + _TTL_SECONDS,
-            }
-        )
-    except Exception:
-        logger.warning("Failed to cache idempotency response for key: %s", key)
+    status_code = response.get("statusCode", 200)
+    if status_code < 500:
+        try:
+            table.put_item(
+                Item={
+                    "idempotencyKey": key,
+                    "responseBody": json.dumps(response, default=str),
+                    "statusCode": status_code,
+                    "expiresAt": int(time.time()) + _TTL_SECONDS,
+                }
+            )
+        except Exception:
+            logger.warning("Failed to cache idempotency response for key: %s", key)
 
     return response
 

@@ -557,14 +557,17 @@ class AgentCoreStack(cdk.Stack):
 
     def _create_code_interpreter_bucket(self) -> s3.Bucket:
         """Create S3 bucket for Code Interpreter output files."""
+        _retain = self.node.try_get_context("retain_data")
+        _removal = cdk.RemovalPolicy.RETAIN if _retain else cdk.RemovalPolicy.DESTROY
+        _auto_del = not bool(_retain)
         return s3.Bucket(
             self,
             "RegainCodeInterpreterOutput",
             bucket_name=f"regain-code-interpreter-output-{self.account}",
             encryption=s3.BucketEncryption.S3_MANAGED,
             block_public_access=s3.BlockPublicAccess.BLOCK_ALL,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
-            auto_delete_objects=True,
+            removal_policy=_removal,
+            auto_delete_objects=_auto_del,
             lifecycle_rules=[
                 s3.LifecycleRule(
                     expiration=cdk.Duration.days(1),

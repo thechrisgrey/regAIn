@@ -59,8 +59,8 @@ def _compute_skill_score(
     score = min(1.0, sum(recency_weight_i) / EVIDENCE_THRESHOLD)
 
     Args:
-        evidence_records: Evidence dicts, each expected to have a "date" or
-            "completedAt" key with an ISO timestamp.
+        evidence_records: Evidence dicts, each expected to have a "date",
+            "completedAt", or "createdAt" key with an ISO timestamp.
         reference_date: The "now" reference point (UTC).
 
     Returns:
@@ -71,7 +71,7 @@ def _compute_skill_score(
 
     total_weight = 0.0
     for record in evidence_records:
-        date_str = record.get("date") or record.get("completedAt") or ""
+        date_str = record.get("date") or record.get("completedAt") or record.get("createdAt") or ""
         total_weight += _recency_weight(date_str, reference_date)
 
     return min(1.0, total_weight / EVIDENCE_THRESHOLD)

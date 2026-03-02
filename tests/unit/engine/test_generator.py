@@ -176,6 +176,25 @@ class TestBuildEvidenceBySkill:
         result = _build_evidence_by_skill(records)
         assert len(result["java"]) == 1
 
+    def test_handles_singular_skillTag_key(self):
+        records = [
+            {"skillTag": "Python", "createdAt": NOW_ISO},
+            {"skillTag": "Python", "createdAt": NOW_ISO},
+            {"skillTag": "SQL", "createdAt": NOW_ISO},
+        ]
+        result = _build_evidence_by_skill(records)
+        assert len(result["Python"]) == 2
+        assert len(result["SQL"]) == 1
+
+    def test_handles_mixed_skillTags_and_skillTag(self):
+        records = [
+            {"skillTags": ["python", "sql"], "date": NOW_ISO},
+            {"skillTag": "python", "createdAt": NOW_ISO},
+        ]
+        result = _build_evidence_by_skill(records)
+        assert len(result["python"]) == 2
+        assert len(result["sql"]) == 1
+
     def test_handles_missing_tags(self):
         records = [{"date": NOW_ISO}]
         result = _build_evidence_by_skill(records)

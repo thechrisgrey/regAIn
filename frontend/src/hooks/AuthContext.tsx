@@ -16,6 +16,7 @@ import {
   getCurrentUser,
   fetchAuthSession,
 } from 'aws-amplify/auth';
+import { requestCache } from '../services/cache';
 
 interface AuthUser {
   userId: string;
@@ -117,6 +118,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = useCallback(async () => {
     await amplifySignOut();
     tokenCache.current = null;
+    requestCache.clear();
     setUser(null);
   }, []);
 

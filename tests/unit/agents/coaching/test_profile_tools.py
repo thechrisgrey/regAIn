@@ -112,6 +112,30 @@ class TestUpdateUserProfile:
         assert result["error"] == "invalid_input"
         assert "No updates" in result["message"]
 
+    def test_update_rejects_protected_fields(self, dynamodb_tables: Dict[str, Any]) -> None:
+        """Attempting to update protected fields like dailyMissionGenCount is rejected."""
+        tools = _load_tools(dynamodb_tables)
+        result = tools.update_user_profile("user-1", {"dailyMissionGenCount": 0})
+
+        assert result["error"] == "invalid_input"
+        assert "Protected field" in result["message"]
+        assert "dailyMissionGenCount" in result["message"]
+
+    def test_update_allows_valid_fields(self, dynamodb_tables: Dict[str, Any]) -> None:
+        """Updating allowed fields like targetRole succeeds."""
+        table = dynamodb_tables["user_profiles"]
+        table.put_item(Item={
+            "userId": "user-valid",
+            "email": "[email]",
+            "name": "Valid User",
+            "createdAt": "2025-01-01T00:00:00Z",
+        })
+
+        tools = _load_tools(dynamodb_tables)
+        result = tools.update_user_profile("user-valid", {"targetRole": "PM"})
+
+        assert result.get("targetRole") == "PM"
+
     def test_returns_error_when_table_not_configured(self, aws_credentials: None) -> None:
         """Updating when the table env var is missing returns an error dict."""
         import os

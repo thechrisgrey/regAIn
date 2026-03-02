@@ -207,11 +207,15 @@ class AgentStack(cdk.Stack):
             )
         )
 
-        for table in self.tables.values():
-            table.grant_read_write_data(voice_lambda)
+        self.tables["UserProfiles"].grant_read_write_data(voice_lambda)
+        self.tables["Campaigns"].grant_read_write_data(voice_lambda)
+        self.tables["MissionHistory"].grant_read_write_data(voice_lambda)
+        self.tables["EvidenceVault"].grant_read_write_data(voice_lambda)
+        self.tables["MarketData"].grant_read_data(voice_lambda)
+        self.tables["WebSocketConnections"].grant_read_write_data(voice_lambda)
 
     def _upgrade_coaching_lambda_permissions(self) -> None:
-        """Add Bedrock permissions and full DynamoDB access to the existing Coaching Lambda."""
+        """Add Bedrock permissions and scoped DynamoDB access to the existing Coaching Lambda."""
         self.coaching_lambda.add_to_role_policy(self._bedrock_policy())
         self.coaching_lambda.add_to_role_policy(self._agentcore_memory_policy())
         self.coaching_lambda.add_to_role_policy(self._agentcore_gateway_policy())
@@ -242,9 +246,12 @@ class AgentStack(cdk.Stack):
                 "AGENTCORE_GATEWAY_ENDPOINT", "pending-agentcore-deploy",
             )
 
-        # Grant read/write on all tables (upgrades from read-only on UserProfiles)
-        for table in self.tables.values():
-            table.grant_read_write_data(self.coaching_lambda)
+        # Grant scoped DynamoDB access (upgrades from read-only on UserProfiles)
+        self.tables["UserProfiles"].grant_read_write_data(self.coaching_lambda)
+        self.tables["Campaigns"].grant_read_write_data(self.coaching_lambda)
+        self.tables["MissionHistory"].grant_read_write_data(self.coaching_lambda)
+        self.tables["EvidenceVault"].grant_read_write_data(self.coaching_lambda)
+        self.tables["MarketData"].grant_read_data(self.coaching_lambda)
 
         # Wire Resume Lambda + S3 bucket so coaching tools can invoke resume generation.
         # Uses string ARNs and inline IAM policies (not construct references) to avoid
@@ -350,8 +357,12 @@ class AgentStack(cdk.Stack):
             )
         )
 
-        for table in self.tables.values():
-            table.grant_read_write_data(chat_stream_lambda)
+        self.tables["UserProfiles"].grant_read_write_data(chat_stream_lambda)
+        self.tables["Campaigns"].grant_read_write_data(chat_stream_lambda)
+        self.tables["MissionHistory"].grant_read_write_data(chat_stream_lambda)
+        self.tables["EvidenceVault"].grant_read_write_data(chat_stream_lambda)
+        self.tables["MarketData"].grant_read_data(chat_stream_lambda)
+        self.tables["WebSocketConnections"].grant_read_write_data(chat_stream_lambda)
 
         # CloudWatch PutMetricData for business metrics
         chat_stream_lambda.add_to_role_policy(

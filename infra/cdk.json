@@ -1,6 +1,7 @@
 {
   "app": "/Users/cperez/Desktop/altivum/regain/.venv/bin/python app.py",
   "context": {
-    "@aws-cdk/core:stackRelativeExports": true
+    "@aws-cdk/core:stackRelativeExports": true,
+    "retain_data": false
   }
 }

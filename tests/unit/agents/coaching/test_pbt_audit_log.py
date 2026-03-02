@@ -204,7 +204,9 @@ _safe_param_key = st.text(
     min_size=1,
     max_size=20,
     alphabet=st.characters(whitelist_categories=("L",)),
-).filter(lambda k: k.lower() not in SENSITIVE_KEYS)
+).filter(lambda k: k.lower() not in SENSITIVE_KEYS and not any(
+    p.search(k) for p in SENSITIVE_PATTERNS
+))
 
 _safe_params = st.dictionaries(
     keys=_safe_param_key,

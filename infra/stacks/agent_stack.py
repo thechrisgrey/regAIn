@@ -14,7 +14,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from .monitoring import add_lambda_alarms, create_websocket_waf
+from .monitoring import add_lambda_alarms
 
 
 class AgentStack(cdk.Stack):
@@ -55,18 +55,6 @@ class AgentStack(cdk.Stack):
         self._grant_chat_stream_lambda_permissions(chat_stream_lambda)
 
         self._create_monitoring(voice_lambda, chat_stream_lambda)
-
-        # WAF protection for WebSocket APIs (matching REST API WAF rules)
-        voice_ws_stage_arn = (
-            f"arn:aws:apigateway:{cdk.Aws.REGION}::"
-            f"/apis/{self.websocket_api.api_id}/stages/{self.websocket_stage.stage_name}"
-        )
-        create_websocket_waf(self, "VoiceWebSocket", stage_arn=voice_ws_stage_arn)
-        chat_ws_stage_arn = (
-            f"arn:aws:apigateway:{cdk.Aws.REGION}::"
-            f"/apis/{self.chat_websocket_api.api_id}/stages/{self.chat_websocket_stage.stage_name}"
-        )
-        create_websocket_waf(self, "ChatWebSocket", stage_arn=chat_ws_stage_arn)
 
     def _create_strands_layer(self) -> _lambda.LayerVersion:
         """Create the Strands Agents Lambda Layer from the local build directory."""

@@ -46,6 +46,7 @@ db = DynamoDBClient()
 # Fields the LLM is allowed to update on a user profile.
 # Anything outside this set (e.g. rate-limit counters, S3 keys) is rejected.
 _PROFILE_ALLOWED_FIELDS: frozenset[str] = frozenset({
+    # camelCase (DynamoDB convention)
     "skills", "targetRole", "persona", "onboardingCompleted",
     "firstName", "lastName", "currentRole", "company", "industry",
     "yearsExperience", "yearsInRole", "highestPosition",
@@ -53,6 +54,13 @@ _PROFILE_ALLOWED_FIELDS: frozenset[str] = frozenset({
     "transferableSkills", "technicalSkills", "domainKnowledge",
     "experienceYears", "roleHistory", "name",
     "skillsFocus",
+    # snake_case (tool docstring convention, also accepted by DynamoDB)
+    "target_role", "onboarding_completed",
+    "first_name", "last_name", "current_role",
+    "years_experience", "years_in_role", "highest_position",
+    "coach_notes", "experience_years", "role_history",
+    "transferable_skills", "technical_skills", "domain_knowledge",
+    "skills_focus",
 })
 
 # Lazy-load taxonomy normalization

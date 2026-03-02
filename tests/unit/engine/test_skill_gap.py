@@ -81,6 +81,11 @@ class TestComputeSkillScore:
         score = _compute_skill_score(records, NOW)
         assert score > 0.0
 
+    def test_uses_createdAt_fallback(self):
+        records = [{"createdAt": NOW.isoformat()}]
+        score = _compute_skill_score(records, NOW)
+        assert score > 0.0
+
 
 # ---------------------------------------------------------------------------
 # analyze_skill_gaps

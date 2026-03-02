@@ -43,6 +43,18 @@ ERR_VALIDATION = "validation"
 
 db = DynamoDBClient()
 
+# Fields the LLM is allowed to update on a user profile.
+# Anything outside this set (e.g. rate-limit counters, S3 keys) is rejected.
+_PROFILE_ALLOWED_FIELDS: frozenset[str] = frozenset({
+    "skills", "targetRole", "persona", "onboardingCompleted",
+    "firstName", "lastName", "currentRole", "company", "industry",
+    "yearsExperience", "yearsInRole", "highestPosition",
+    "story", "coachNotes", "experience",
+    "transferableSkills", "technicalSkills", "domainKnowledge",
+    "experienceYears", "roleHistory", "name",
+    "skillsFocus",
+})
+
 # Lazy-load taxonomy normalization
 _taxonomy_mod = importlib.import_module("backend.handlers.market_intel.taxonomy")
 _normalize_skill = _taxonomy_mod.normalize_skill
@@ -127,6 +139,14 @@ def update_user_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]
     """
     if not updates:
         return {"error": "invalid_input", "error_kind": ERR_VALIDATION, "message": "No updates provided."}
+
+    forbidden = set(updates.keys()) - _PROFILE_ALLOWED_FIELDS
+    if forbidden:
+        return {
+            "error": "invalid_input",
+            "error_kind": ERR_VALIDATION,
+            "message": f"Protected field(s) cannot be updated: {sorted(forbidden)}",
+        }
 
     try:
         response = db.update_item(

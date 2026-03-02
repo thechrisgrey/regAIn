@@ -11,8 +11,8 @@ class RequestCache {
     const entry = this.store.get(key) as CacheEntry<T> | undefined;
     const now = Date.now();
 
-    // Deduplicate: if a fetch is already in-flight for this key, return same promise
-    if (entry?.promise) {
+    // Deduplicate initial fetch: if no cached data exists, return the in-flight promise
+    if (entry?.promise && !entry.timestamp) {
       return entry.promise;
     }
 
@@ -59,13 +59,24 @@ class RequestCache {
   }
 
   private revalidate<T>(key: string, fetcher: () => Promise<T>): void {
-    fetcher()
+    const existing = this.store.get(key) as CacheEntry<T> | undefined;
+    if (existing?.promise) return;
+
+    const revalPromise = fetcher()
       .then((data) => {
-        this.store.set(key, { data, timestamp: Date.now() });
+        const current = this.store.get(key);
+        if (current?.promise === revalPromise) {
+          this.store.set(key, { data, timestamp: Date.now() });
+        }
       })
       .catch(() => {
-        // Stale data remains; next request will retry
+        const current = this.store.get(key);
+        if (current?.promise === revalPromise) {
+          this.store.set(key, { ...current, promise: undefined });
+        }
       });
+
+    this.store.set(key, { ...existing!, promise: revalPromise });
   }
 }
 

@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import importlib
 import logging
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -81,7 +82,11 @@ def _build_evidence_by_skill(
     """
     by_skill: dict[str, list[dict[str, Any]]] = {}
     for record in evidence_records:
-        tags = record.get("skillTags") or record.get("skill_tags") or []
+        tags = (
+            record.get("skillTags")
+            or record.get("skill_tags")
+            or ([record["skillTag"]] if record.get("skillTag") else [])
+        )
         for tag in tags:
             by_skill.setdefault(tag, []).append(record)
     return by_skill
@@ -418,12 +423,30 @@ def complete_mission(
         timestamp=now,
     )
 
-    # --- Step 3: Update difficulty ---
+    # --- Steps 3+4: Parallel fetch (independent after transition) ---
     category = updated_mission.get("category", "")
-    mission_history = db.query(
-        "mission_history",
-        Key("userId").eq(user_id),
-    )
+    campaign_id = updated_mission.get("campaignId") or updated_mission.get("campaign_id", "")
+
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        history_future = executor.submit(
+            db.query, "mission_history", Key("userId").eq(user_id),
+        )
+        campaign_future = executor.submit(
+            db.get_item, "campaigns", {"userId": user_id, "campaignId": campaign_id},
+        )
+        evidence_future = executor.submit(
+            db.query, "evidence_vault", Key("userId").eq(user_id),
+        )
+
+        try:
+            mission_history = history_future.result(timeout=8)
+            campaign = campaign_future.result(timeout=8)
+            evidence_records = evidence_future.result(timeout=8)
+        except FuturesTimeoutError:
+            logger.error("complete_mission parallel fetch timed out for user=%s", user_id)
+            raise
+
+    # Difficulty update
     difficulty_state = compute_difficulty_state(user_id, mission_history)
 
     old_level = difficulty_state.levels.get(category)
@@ -439,11 +462,7 @@ def complete_mission(
     if old_level is not None and new_level is not None and old_level != new_level:
         difficulty_change = {category: new_level}
 
-    # --- Step 4: Evaluate phase gate ---
-    campaign_id = updated_mission.get("campaignId") or updated_mission.get("campaign_id", "")
-    campaign = db.get_item(
-        "campaigns", {"userId": user_id, "campaignId": campaign_id}
-    )
+    # Phase gate evaluation
     raw_phase = (campaign or {}).get("phase", "foundation")
     current_phase = _map_phase(raw_phase)
 
@@ -455,10 +474,6 @@ def complete_mission(
     if not any(m.get("missionId") == mission_id for m in completed_missions):
         completed_missions.append(updated_mission)
 
-    evidence_records = db.query(
-        "evidence_vault",
-        Key("userId").eq(user_id),
-    )
     evidence_by_skill = _build_evidence_by_skill(evidence_records)
 
     gate_result = evaluate_gate(

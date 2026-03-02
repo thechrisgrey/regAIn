@@ -17,6 +17,9 @@ class DataStack(cdk.Stack):
 
         self.tables: dict[str, dynamodb.Table] = {}
 
+        retain = self.node.try_get_context("retain_data")
+        self._removal_policy = cdk.RemovalPolicy.RETAIN if retain else cdk.RemovalPolicy.DESTROY
+
         self._create_user_profiles_table()
         self._create_campaigns_table()
         self._create_mission_history_table()
@@ -39,7 +42,7 @@ class DataStack(cdk.Stack):
                 name="userId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=self._removal_policy,
             point_in_time_recovery=True,
         )
 
@@ -56,7 +59,7 @@ class DataStack(cdk.Stack):
                 name="campaignId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=self._removal_policy,
             point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
@@ -83,7 +86,7 @@ class DataStack(cdk.Stack):
                 name="missionId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=self._removal_policy,
             point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
@@ -119,7 +122,7 @@ class DataStack(cdk.Stack):
                 name="evidenceId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=self._removal_policy,
             point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
@@ -146,7 +149,7 @@ class DataStack(cdk.Stack):
                 name="timestamp", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=self._removal_policy,
             point_in_time_recovery=True,
         )
         table.add_global_secondary_index(
@@ -170,7 +173,7 @@ class DataStack(cdk.Stack):
                 name="sessionId", type=dynamodb.AttributeType.STRING
             ),
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=self._removal_policy,
             point_in_time_recovery=True,
         )
         table.add_global_secondary_index(

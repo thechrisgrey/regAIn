@@ -13,6 +13,7 @@ from hypothesis import given, settings, strategies as st
 from infra.stacks.auth_stack import AuthStack
 from infra.stacks.data_stack import DataStack
 from infra.stacks.api_stack import ApiStack
+from infra.stacks.agent_stack import AgentStack
 
 
 # Expected Lambda count in the API stack.
@@ -210,3 +211,86 @@ def test_lambda_has_least_privilege_table_access(lambda_index: int) -> None:
             f"Lambda {lambda_name} ({logical_id}) has no DynamoDB table access at all. "
             f"Expected access to: {allowed}"
         )
+
+
+# ---------------------------------------------------------------------------
+# AgentStack least-privilege tests
+# ---------------------------------------------------------------------------
+
+# Expected Lambda count in the Agent stack (Voice + ChatStream).
+EXPECTED_AGENT_LAMBDA_COUNT = 2
+
+# Map each Agent Lambda logical-name fragment to the tables it MAY access.
+AGENT_ALLOWED_TABLES: dict[str, set[str]] = {
+    "VoiceSession": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "WebSocketConnections"},
+    "ChatStream": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "WebSocketConnections"},
+}
+
+
+def _synth_agent_template() -> dict:
+    """Synthesize the full CDK app in-process and return the AgentStack template."""
+    app = cdk.App()
+    auth_stack = AuthStack(app, "RegainAuthStack")
+    data_stack = DataStack(app, "RegainDataStack")
+    api_stack = ApiStack(
+        app,
+        "RegainApiStack",
+        user_pool=auth_stack.user_pool,
+        tables=data_stack.tables,
+    )
+    AgentStack(
+        app,
+        "RegainAgentStack",
+        user_pool=auth_stack.user_pool,
+        tables=data_stack.tables,
+        coaching_lambda=api_stack.coaching_lambda,
+    )
+    assembly = app.synth()
+    return assembly.get_stack_by_name("RegainAgentStack").template
+
+
+def _identify_agent_lambda_name(logical_id: str) -> str | None:
+    """Map a CloudFormation logical ID back to a known Agent Lambda name fragment."""
+    for name in AGENT_ALLOWED_TABLES:
+        if name.lower() in logical_id.lower():
+            return name
+    return None
+
+
+@given(
+    lambda_index=st.integers(min_value=0, max_value=EXPECTED_AGENT_LAMBDA_COUNT - 1),
+)
+@settings(max_examples=50, deadline=None)
+def test_agent_lambda_has_least_privilege_table_access(lambda_index: int) -> None:
+    """For Agent Lambda functions, each function's IAM role should only grant
+    permissions to the specific DynamoDB tables it needs, not all tables.
+    """
+    template = _synth_agent_template()
+    lambdas = _get_lambda_functions(template)
+
+    assert len(lambdas) == EXPECTED_AGENT_LAMBDA_COUNT, (
+        f"Expected {EXPECTED_AGENT_LAMBDA_COUNT} Agent Lambda functions, found {len(lambdas)}"
+    )
+
+    logical_id, _ = lambdas[lambda_index % len(lambdas)]
+    lambda_name = _identify_agent_lambda_name(logical_id)
+    assert lambda_name is not None, (
+        f"Could not identify Agent Lambda name from logical ID: {logical_id}"
+    )
+
+    accessed_tables = _get_tables_accessed_by_lambda(template, logical_id)
+    allowed = AGENT_ALLOWED_TABLES[lambda_name]
+    forbidden = ALL_TABLE_NAMES - allowed
+
+    # The Lambda must NOT have access to tables outside its allowed set
+    unauthorized = accessed_tables & forbidden
+    assert not unauthorized, (
+        f"Agent Lambda {lambda_name} ({logical_id}) has access to tables it should "
+        f"not: {unauthorized}. Allowed: {allowed}, Found: {accessed_tables}"
+    )
+
+    # The Lambda MUST have access to at least one of its allowed tables
+    assert accessed_tables, (
+        f"Agent Lambda {lambda_name} ({logical_id}) has no DynamoDB table access at all. "
+        f"Expected access to: {allowed}"
+    )

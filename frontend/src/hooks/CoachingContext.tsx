@@ -114,6 +114,8 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const intermediateTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const fadeTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hasStepsRef = useRef(false);
+  const deltaBufferRef = useRef('');
+  const rafIdRef = useRef<number | undefined>(undefined);
 
   // Stable ref to getToken — ensures reconnection always uses fresh token
   // after 55-min Cognito refresh (Part C: stale closure fix).
@@ -146,6 +148,23 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     hasStepsRef.current = false;
     clearTimeout(fadeTimerRef.current);
     fadeTimerRef.current = undefined;
+  }, []);
+
+  const flushDeltaBuffer = useCallback(() => {
+    rafIdRef.current = undefined;
+    const buffered = deltaBufferRef.current;
+    if (buffered) {
+      deltaBufferRef.current = '';
+      setStreamingText((prev) => prev + buffered);
+    }
+  }, []);
+
+  const cancelAndFlushBuffer = useCallback(() => {
+    if (rafIdRef.current !== undefined) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = undefined;
+    }
+    deltaBufferRef.current = '';
   }, []);
 
   const resetStreamTimeout = useCallback(() => {
@@ -234,7 +253,10 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
                 fadeTimerRef.current = undefined;
               }, 600);
             }
-            setStreamingText((prev) => prev + data.text);
+            deltaBufferRef.current += data.text;
+            if (rafIdRef.current === undefined) {
+              rafIdRef.current = requestAnimationFrame(flushDeltaBuffer);
+            }
             resetStreamTimeout();
           } else if (data.type === 'thinking') {
             const toolName = data.tool || '';
@@ -253,6 +275,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             });
             resetStreamTimeout();
           } else if (data.type === 'done') {
+            cancelAndFlushBuffer();
             const finalText = data.text || '';
             activeMessageRef.current = null;
             setMessages((prev) => [
@@ -264,6 +287,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             clearToolSteps();
             clearStreamTimeout();
           } else if (data.type === 'error') {
+            cancelAndFlushBuffer();
             setError(data.message || 'An error occurred');
             if (activeMessageRef.current) {
               lastFailedMessageRef.current = activeMessageRef.current;
@@ -284,6 +308,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         // If we were streaming when the connection dropped, save the
         // active message for auto-resend on reconnect.
         if (activeMessageRef.current) {
+          cancelAndFlushBuffer();
           lastFailedMessageRef.current = activeMessageRef.current;
           activeMessageRef.current = null;
           setStreamingText('');
@@ -314,7 +339,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     } catch {
       setError('Failed to connect to coaching session');
     }
-  }, [resetStreamTimeout, clearStreamTimeout, clearToolSteps]);
+  }, [resetStreamTimeout, clearStreamTimeout, clearToolSteps, flushDeltaBuffer, cancelAndFlushBuffer]);
 
   // Keep connectRef in sync so the onclose handler always calls the latest version.
   useEffect(() => {
@@ -329,12 +354,13 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     return () => {
       clearTimeout(reconnectTimer.current);
       clearStreamTimeout();
+      cancelAndFlushBuffer();
       clearTimeout(fadeTimerRef.current);
       clearTimeout(intermediateTimeoutRef.current);
       wsRef.current?.close();
       wsRef.current = null;
     };
-  }, [connect, clearStreamTimeout]);
+  }, [connect, clearStreamTimeout, cancelAndFlushBuffer]);
 
   const sendMessage = useCallback(
     async (message: string, sessionType: string): Promise<boolean> => {
@@ -354,6 +380,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       if (!message.startsWith('[greeting_request]')) {
         setMessages((prev) => [...prev, { role: 'user', content: message }]);
       }
+      cancelAndFlushBuffer();
       setStreaming(true);
       setStreamingText('');
       setStreamHint(null);
@@ -372,7 +399,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       );
       return true;
     },
-    [connect, resetStreamTimeout, clearToolSteps],
+    [connect, resetStreamTimeout, clearToolSteps, cancelAndFlushBuffer],
   );
 
   // Keep sendMessageRef in sync so the onopen auto-resend uses the latest version.
@@ -381,6 +408,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   }, [sendMessage]);
 
   const clearConversation = useCallback(() => {
+    cancelAndFlushBuffer();
     setMessages([]);
     setStreamingText('');
     setError(null);
@@ -388,7 +416,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     sessionStorage.removeItem(SESSION_STORAGE_KEY);
     // Prevent re-greeting after manual clear.
     greetingSentRef.current = true;
-  }, [clearToolSteps]);
+  }, [clearToolSteps, cancelAndFlushBuffer]);
 
   const setSessionType = useCallback((st: string) => {
     sessionTypeRef.current = st;

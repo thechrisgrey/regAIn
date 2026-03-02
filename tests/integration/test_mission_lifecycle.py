@@ -203,7 +203,7 @@ class TestMissionCompletion:
         assert len(evidence) == 1
         assert evidence[0]["missionId"] == mission_id
         assert evidence[0]["reflection"] == "Learned a lot"
-        assert evidence[0]["skillTag"] == "Python"
+        assert evidence[0]["skillTag"] == "Python Programming"
 
     def test_complete_evidence_has_correct_composite_key(self, seeded_user, integration_tables):
         """get_item on EvidenceVault with userId + evidenceId."""

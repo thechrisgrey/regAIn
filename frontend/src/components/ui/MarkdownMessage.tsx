@@ -1,3 +1,4 @@
+import { memo } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import type { Components } from 'react-markdown';
@@ -68,10 +69,10 @@ const components: Components = {
   ),
 };
 
-export default function MarkdownMessage({ content }: MarkdownMessageProps) {
+export default memo(function MarkdownMessage({ content }: MarkdownMessageProps) {
   return (
     <Markdown remarkPlugins={[remarkGfm]} components={components}>
       {content}
     </Markdown>
   );
-}
+});

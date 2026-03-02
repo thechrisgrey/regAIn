@@ -11,6 +11,8 @@ from pathlib import Path
 
 import aws_cdk as cdk
 from aws_cdk import (
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cw_actions,
     aws_dynamodb as dynamodb,
     aws_events as events,
     aws_events_targets as targets,
@@ -18,6 +20,7 @@ from aws_cdk import (
     aws_lambda as _lambda,
     aws_logs as logs,
     aws_sns as sns,
+    aws_sqs as sqs,
     custom_resources as cr,
 )
 from constructs import Construct
@@ -163,7 +166,17 @@ class MarketIntelStack(cdk.Stack):
         - O*NET: 1st of each month at 6 AM UTC
         - BLS: 15th of each month at 6 AM UTC
         - USAJobs: Every Monday at 6 AM UTC
+
+        All targets use a shared SQS DLQ so failed invocations are captured
+        for inspection rather than silently lost.
         """
+        dlq = sqs.Queue(
+            self, "RegainIngestionDlq",
+            queue_name="RegainIngestionDlq",
+            retention_period=cdk.Duration.days(14),
+            enforce_ssl=True,
+        )
+
         events.Rule(
             self,
             "RegainOnetSchedule",
@@ -171,7 +184,7 @@ class MarketIntelStack(cdk.Stack):
             schedule=events.Schedule.cron(
                 minute="0", hour="6", day="1", month="*", year="*",
             ),
-            targets=[targets.LambdaFunction(lambdas["Onet"])],
+            targets=[targets.LambdaFunction(lambdas["Onet"], dead_letter_queue=dlq)],
         )
 
         events.Rule(
@@ -181,7 +194,7 @@ class MarketIntelStack(cdk.Stack):
             schedule=events.Schedule.cron(
                 minute="0", hour="6", day="15", month="*", year="*",
             ),
-            targets=[targets.LambdaFunction(lambdas["Bls"])],
+            targets=[targets.LambdaFunction(lambdas["Bls"], dead_letter_queue=dlq)],
         )
 
         events.Rule(
@@ -191,8 +204,31 @@ class MarketIntelStack(cdk.Stack):
             schedule=events.Schedule.cron(
                 minute="0", hour="6", week_day="MON", month="*", year="*",
             ),
-            targets=[targets.LambdaFunction(lambdas["Usajobs"])],
+            targets=[targets.LambdaFunction(lambdas["Usajobs"], dead_letter_queue=dlq)],
         )
+
+        # Alarm on DLQ messages — ingestion failures should not go unnoticed.
+        alert_topic = sns.Topic.from_topic_arn(
+            self, "IngestionAlertTopic",
+            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+        )
+        dlq_alarm = cloudwatch.Metric(
+            namespace="AWS/SQS",
+            metric_name="ApproximateNumberOfMessagesVisible",
+            dimensions_map={"QueueName": dlq.queue_name},
+            statistic="Sum",
+            period=cdk.Duration.minutes(5),
+        ).create_alarm(
+            self,
+            "IngestionDlqAlarm",
+            alarm_name="Regain-IngestionDlq-MessagesVisible",
+            alarm_description="Ingestion DLQ has unprocessed messages",
+            threshold=0,
+            evaluation_periods=1,
+            comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+            treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
+        )
+        dlq_alarm.add_alarm_action(cw_actions.SnsAction(alert_topic))
 
     def _create_seed_trigger(self, seed_fn: _lambda.Function) -> None:
         """Create a CDK custom resource that invokes the seed handler on deployment.

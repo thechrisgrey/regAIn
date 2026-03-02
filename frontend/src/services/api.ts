@@ -98,8 +98,9 @@ async function apiRequest<T>(
           return await doFetch();
         } catch (err) {
           lastError = err;
-          if (err instanceof ApiError && err.statusCode >= 500 && attempt < MAX_RETRIES) {
-            await new Promise((r) => setTimeout(r, (attempt + 1) * 100));
+          if (err instanceof ApiError && (err.statusCode >= 500 || err.statusCode === 429) && attempt < MAX_RETRIES) {
+            const delay = err.statusCode === 429 ? 1000 : (attempt + 1) * 100;
+            await new Promise((r) => setTimeout(r, delay));
             continue;
           }
           throw err;
@@ -114,10 +115,11 @@ async function apiRequest<T>(
       } catch (err) {
         if (
           err instanceof ApiError &&
-          (err.statusCode >= 500 || err.statusCode === 408) &&
+          (err.statusCode >= 500 || err.statusCode === 408 || err.statusCode === 429) &&
           err.errorKind !== 'CONFLICT'
         ) {
-          await new Promise((r) => setTimeout(r, MUTATION_RETRY_DELAY_MS));
+          const retryDelay = err.statusCode === 429 ? 1000 : MUTATION_RETRY_DELAY_MS;
+          await new Promise((r) => setTimeout(r, retryDelay));
           return await doFetch();
         }
         throw err;

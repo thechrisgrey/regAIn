@@ -272,10 +272,10 @@ class DataStack(cdk.Stack):
                     alarm_name=f"Regain-{table_name}-{label}",
                     alarm_description=(
                         f"{table_name} DynamoDB {label} events > 0 "
-                        "over two consecutive 5-minute periods"
+                        "in a single 5-minute period"
                     ),
                     threshold=0,
-                    evaluation_periods=2,
+                    evaluation_periods=1,
                     comparison_operator=cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
                     treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
                 )

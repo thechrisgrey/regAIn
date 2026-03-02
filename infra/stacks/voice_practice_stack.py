@@ -16,7 +16,7 @@ from aws_cdk import (
 )
 from constructs import Construct
 
-from .monitoring import add_lambda_alarms
+from .monitoring import add_lambda_alarms, create_websocket_waf
 
 
 class VoicePracticeStack(cdk.Stack):
@@ -49,6 +49,14 @@ class VoicePracticeStack(cdk.Stack):
         self._grant_permissions()
         self._grant_profile_lambda_permissions()
         self._create_monitoring()
+
+        # WAF protection for WebSocket API (matching REST API WAF rules)
+        vp_ws_stage_arn = (
+            f"arn:aws:apigateway:{cdk.Aws.REGION}::"
+            f"/apis/{self.websocket_api.api_id}/stages/{self.websocket_stage.stage_name}"
+        )
+        create_websocket_waf(self, "VoicePracticeWebSocket", stage_arn=vp_ws_stage_arn)
+
         self._create_outputs()
 
     def _table_env(self) -> dict[str, str]:

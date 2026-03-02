@@ -7,3 +7,4 @@ cdk.out/
 infra/.venv/
 infra/layer_build/
 _layer/
+.DS_Store

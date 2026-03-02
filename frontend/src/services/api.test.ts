@@ -84,6 +84,55 @@ describe('API service', () => {
     });
   });
 
+  describe('429 retry behavior', () => {
+    it('retries GET requests on 429 and succeeds on retry', async () => {
+      const failResponse = {
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        json: () => Promise.resolve({ error: 'Rate limited' }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve({ campaign: { id: '1' } }),
+      };
+
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce(failResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const result = await api.dashboard.get(MOCK_TOKEN);
+      expect(result).toEqual({ campaign: { id: '1' } });
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    });
+
+    it('retries POST mutations on 429 and succeeds on retry', async () => {
+      const failResponse = {
+        ok: false,
+        status: 429,
+        statusText: 'Too Many Requests',
+        json: () => Promise.resolve({ error: 'Rate limited' }),
+      };
+      const successResponse = {
+        ok: true,
+        status: 200,
+        statusText: 'OK',
+        json: () => Promise.resolve({ userId: '123' }),
+      };
+
+      globalThis.fetch = vi.fn()
+        .mockResolvedValueOnce(failResponse)
+        .mockResolvedValueOnce(successResponse);
+
+      const data = { email: 'test@example.com', firstName: 'Test', lastName: 'User', persona: 'veteran' as const, currentRole: 'QA Lead', targetRole: 'Engineer' };
+      const result = await api.onboarding.create(data, MOCK_TOKEN);
+      expect(result).toEqual({ userId: '123' });
+      expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('typed API functions', () => {
     it('calls POST /onboarding for onboarding.create', async () => {
       const data = { email: 'test@example.com', firstName: 'Test', lastName: 'User', persona: 'veteran' as const, currentRole: 'QA Lead', targetRole: 'Engineer' };

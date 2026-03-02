@@ -5,6 +5,7 @@ from aws_cdk import (
     aws_cloudwatch_actions as cw_actions,
     aws_lambda as _lambda,
     aws_sns as sns,
+    aws_wafv2 as wafv2,
 )
 from constructs import Construct
 
@@ -79,3 +80,78 @@ def add_lambda_alarms(
         treat_missing_data=cloudwatch.TreatMissingData.NOT_BREACHING,
     )
     throttle_alarm.add_alarm_action(sns_action)
+
+
+def create_websocket_waf(
+    scope: Construct,
+    name: str,
+    stage_arn: str,
+) -> wafv2.CfnWebACL:
+    """Attach a WAF WebACL to a WebSocket API stage.
+
+    Creates a WebACL with IP rate limiting (2000 req/5min) and
+    AWSManagedRulesCommonRuleSet — matching the REST API WAF in ApiStack.
+
+    Args:
+        scope: CDK construct scope.
+        name: Logical name prefix for constructs (e.g. "VoiceWebSocket").
+        stage_arn: The ARN of the WebSocket API stage to protect.
+
+    Returns:
+        The CfnWebACL construct.
+    """
+    web_acl = wafv2.CfnWebACL(
+        scope,
+        f"Regain{name}WebAcl",
+        name=f"Regain{name}WebAcl",
+        scope="REGIONAL",
+        default_action=wafv2.CfnWebACL.DefaultActionProperty(allow={}),
+        visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+            cloud_watch_metrics_enabled=True,
+            metric_name=f"Regain{name}WebAcl",
+            sampled_requests_enabled=True,
+        ),
+        rules=[
+            wafv2.CfnWebACL.RuleProperty(
+                name="RateLimit",
+                priority=1,
+                action=wafv2.CfnWebACL.RuleActionProperty(block={}),
+                statement=wafv2.CfnWebACL.StatementProperty(
+                    rate_based_statement=wafv2.CfnWebACL.RateBasedStatementProperty(
+                        limit=2000,
+                        aggregate_key_type="IP",
+                    ),
+                ),
+                visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                    cloud_watch_metrics_enabled=True,
+                    metric_name=f"Regain{name}RateLimit",
+                    sampled_requests_enabled=True,
+                ),
+            ),
+            wafv2.CfnWebACL.RuleProperty(
+                name="AWSCommonRules",
+                priority=2,
+                override_action=wafv2.CfnWebACL.OverrideActionProperty(none={}),
+                statement=wafv2.CfnWebACL.StatementProperty(
+                    managed_rule_group_statement=wafv2.CfnWebACL.ManagedRuleGroupStatementProperty(
+                        vendor_name="AWS",
+                        name="AWSManagedRulesCommonRuleSet",
+                    ),
+                ),
+                visibility_config=wafv2.CfnWebACL.VisibilityConfigProperty(
+                    cloud_watch_metrics_enabled=True,
+                    metric_name=f"Regain{name}CommonRules",
+                    sampled_requests_enabled=True,
+                ),
+            ),
+        ],
+    )
+
+    wafv2.CfnWebACLAssociation(
+        scope,
+        f"Regain{name}WebAclAssociation",
+        resource_arn=stage_arn,
+        web_acl_arn=web_acl.attr_arn,
+    )
+
+    return web_acl

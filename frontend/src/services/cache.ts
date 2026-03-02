@@ -1,3 +1,5 @@
+const MAX_CACHE_SIZE = 100;
+
 interface CacheEntry<T = unknown> {
   data: T;
   timestamp: number;
@@ -6,6 +8,13 @@ interface CacheEntry<T = unknown> {
 
 class RequestCache {
   private store = new Map<string, CacheEntry>();
+
+  private evict(): void {
+    while (this.store.size > MAX_CACHE_SIZE) {
+      const oldest = this.store.keys().next().value;
+      if (oldest !== undefined) this.store.delete(oldest);
+    }
+  }
 
   get<T>(key: string, fetcher: () => Promise<T>, ttlMs: number): Promise<T> {
     const entry = this.store.get(key) as CacheEntry<T> | undefined;
@@ -31,6 +40,7 @@ class RequestCache {
     const promise = fetcher()
       .then((data) => {
         this.store.set(key, { data, timestamp: Date.now() });
+        this.evict();
         return data;
       })
       .catch((err) => {
@@ -43,6 +53,7 @@ class RequestCache {
       });
 
     this.store.set(key, { data: undefined as T, timestamp: 0, promise });
+    this.evict();
     return promise;
   }
 
@@ -67,6 +78,7 @@ class RequestCache {
         const current = this.store.get(key);
         if (current?.promise === revalPromise) {
           this.store.set(key, { data, timestamp: Date.now() });
+          this.evict();
         }
       })
       .catch(() => {

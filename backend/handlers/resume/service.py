@@ -67,7 +67,7 @@ class ResumeService:
         self.s3 = s3_client or boto3.client("s3")
         self.bedrock = bedrock_client or boto3.client("bedrock-runtime")
         self.bucket_name = os.environ.get("RESUME_BUCKET_NAME", "")
-        self.model_id = os.environ.get("BEDROCK_MODEL_ID", "us.amazon.nova-lite-v2:0")
+        self.model_id = os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
 
     def generate_resume(self, user_id: str) -> ResumeResult:
         """Orchestrate full resume generation: gather, synthesize, store.

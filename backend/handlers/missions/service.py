@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Optional
 from boto3.dynamodb.conditions import Attr as boto3_attr, Key
 
 from backend.engine.generator import generate_daily_mission
+from backend.handlers.market_intel.taxonomy import normalize_skill as _normalize_skill
 from backend.engine.models import GenerationResult
 from backend.handlers.shared.dynamodb import DynamoDBClient
 from backend.handlers.shared.models import Evidence, Mission
@@ -98,6 +99,12 @@ class MissionsService:
         count = int(profile.get("webMissionGenCount", 0))
         remaining = max(0, _GENERATE_DAILY_LIMIT - count)
         return {"dailyRemaining": remaining, "dailyLimit": _GENERATE_DAILY_LIMIT}
+
+    @staticmethod
+    def _normalize_tag(raw_tag: str) -> str:
+        """Normalize a skill tag to its canonical name, falling back to raw input."""
+        canonical = _normalize_skill(raw_tag)
+        return canonical if canonical else raw_tag
 
     # ------------------------------------------------------------------
     # List missions
@@ -238,7 +245,9 @@ class MissionsService:
             user_id=user_id,
             evidence_id=evidence_id,
             mission_id=mission_id,
-            skill_tag=data.get("skill_tags", ["general"])[0] if data.get("skill_tags") else "general",
+            skill_tag=self._normalize_tag(
+                data.get("skill_tags", ["general"])[0] if data.get("skill_tags") else "general"
+            ),
             reflection=data.get("reflection", ""),
             created_at=now,
             artifact_url=data.get("artifact_url"),

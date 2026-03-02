@@ -19,9 +19,17 @@ export default function CoachingPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const draftRef = useRef('');
 
+  const scrollRafRef = useRef<number | undefined>(undefined);
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    if (scrollRafRef.current !== undefined) return;
+    scrollRafRef.current = requestAnimationFrame(() => {
+      scrollRafRef.current = undefined;
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
   }, [messages, streamingText]);
+  useEffect(() => () => {
+    if (scrollRafRef.current !== undefined) cancelAnimationFrame(scrollRafRef.current);
+  }, []);
 
   // Keep context session type in sync with the dropdown selection.
   useEffect(() => {

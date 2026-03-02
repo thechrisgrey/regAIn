@@ -101,6 +101,25 @@ describe('RequestCache', () => {
     expect(newFetcher).toHaveBeenCalledOnce();
   });
 
+  it('evicts oldest entries when cache exceeds MAX_CACHE_SIZE', async () => {
+    // Fill cache beyond the 100-entry limit
+    for (let i = 0; i < 105; i++) {
+      const fetcher = vi.fn().mockResolvedValue({ i });
+      await requestCache.get(`/lru/${i}`, fetcher, 30_000);
+    }
+
+    // Oldest entries (0-4) should have been evicted
+    const refetcher = vi.fn().mockResolvedValue({ refetched: true });
+    await requestCache.get('/lru/0', refetcher, 30_000);
+    expect(refetcher).toHaveBeenCalledOnce(); // Had to re-fetch because evicted
+
+    // Recent entry (104) should still be cached
+    const cachedFetcher = vi.fn().mockResolvedValue({ cached: true });
+    const result = await requestCache.get('/lru/104', cachedFetcher, 30_000);
+    expect(cachedFetcher).not.toHaveBeenCalled(); // Still in cache
+    expect(result).toEqual({ i: 104 });
+  });
+
   it('concurrent stale reads trigger only one background revalidation', async () => {
     let resolveReval: (v: unknown) => void;
     const initialFetcher = vi.fn().mockResolvedValue({ version: 1 });

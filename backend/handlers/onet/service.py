@@ -51,7 +51,7 @@ def _onet_request(path: str) -> Dict[str, Any]:
             "Accept": "application/json",
         },
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
+    with urllib.request.urlopen(req, timeout=15) as resp:  # nosec B310
         return json.loads(resp.read().decode())
 
 

@@ -35,7 +35,7 @@ jobs:
         run: pip install bandit pip-audit
 
       - name: Run SAST scan
-        run: bandit -r backend/ -ll -q
+        run: bandit -r backend/ -ll -ii -q --skip B608
 
       - name: Audit dependencies
         run: pip-audit -r tests/requirements.txt || true

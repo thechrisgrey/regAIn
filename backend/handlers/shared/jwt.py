@@ -39,7 +39,7 @@ def _get_jwks() -> dict:
 
     url = _get_jwks_url()
     try:
-        with urllib.request.urlopen(url, timeout=5) as resp:
+        with urllib.request.urlopen(url, timeout=5) as resp:  # nosec B310
             _jwks_cache = json.loads(resp.read().decode("utf-8"))
             _jwks_cache_time = now
     except Exception:

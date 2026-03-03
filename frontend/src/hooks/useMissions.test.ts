@@ -3,6 +3,8 @@ import { renderHook, act } from '@testing-library/react';
 import { useMissions } from './useMissions';
 import { api } from '../services/api';
 
+const mockRefreshMissions = vi.fn();
+
 vi.mock('./useAuth', () => ({
   useAuth: vi.fn(() => ({
     getToken: vi.fn().mockResolvedValue('mock-token'),
@@ -17,6 +19,17 @@ vi.mock('../services/api', () => ({
       generate: vi.fn(),
     },
   },
+}));
+
+vi.mock('./useSharedData', () => ({
+  useSharedData: vi.fn(() => ({
+    dashboard: { data: null, loading: false, error: null },
+    missions: { data: [], loading: false, error: null, dailyRemaining: null, dailyLimit: null },
+    evidence: { data: [], loading: false, error: null },
+    refreshDashboard: vi.fn(),
+    refreshMissions: mockRefreshMissions,
+    refreshEvidence: vi.fn(),
+  })),
 }));
 
 beforeEach(() => {
@@ -43,67 +56,14 @@ describe('useMissions', () => {
   });
 
   describe('fetchMissions', () => {
-    it('populates missions and dailyRemaining on success', async () => {
-      const mockMissions = [
-        { userId: 'u1', missionId: 'm1', campaignId: 'c1', title: 'Test', description: 'Desc', status: 'pending' as const },
-      ];
-      (api.missions.list as ReturnType<typeof vi.fn>).mockResolvedValue({
-        missions: mockMissions,
-        dailyRemaining: 3,
-        dailyLimit: 6,
-      });
-
+    it('delegates to refreshMissions', async () => {
       const { result } = renderHook(() => useMissions());
 
       await act(async () => {
         await result.current.fetchMissions();
       });
 
-      expect(result.current.missions).toEqual(mockMissions);
-      expect(result.current.dailyRemaining).toBe(3);
-      expect(result.current.dailyLimit).toBe(6);
-      expect(result.current.loading).toBe(false);
-      expect(result.current.error).toBeNull();
-    });
-
-    it('sets loading during fetch', async () => {
-      let resolveApi: (value: unknown) => void;
-      (api.missions.list as ReturnType<typeof vi.fn>).mockImplementation(
-        () => new Promise((resolve) => { resolveApi = resolve; }),
-      );
-
-      const { result } = renderHook(() => useMissions());
-
-      let fetchPromise: Promise<void>;
-      await act(async () => {
-        fetchPromise = result.current.fetchMissions();
-        // Let getToken() microtask resolve so setLoading(true) fires
-        await new Promise((r) => setTimeout(r, 10));
-      });
-
-      expect(result.current.loading).toBe(true);
-
-      await act(async () => {
-        resolveApi!({ missions: [], dailyRemaining: 5, dailyLimit: 6 });
-        await fetchPromise!;
-      });
-
-      expect(result.current.loading).toBe(false);
-    });
-
-    it('handles API error', async () => {
-      (api.missions.list as ReturnType<typeof vi.fn>).mockRejectedValue(
-        new Error('Network error'),
-      );
-
-      const { result } = renderHook(() => useMissions());
-
-      await act(async () => {
-        await result.current.fetchMissions();
-      });
-
-      expect(result.current.error).toBe('Network error');
-      expect(result.current.loading).toBe(false);
+      expect(mockRefreshMissions).toHaveBeenCalledTimes(1);
     });
   });
 

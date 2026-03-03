@@ -83,6 +83,7 @@ class ApiStack(cdk.Stack):
             "EVIDENCE_VAULT_TABLE": self.tables["EvidenceVault"].table_name,
             "MARKET_DATA_TABLE": self.tables["MarketData"].table_name,
             "USER_POOL_ID": self.user_pool.user_pool_id,
+            "ALLOWED_ORIGIN": "https://regain.altivum.ai",
         }
         if "IdempotencyKeys" in self.tables:
             env["IDEMPOTENCY_TABLE"] = self.tables["IdempotencyKeys"].table_name

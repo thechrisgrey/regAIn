@@ -1,6 +1,7 @@
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { cachedGet } from '../services/api';
 import NavIcon from './ui/NavIcon';
 import ErrorBoundary from './ErrorBoundary';
 import RouteLoader from './RouteLoader';
@@ -19,8 +20,15 @@ const navItems = [
   { to: '/profile', label: 'Profile', icon: 'profile' },
 ];
 
+const prefetchRoutes: Record<string, string[]> = {
+  '/dashboard': ['/dashboard'],
+  '/missions': ['/missions'],
+  '/evidence': ['/evidence'],
+  '/analytics': ['/analytics'],
+};
+
 export default function Layout() {
-  const { user, signOut } = useAuth();
+  const { user, signOut, getToken } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   // Escape key closes sidebar
@@ -40,6 +48,19 @@ export default function Layout() {
   }, [sidebarOpen]);
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
+
+  const handlePrefetch = useCallback(
+    (to: string) => {
+      const endpoints = prefetchRoutes[to];
+      if (!endpoints) return;
+      void getToken().then((token) => {
+        for (const endpoint of endpoints) {
+          void cachedGet(endpoint, token);
+        }
+      });
+    },
+    [getToken],
+  );
 
   return (
     <div className="flex min-h-screen">
@@ -106,6 +127,7 @@ export default function Layout() {
               <NavLink
                 to={to}
                 onClick={closeSidebar}
+                onMouseEnter={() => handlePrefetch(to)}
                 className={({ isActive }) =>
                   `relative flex items-center gap-3 rounded-[var(--radius-button)] px-3 py-2 min-h-[44px] text-sm font-medium transition-colors duration-150 ${
                     isActive

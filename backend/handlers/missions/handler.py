@@ -13,7 +13,7 @@ from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.idempotency import with_idempotency
 from backend.handlers.shared.responses import error_response, success_response
 from backend.handlers.shared.structured_log import get_logger
-from backend.handlers.shared.validation import validate_body
+from backend.handlers.shared.validation import validate_body, validate_string_field
 from backend.handlers.missions.service import MissionsService, _GenerateRateLimitExceeded
 
 logger = logging.getLogger(__name__)
@@ -63,7 +63,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if http_method == "GET" and resource == "/missions":
             params = event.get("queryStringParameters") or {}
-            limit = min(int(params.get("limit", "50")), 200)
+            try:
+                limit = min(int(params.get("limit", "50")), 200)
+            except (ValueError, TypeError):
+                return error_response("Invalid limit parameter", 400, error_kind="VALIDATION")
             cursor = params.get("cursor")
             page = service.list_missions(
                 user_id, status=params.get("status"), limit=limit, cursor=cursor,
@@ -88,6 +91,26 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 body = validate_body(event)
             except ValueError as exc:
                 return error_response(str(exc), 400)
+
+            reflection = body.get("reflection")
+            if reflection is not None and not isinstance(reflection, str):
+                return error_response("reflection must be a string", 400, error_kind="VALIDATION")
+            if isinstance(reflection, str) and len(reflection) > 5000:
+                return error_response("reflection exceeds maximum length of 5000", 400, error_kind="VALIDATION")
+
+            raw_tags = body.get("skill_tags", [])
+            if not isinstance(raw_tags, list):
+                return error_response("skill_tags must be a list", 400, error_kind="VALIDATION")
+            if len(raw_tags) > 10:
+                return error_response("Maximum 10 skill tags allowed", 400, error_kind="VALIDATION")
+            for tag in raw_tags:
+                if not isinstance(tag, str) or len(tag) > 50:
+                    return error_response("Each skill tag must be a string under 50 characters", 400, error_kind="VALIDATION")
+
+            artifact_url = body.get("artifact_url")
+            if artifact_url is not None:
+                if not isinstance(artifact_url, str) or len(artifact_url) > 2048:
+                    return error_response("artifact_url must be a string under 2048 characters", 400, error_kind="VALIDATION")
 
             # Inject deterministic idempotency key if not provided.
             headers = event.get("headers") or {}

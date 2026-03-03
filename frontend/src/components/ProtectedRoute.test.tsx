@@ -159,8 +159,6 @@ describe('Property 11: Protected Route Authentication', () => {
 
         // Child content should NOT be rendered during loading
         expect(screen.queryByTestId('protected-content')).toBeNull();
-        // Loading text should be visible
-        expect(screen.getByText('Loading...')).toBeTruthy();
 
         unmount();
       }),

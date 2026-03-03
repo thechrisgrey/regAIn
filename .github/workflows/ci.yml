@@ -31,6 +31,15 @@ jobs:
       - name: Run tests
         run: pytest tests/ -x -q
 
+      - name: Install security tools
+        run: pip install bandit pip-audit
+
+      - name: Run SAST scan
+        run: bandit -r backend/ -ll -q
+
+      - name: Audit dependencies
+        run: pip-audit -r tests/requirements.txt || true
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -78,7 +87,7 @@ jobs:
         run: pip install -r infra/requirements.txt
 
       - name: Install CDK CLI
-        run: npm install -g aws-cdk
+        run: npm install -g aws-cdk@2.177.0
 
       - name: Create Lambda layer stubs
         run: mkdir -p infra/layer_build/python _layer/python
@@ -87,12 +96,12 @@ jobs:
         working-directory: infra
         run: cdk synth --quiet --app "python app.py"
 
-      - name: Validate synthesis produced all 8 stacks
+      - name: Validate synthesis produced all 9 stacks
         working-directory: infra
         run: |
           STACK_COUNT=$(ls -1 cdk.out/*.template.json 2>/dev/null | wc -l)
           echo "Synthesized $STACK_COUNT stacks"
-          if [ "$STACK_COUNT" -lt 8 ]; then
-            echo "ERROR: Expected 8 stacks, got $STACK_COUNT"
+          if [ "$STACK_COUNT" -ne 9 ]; then
+            echo "ERROR: Expected 9 stacks, got $STACK_COUNT"
             exit 1
           fi

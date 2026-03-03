@@ -70,6 +70,7 @@ class AgentCoreStack(cdk.Stack):
         self._policy_audit_log_group = self._create_audit_log_group()
         self._trace_log_group = self._create_trace_log_group()
         self.create_alarms()
+        self.create_dashboard()
 
         self._code_interpreter_bucket = self._create_code_interpreter_bucket()
         self._grant_profile_lambda_permissions()

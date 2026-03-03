@@ -214,6 +214,14 @@ class AgentStack(cdk.Stack):
         self.tables["MarketData"].grant_read_data(voice_lambda)
         self.tables["WebSocketConnections"].grant_read_write_data(voice_lambda)
 
+        voice_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+                conditions={"StringEquals": {"cloudwatch:namespace": "REGAIN/Business"}},
+            )
+        )
+
     def _upgrade_coaching_lambda_permissions(self) -> None:
         """Add Bedrock permissions and scoped DynamoDB access to the existing Coaching Lambda."""
         self.coaching_lambda.add_to_role_policy(self._bedrock_policy())
@@ -371,6 +379,17 @@ class AgentStack(cdk.Stack):
                 resources=["*"],
                 conditions={
                     "StringEquals": {"cloudwatch:namespace": "REGAIN/Business"},
+                },
+            )
+        )
+
+        # CloudWatch PutMetricData for coaching operational metrics
+        chat_stream_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["cloudwatch:PutMetricData"],
+                resources=["*"],
+                conditions={
+                    "StringEquals": {"cloudwatch:namespace": "REGAIN/Coaching"},
                 },
             )
         )

@@ -2,6 +2,7 @@ import { lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { CoachingProvider } from './hooks/CoachingContext';
+import { DataProvider } from './hooks/DataContext';
 import { NetworkStatusProvider } from './hooks/useNetworkStatus';
 import { MutationBusProvider } from './hooks/MutationBusContext';
 import { ToastProvider } from './components/ui';
@@ -38,11 +39,13 @@ function App() {
             path="/"
             element={
               <ProtectedRoute>
-                <CoachingProvider>
-                  <NetworkStatusProvider>
-                    <Layout />
-                  </NetworkStatusProvider>
-                </CoachingProvider>
+                <DataProvider>
+                  <CoachingProvider>
+                    <NetworkStatusProvider>
+                      <Layout />
+                    </NetworkStatusProvider>
+                  </CoachingProvider>
+                </DataProvider>
               </ProtectedRoute>
             }
           >

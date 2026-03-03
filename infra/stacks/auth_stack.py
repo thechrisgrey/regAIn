@@ -10,6 +10,8 @@ class AuthStack(cdk.Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
         super().__init__(scope, construct_id, **kwargs)
 
+        retain_data = self.node.try_get_context("retain_data") or False
+
         self.user_pool = cognito.UserPool(
             self,
             "RegainUserPool",
@@ -24,7 +26,7 @@ class AuthStack(cdk.Stack):
                 require_digits=True,
             ),
             account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
-            removal_policy=cdk.RemovalPolicy.DESTROY,
+            removal_policy=cdk.RemovalPolicy.RETAIN if retain_data else cdk.RemovalPolicy.DESTROY,
             mfa=cognito.Mfa.OPTIONAL,
             mfa_second_factor=cognito.MfaSecondFactor(sms=False, otp=True),
         )

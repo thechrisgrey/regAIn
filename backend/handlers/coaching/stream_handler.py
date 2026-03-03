@@ -16,6 +16,7 @@ from typing import Any, Callable, Dict, Optional
 
 import boto3
 
+from backend.handlers.shared.structured_log import get_logger
 from backend.handlers.shared.ws_connections import (
     delete_connection,
     load_connection,
@@ -81,8 +82,11 @@ class _StreamingToolHooks:
     instead of appearing stuck.
     """
 
-    def __init__(self, send_fn: Callable[[Dict[str, Any]], None]) -> None:
+    def __init__(self, send_fn: Callable[[Dict[str, Any]], None], tracer: Any = None) -> None:
         self._send = send_fn
+        self._tracer = tracer
+        self._tool_spans: Dict[str, Any] = {}
+        self._tool_start_times: Dict[str, float] = {}
 
     def register_hooks(self, registry: Any, **kwargs: Any) -> None:
         from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent
@@ -93,11 +97,28 @@ class _StreamingToolHooks:
     def _on_before_tool(self, event: Any) -> None:
         tool_name = event.tool_use.get("name", "")
         logger.info("Agent calling tool: %s", tool_name)
+        if self._tracer:
+            cm = self._tracer.tool_invocation(tool_name)
+            cm.__enter__()
+            self._tool_spans[tool_name] = cm
+        self._tool_start_times[tool_name] = time.time()
         self._send({"type": "thinking", "tool": tool_name})
 
     def _on_after_tool(self, event: Any) -> None:
         tool_name = event.tool_use.get("name", "")
         logger.info("Tool completed: %s", tool_name)
+        cm = self._tool_spans.pop(tool_name, None)
+        if cm:
+            cm.__exit__(None, None, None)
+        start = self._tool_start_times.pop(tool_name, None)
+        if start:
+            duration_ms = (time.time() - start) * 1000
+            try:
+                from backend.handlers.shared.metrics import emit_metric
+                emit_metric("ToolInvocationCount", dimensions={"ToolName": tool_name}, namespace="REGAIN/Coaching")
+                emit_metric("ToolInvocationLatency", value=duration_ms, unit="Milliseconds", dimensions={"ToolName": tool_name}, namespace="REGAIN/Coaching")
+            except Exception:
+                pass
         self._send({"type": "thinking_complete", "tool": tool_name})
 
 
@@ -119,6 +140,7 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
     If a token is present in query params, validate immediately.
     Otherwise, accept unauthenticated and require auth in $default.
     """
+    slog = get_logger(event, __name__)
     connection_id = event["requestContext"]["connectionId"]
     query_params = event.get("queryStringParameters") or {}
     token = query_params.get("token", "")
@@ -127,7 +149,7 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
     if token:
         user_id = _validate_cognito_token(token)
         if not user_id:
-            logger.warning("Auth failed for chat connection %s", connection_id)
+            slog.warning("Auth failed for chat connection %s", connection_id)
             return {"statusCode": 401}
 
         trace_id = str(uuid.uuid4())
@@ -142,8 +164,9 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
 
         from backend.handlers.shared.metrics import emit_metric
         emit_metric("coaching_session_started")
+        emit_metric("SessionCount", namespace="REGAIN/Coaching")
 
-        logger.info("Chat connection %s established for user %s (trace=%s)", connection_id, user_id, trace_id)
+        slog.info("Chat connection %s established for user %s (trace=%s)", connection_id, user_id, trace_id)
         return {"statusCode": 200}
 
     # No token in query params — accept unauthenticated, require first-message auth.
@@ -157,12 +180,13 @@ def _handle_connect(event: Dict[str, Any]) -> Dict[str, Any]:
     _connections[connection_id] = conn_data
     store_connection(connection_id, conn_data)
 
-    logger.info("Chat connection %s accepted unauthenticated (first-message auth required)", connection_id)
+    slog.info("Chat connection %s accepted unauthenticated (first-message auth required)", connection_id)
     return {"statusCode": 200}
 
 
 def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     """Clean up on WebSocket disconnect and persist session memory."""
+    slog = get_logger(event, __name__)
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.pop(connection_id, None)
 
@@ -189,7 +213,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
                 "The user disconnected from the chat interface.",
             )
         except Exception:
-            logger.exception(
+            slog.exception(
                 "Failed to store disconnect memory for user %s (trace=%s)", user_id, trace_id
             )
 
@@ -203,7 +227,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
         except (ValueError, TypeError):
             pass
 
-    logger.info("Chat connection %s disconnected (trace=%s)", connection_id, trace_id)
+    slog.info("Chat connection %s disconnected (trace=%s)", connection_id, trace_id)
     return {"statusCode": 200}
 
 
@@ -219,6 +243,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
       - type: "auth"
       - token: str (JWT)
     """
+    slog = get_logger(event, __name__)
     connection_id = event["requestContext"]["connectionId"]
     conn_info = _connections.get(connection_id)
 
@@ -228,7 +253,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             _connections[connection_id] = conn_info
 
     if not conn_info:
-        logger.warning("No user mapping for chat connection %s", connection_id)
+        slog.warning("No user mapping for chat connection %s", connection_id)
         return {"statusCode": 400}
 
     # Parse the incoming message payload.
@@ -279,8 +304,9 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
             from backend.handlers.shared.metrics import emit_metric
             emit_metric("coaching_session_started")
+            emit_metric("SessionCount", namespace="REGAIN/Coaching")
 
-            logger.info("Chat connection %s authenticated via first-message for user %s", connection_id, user_id)
+            slog.info("Chat connection %s authenticated via first-message for user %s", connection_id, user_id)
             return {"statusCode": 200}
         else:
             _post_to_connection(event, connection_id, {
@@ -329,7 +355,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
     def _on_timeout():
         timed_out.set()
-        logger.warning("Safety timeout fired for user %s", user_id)
+        slog.warning("Safety timeout fired for user %s", user_id)
         send_ws({
             "type": "error",
             "message": "Response took too long. Please try a simpler question.",
@@ -359,9 +385,9 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         from backend.agents.coaching.agent import create_coaching_agent
         from backend.agents.coaching.instrumentation import SessionTracer
 
-        tool_hooks = _StreamingToolHooks(send_fn=send_ws)
-
         tracer = SessionTracer(session_id=connection_id, user_id=user_id)
+        tool_hooks = _StreamingToolHooks(send_fn=send_ws, tracer=tracer)
+
         with tracer.coaching_session():
             agent = create_coaching_agent(
                 user_id=user_id,
@@ -377,7 +403,12 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         if not timed_out.is_set() and not connection_stale.is_set():
             send_ws({"type": "done", "text": str(result)})
     except Exception:
-        logger.exception("Chat stream failed for user %s (trace=%s)", user_id, trace_id)
+        slog.exception("Chat stream failed for user %s (trace=%s)", user_id, trace_id)
+        try:
+            from backend.handlers.shared.metrics import emit_metric
+            emit_metric("ErrorCount", namespace="REGAIN/Coaching")
+        except Exception:
+            pass
         if not timed_out.is_set() and not connection_stale.is_set():
             send_ws({
                 "type": "error",

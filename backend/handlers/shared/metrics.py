@@ -36,6 +36,7 @@ def emit_metric(
     value: float = 1.0,
     unit: str = "Count",
     dimensions: dict[str, str] | None = None,
+    namespace: str | None = None,
 ) -> None:
     """Emit a single metric data point to CloudWatch.
 
@@ -44,6 +45,7 @@ def emit_metric(
         value: Numeric value (default 1.0).
         unit: CloudWatch unit string (default ``"Count"``).
         dimensions: Optional mapping of dimension name to value.
+        namespace: CloudWatch namespace (default ``REGAIN/Business``).
     """
     if _DISABLED:
         return
@@ -60,7 +62,7 @@ def emit_metric(
             ]
 
         _get_client().put_metric_data(
-            Namespace=_NAMESPACE,
+            Namespace=namespace or _NAMESPACE,
             MetricData=[metric_data],
         )
     except Exception:

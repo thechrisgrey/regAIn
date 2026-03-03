@@ -1,30 +1,12 @@
-import { useState, useCallback } from 'react';
-import { useAuth } from './useAuth';
-import { useOnMutation } from './useMutationBus';
-import { api } from '../services/api';
-import type { DashboardResponse } from '../types';
+import { useSharedData } from './useSharedData';
 
 export function useDashboard() {
-  const { getToken } = useAuth();
-  const [data, setData] = useState<DashboardResponse | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { dashboard, refreshDashboard } = useSharedData();
 
-  const fetchDashboard = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const token = await getToken();
-      const result = await api.dashboard.get(token);
-      setData(result);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  }, [getToken]);
-
-  useOnMutation('mission:completed', fetchDashboard);
-
-  return { data, loading, error, fetchDashboard };
+  return {
+    data: dashboard.data,
+    loading: dashboard.loading,
+    error: dashboard.error,
+    fetchDashboard: refreshDashboard,
+  };
 }

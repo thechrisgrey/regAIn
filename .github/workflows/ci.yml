@@ -31,6 +31,15 @@ jobs:
       - name: Run tests
         run: pytest tests/ -x -q
 
+      - name: Install security tools
+        run: pip install bandit pip-audit
+
+      - name: Run SAST scan
+        run: bandit -r backend/ -ll -ii -q --skip B608
+
+      - name: Audit dependencies
+        run: pip-audit -r tests/requirements.txt || true
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
@@ -92,7 +101,7 @@ jobs:
         run: |
           STACK_COUNT=$(ls -1 cdk.out/*.template.json 2>/dev/null | wc -l)
           echo "Synthesized $STACK_COUNT stacks"
-          if [ "$STACK_COUNT" -lt 8 ]; then
+          if [ "$STACK_COUNT" -ne 8 ]; then
             echo "ERROR: Expected 8 stacks, got $STACK_COUNT"
             exit 1
           fi

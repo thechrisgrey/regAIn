@@ -45,6 +45,19 @@ class TestStoreConnection:
         assert item["sessionType"] == "interview"
         assert "ttl" in item
 
+    def test_stores_auth_deadline(self, mock_table: MagicMock) -> None:
+        from backend.handlers.shared.ws_connections import store_connection
+
+        store_connection("conn-1", {
+            "user_id": "",
+            "authenticated": "false",
+            "auth_deadline": "1234567890.0",
+        })
+
+        item = mock_table.put_item.call_args[1]["Item"]
+        assert item["authDeadline"] == "1234567890.0"
+        assert item["authenticated"] == "false"
+
     def test_silent_failure_on_error(self, mock_table: MagicMock) -> None:
         from backend.handlers.shared.ws_connections import store_connection
 
@@ -72,7 +85,30 @@ class TestLoadConnection:
         assert result == {
             "user_id": "user-def",
             "session_type": "mission_discussion",
+            "authenticated": "false",
+            "auth_deadline": "",
+        }
+
+    def test_returns_authenticated_connection(self, mock_table: MagicMock) -> None:
+        from backend.handlers.shared.ws_connections import load_connection
+
+        mock_table.get_item.return_value = {
+            "Item": {
+                "connectionId": "conn-3",
+                "userId": "user-auth",
+                "sessionType": "checkin",
+                "authenticated": "true",
+                "authDeadline": "1234567890.0",
+            }
+        }
+
+        result = load_connection("conn-3")
+
+        assert result == {
+            "user_id": "user-auth",
+            "session_type": "checkin",
             "authenticated": "true",
+            "auth_deadline": "1234567890.0",
         }
 
     def test_returns_none_when_not_found(self, mock_table: MagicMock) -> None:

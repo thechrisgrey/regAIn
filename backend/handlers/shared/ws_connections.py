@@ -44,6 +44,8 @@ def store_connection(connection_id: str, data: Dict[str, str]) -> None:
             "authenticated": data.get("authenticated", "true"),
             "ttl": int(time.time()) + 3 * 3600,  # 3-hour TTL
         }
+        if "auth_deadline" in data:
+            item["authDeadline"] = data["auth_deadline"]
         _get_table().put_item(Item=item)
     except Exception:
         logger.exception("Failed to store connection %s in DynamoDB", connection_id)
@@ -101,7 +103,8 @@ def load_connection(connection_id: str) -> Optional[Dict[str, str]]:
         return {
             "user_id": item.get("userId", ""),
             "session_type": item.get("sessionType", ""),
-            "authenticated": item.get("authenticated", "true"),
+            "authenticated": item.get("authenticated", "false"),
+            "auth_deadline": item.get("authDeadline", ""),
         }
     except Exception:
         logger.exception("Failed to load connection %s from DynamoDB", connection_id)

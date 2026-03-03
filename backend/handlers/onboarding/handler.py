@@ -11,7 +11,7 @@ from typing import Any, Dict
 from backend.handlers.shared.auth import get_user_id
 from backend.handlers.shared.responses import error_response, success_response
 from backend.handlers.shared.structured_log import get_logger
-from backend.handlers.shared.validation import validate_body
+from backend.handlers.shared.validation import validate_body, validate_string_field
 from backend.handlers.onboarding.service import OnboardingService
 
 logger = logging.getLogger(__name__)
@@ -45,6 +45,19 @@ def _validate_input(body: Dict[str, Any]) -> str | None:
 
     if body["persona"] not in VALID_PERSONAS:
         return f"Invalid persona: {body['persona']}"
+
+    try:
+        validate_string_field(body, "target_role", max_length=200, required=True)
+        validate_string_field(body, "first_name", max_length=100, required=True)
+        validate_string_field(body, "last_name", max_length=100, required=True)
+        validate_string_field(body, "current_role", max_length=200)
+        validate_string_field(body, "company", max_length=200)
+        validate_string_field(body, "industry", max_length=200)
+        validate_string_field(body, "story", max_length=5000)
+        validate_string_field(body, "coach_notes", max_length=2000)
+        validate_string_field(body, "highest_position", max_length=200)
+    except ValueError as exc:
+        return str(exc)
 
     return None
 

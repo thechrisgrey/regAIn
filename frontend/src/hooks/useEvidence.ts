@@ -1,53 +1,71 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
-import { useOnMutation } from './useMutationBus';
+import { useSharedData } from './useSharedData';
 import { api } from '../services/api';
 import type { Evidence } from '../types';
 
 export function useEvidence() {
   const { getToken } = useAuth();
-  const [evidence, setEvidence] = useState<Evidence[]>([]);
+  const { evidence: shared, refreshEvidence } = useSharedData();
+
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  // Local evidence override for filtered fetches and pagination appends
+  const [localEvidence, setLocalEvidence] = useState<Evidence[] | null>(null);
+
+  const evidence = localEvidence ?? shared.data;
 
   const fetchEvidence = useCallback(
     async (skillTag?: string) => {
-      setLoading(true);
-      setError(null);
-      try {
-        const token = await getToken();
-        const result = await api.evidence.list(token, skillTag);
-        setEvidence(result.evidence);
-        setNextCursor(result.nextCursor);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
-      } finally {
-        setLoading(false);
+      if (skillTag) {
+        // Filtered fetch is local-only — shared context holds the unfiltered list.
+        setActionLoading(true);
+        setActionError(null);
+        try {
+          const token = await getToken();
+          const result = await api.evidence.list(token, skillTag);
+          setLocalEvidence(result.evidence);
+          setNextCursor(result.nextCursor);
+        } catch (err) {
+          setActionError(err instanceof Error ? err.message : 'An error occurred');
+        } finally {
+          setActionLoading(false);
+        }
+      } else {
+        setLocalEvidence(null);
+        setActionError(null);
+        await refreshEvidence();
       }
     },
-    [getToken],
+    [getToken, refreshEvidence],
   );
 
   const loadMore = useCallback(
     async (skillTag?: string) => {
       if (!nextCursor) return;
-      setLoading(true);
+      setActionLoading(true);
       try {
         const token = await getToken();
         const result = await api.evidence.list(token, skillTag, 50, nextCursor);
-        setEvidence((prev) => [...prev, ...result.evidence]);
+        setLocalEvidence((prev) => [...(prev ?? shared.data), ...result.evidence]);
         setNextCursor(result.nextCursor);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'An error occurred');
+        setActionError(err instanceof Error ? err.message : 'An error occurred');
       } finally {
-        setLoading(false);
+        setActionLoading(false);
       }
     },
-    [getToken, nextCursor],
+    [getToken, nextCursor, shared.data],
   );
 
-  useOnMutation('mission:completed', fetchEvidence);
-
-  return { evidence, nextCursor, loading, error, fetchEvidence, loadMore };
+  return {
+    evidence,
+    nextCursor,
+    loading: shared.loading || actionLoading,
+    error: shared.error || actionError,
+    fetchEvidence,
+    loadMore,
+  };
 }

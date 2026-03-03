@@ -131,7 +131,7 @@ async function apiRequest<T>(
   }
 }
 
-function cachedGet<T>(endpoint: string, token: string, ttlMs = DEFAULT_CACHE_TTL_MS): Promise<T> {
+export function cachedGet<T>(endpoint: string, token: string, ttlMs = DEFAULT_CACHE_TTL_MS): Promise<T> {
   const key = endpoint;
   return requestCache.get<T>(key, () => apiRequest<T>(endpoint, { method: 'GET' }, token), ttlMs);
 }
@@ -230,17 +230,9 @@ export const api = {
   },
   voicePractice: {
     listSessions: (token: string) =>
-      apiRequest<VoiceSessionsResponse>(
-        '/voice-sessions',
-        { method: 'GET' },
-        token,
-      ),
+      cachedGet<VoiceSessionsResponse>('/voice-sessions', token, 10_000),
     getSession: (sessionId: string, token: string) =>
-      apiRequest<VoiceSessionDetailResponse>(
-        `/voice-sessions/${sessionId}`,
-        { method: 'GET' },
-        token,
-      ),
+      cachedGet<VoiceSessionDetailResponse>(`/voice-sessions/${sessionId}`, token, 10_000),
   },
   profile: {
     delete: (token: string) =>

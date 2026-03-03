@@ -76,7 +76,10 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return success_response({"suggestions": suggestions})
 
         params = event.get("queryStringParameters") or {}
-        limit = min(int(params.get("limit", "50")), 200)
+        try:
+            limit = min(int(params.get("limit", "50")), 200)
+        except (ValueError, TypeError):
+            return error_response("Invalid limit parameter", 400, error_kind="VALIDATION")
         cursor = params.get("cursor")
         service = EvidenceService()
         page = service.list_evidence(

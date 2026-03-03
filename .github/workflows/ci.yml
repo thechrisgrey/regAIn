@@ -96,12 +96,12 @@ jobs:
         working-directory: infra
         run: cdk synth --quiet --app "python app.py"
 
-      - name: Validate synthesis produced all 9 stacks
+      - name: Validate synthesis produced all 8 stacks
         working-directory: infra
         run: |
           STACK_COUNT=$(ls -1 cdk.out/*.template.json 2>/dev/null | wc -l)
           echo "Synthesized $STACK_COUNT stacks"
-          if [ "$STACK_COUNT" -ne 9 ]; then
-            echo "ERROR: Expected 9 stacks, got $STACK_COUNT"
+          if [ "$STACK_COUNT" -ne 8 ]; then
+            echo "ERROR: Expected 8 stacks, got $STACK_COUNT"
             exit 1
           fi

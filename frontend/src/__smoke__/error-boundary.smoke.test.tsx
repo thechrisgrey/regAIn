@@ -5,7 +5,8 @@
  * - Renders children normally when no error occurs
  * - Catches render errors and displays recovery UI
  */
-import { describe, it, expect, vi } from 'vitest';
+import { type ReactNode } from 'react';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import ErrorBoundary from '../components/ErrorBoundary';
 
@@ -22,7 +23,7 @@ function GoodChild() {
   return <p>Everything is fine</p>;
 }
 
-function BadChild(): JSX.Element {
+function BadChild(): ReactNode {
   throw new Error('Test explosion');
 }
 

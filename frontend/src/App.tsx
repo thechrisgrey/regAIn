@@ -1,5 +1,5 @@
 import { lazy } from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { createBrowserRouter, RouterProvider, Navigate } from 'react-router-dom';
 import { AuthProvider } from './hooks/AuthContext';
 import { CoachingProvider } from './hooks/CoachingContext';
 import { DataProvider } from './hooks/DataContext';
@@ -25,6 +25,45 @@ const ResumePage = lazy(() => import('./pages/ResumePage'));
 const OnetPage = lazy(() => import('./pages/OnetPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 
+const router = createBrowserRouter([
+  {
+    path: '/login',
+    element: <Login />,
+  },
+  {
+    path: '/',
+    element: (
+      <ProtectedRoute>
+        <DataProvider>
+          <CoachingProvider>
+            <NetworkStatusProvider>
+              <Layout />
+            </NetworkStatusProvider>
+          </CoachingProvider>
+        </DataProvider>
+      </ProtectedRoute>
+    ),
+    children: [
+      { index: true, element: <Navigate to="/dashboard" /> },
+      { path: 'onboarding', element: <Onboarding /> },
+      { path: 'dashboard', element: <Dashboard /> },
+      { path: 'coaching', element: <CoachingPage /> },
+      { path: 'voice-practice', element: <VoicePracticePage /> },
+      { path: 'voice-practice/:sessionId', element: <VoiceSessionDetailPage /> },
+      { path: 'missions', element: <Missions /> },
+      { path: 'evidence', element: <Evidence /> },
+      { path: 'analytics', element: <AnalyticsPage /> },
+      { path: 'resume', element: <ResumePage /> },
+      { path: 'onet', element: <OnetPage /> },
+      { path: 'profile', element: <Profile /> },
+    ],
+  },
+  {
+    path: '*',
+    element: <NotFound />,
+  },
+]);
+
 function App() {
   return (
     <AuthProvider>
@@ -32,39 +71,7 @@ function App() {
       <ToastProvider>
       <GlobalErrorHandler />
       <IntroVideo />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <DataProvider>
-                  <CoachingProvider>
-                    <NetworkStatusProvider>
-                      <Layout />
-                    </NetworkStatusProvider>
-                  </CoachingProvider>
-                </DataProvider>
-              </ProtectedRoute>
-            }
-          >
-            <Route index element={<Navigate to="/dashboard" />} />
-            <Route path="onboarding" element={<Onboarding />} />
-            <Route path="dashboard" element={<Dashboard />} />
-            <Route path="coaching" element={<CoachingPage />} />
-            <Route path="voice-practice" element={<VoicePracticePage />} />
-            <Route path="voice-practice/:sessionId" element={<VoiceSessionDetailPage />} />
-            <Route path="missions" element={<Missions />} />
-            <Route path="evidence" element={<Evidence />} />
-            <Route path="analytics" element={<AnalyticsPage />} />
-            <Route path="resume" element={<ResumePage />} />
-            <Route path="onet" element={<OnetPage />} />
-            <Route path="profile" element={<Profile />} />
-          </Route>
-          <Route path="*" element={<NotFound />} />
-        </Routes>
-      </BrowserRouter>
+      <RouterProvider router={router} />
       </ToastProvider>
       </MutationBusProvider>
     </AuthProvider>

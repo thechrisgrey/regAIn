@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 
 VALID_TRANSITIONS: dict[str, set[str]] = {
+    "pending": {"in_progress", "assigned", "skipped"},
     "generated": {"assigned"},
     "assigned": {"in_progress", "skipped", "expired"},
     "in_progress": {"completed", "skipped"},

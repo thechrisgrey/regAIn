@@ -737,6 +737,7 @@ class TestProperty8TableFailureError:
 
         mock_db.get_item = MagicMock(side_effect=mock_get_item)
         mock_db.query = MagicMock(side_effect=mock_query)
+        mock_db.query_all = MagicMock(side_effect=mock_query)
 
         service = ResumeService(
             db_client=mock_db,
@@ -787,6 +788,7 @@ class TestProperty8TableFailureError:
             return []
 
         mock_db.query = MagicMock(side_effect=mock_query)
+        mock_db.query_all = MagicMock(side_effect=mock_query)
 
         service = ResumeService(
             db_client=mock_db,

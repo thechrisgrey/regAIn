@@ -23,7 +23,10 @@ from backend.handlers.shared.nova_sonic import (
     ensure_event_loop,
     run_async,
 )
+from botocore.exceptions import ClientError
+
 from backend.handlers.shared.ws_connections import (
+    ConnectionGoneError,
     delete_connection,
     load_connection,
     store_connection,
@@ -101,6 +104,10 @@ def _post_to_connection(
             ConnectionId=connection_id,
             Data=json.dumps(data).encode("utf-8"),
         )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "GoneException":
+            raise ConnectionGoneError(connection_id) from exc
+        logger.exception("Failed to post message to connection %s", connection_id)
     except Exception:
         logger.exception("Failed to post message to connection %s", connection_id)
 
@@ -420,15 +427,26 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             session = NovaSonicSession()
             transcript: List[Dict[str, str]] = []
 
+            def _mark_session_gone() -> None:
+                sd = _sessions.get(connection_id)
+                if sd:
+                    sd["active"] = False
+
             def on_audio(base64_audio: str) -> None:
-                _post_to_connection(event, connection_id, {
-                    "type": "audio", "data": base64_audio,
-                })
+                try:
+                    _post_to_connection(event, connection_id, {
+                        "type": "audio", "data": base64_audio,
+                    })
+                except ConnectionGoneError:
+                    _mark_session_gone()
 
             def on_transcript(role: str, text: str) -> None:
-                _post_to_connection(event, connection_id, {
-                    "type": "transcript", "role": role, "text": text,
-                })
+                try:
+                    _post_to_connection(event, connection_id, {
+                        "type": "transcript", "role": role, "text": text,
+                    })
+                except ConnectionGoneError:
+                    _mark_session_gone()
                 transcript.append({
                     "role": role,
                     "text": text,
@@ -436,15 +454,18 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 })
 
             def on_state(state: str) -> None:
-                if state == "interrupted":
-                    _post_to_connection(event, connection_id, {
-                        "type": "clear_audio",
-                    })
-                else:
-                    _post_to_connection(event, connection_id, {
-                        "type": "state",
-                        "data": {"state": state},
-                    })
+                try:
+                    if state == "interrupted":
+                        _post_to_connection(event, connection_id, {
+                            "type": "clear_audio",
+                        })
+                    else:
+                        _post_to_connection(event, connection_id, {
+                            "type": "state",
+                            "data": {"state": state},
+                        })
+                except ConnectionGoneError:
+                    _mark_session_gone()
 
             ctx = _prefetch_context(session_type, user_id)
             system_prompt = _get_system_prompt(session_type, ctx)
@@ -534,8 +555,15 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.info("Connection %s disconnected (no session data)", connection_id)
         return {"statusCode": 200}
 
-    user_id = conn_info["user_id"]
-    session_type = conn_info["session_type"]
+    user_id = conn_info.get("user_id", "")
+    session_type = conn_info.get("session_type", "")
+
+    if not user_id:
+        logger.info(
+            "Connection %s disconnected before auth, skipping session record",
+            connection_id,
+        )
+        return {"statusCode": 200}
     transcript = session_data.get("transcript", [])
     start_time = session_data.get("start_time", datetime.now(timezone.utc))
     duration_seconds = int((datetime.now(timezone.utc) - start_time).total_seconds())

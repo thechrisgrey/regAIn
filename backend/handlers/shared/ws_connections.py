@@ -15,6 +15,11 @@ import boto3
 
 logger = logging.getLogger(__name__)
 
+
+class ConnectionGoneError(Exception):
+    """Raised when a WebSocket client has already disconnected."""
+
+
 _table = None
 
 

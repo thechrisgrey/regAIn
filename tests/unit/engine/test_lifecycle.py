@@ -28,6 +28,18 @@ def _make_mission(status: str = "generated", **kwargs) -> dict:
 
 
 class TestValidateTransition:
+    def test_pending_to_in_progress(self):
+        assert validate_transition("pending", "in_progress") is True
+
+    def test_pending_to_assigned(self):
+        assert validate_transition("pending", "assigned") is True
+
+    def test_pending_to_skipped(self):
+        assert validate_transition("pending", "skipped") is True
+
+    def test_pending_to_completed_invalid(self):
+        assert validate_transition("pending", "completed") is False
+
     def test_generated_to_assigned(self):
         assert validate_transition("generated", "assigned") is True
 
@@ -65,6 +77,25 @@ class TestValidateTransition:
 
 
 class TestTransitionMission:
+    def test_pending_to_in_progress_sets_started_at(self):
+        mission = _make_mission("pending")
+        result = transition_mission(mission, "in_progress", timestamp=NOW_ISO)
+
+        assert result["status"] == "in_progress"
+        assert result["startedAt"] == NOW_ISO
+
+    def test_pending_to_assigned_sets_assigned_at(self):
+        mission = _make_mission("pending")
+        result = transition_mission(mission, "assigned", timestamp=NOW_ISO)
+
+        assert result["status"] == "assigned"
+        assert result["assignedAt"] == NOW_ISO
+
+    def test_pending_to_completed_raises(self):
+        mission = _make_mission("pending")
+        with pytest.raises(ValueError, match="Invalid transition"):
+            transition_mission(mission, "completed")
+
     def test_generated_to_assigned_sets_timestamp(self):
         mission = _make_mission("generated")
         result = transition_mission(mission, "assigned", timestamp=NOW_ISO)

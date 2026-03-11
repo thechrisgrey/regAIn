@@ -17,7 +17,10 @@ from typing import Any, Callable, Dict, Optional
 import boto3
 
 from backend.handlers.shared.structured_log import get_logger
+from botocore.exceptions import ClientError
+
 from backend.handlers.shared.ws_connections import (
+    ConnectionGoneError,
     delete_connection,
     load_connection,
     store_connection,
@@ -70,6 +73,10 @@ def _post_to_connection(
             ConnectionId=connection_id,
             Data=json.dumps(data).encode("utf-8"),
         )
+    except ClientError as exc:
+        if exc.response.get("Error", {}).get("Code") == "GoneException":
+            raise ConnectionGoneError(connection_id) from exc
+        logger.exception("Failed to post to connection %s", connection_id)
     except Exception:
         logger.exception("Failed to post to connection %s", connection_id)
 
@@ -102,7 +109,10 @@ class _StreamingToolHooks:
             cm.__enter__()
             self._tool_spans[tool_name] = cm
         self._tool_start_times[tool_name] = time.time()
-        self._send({"type": "thinking", "tool": tool_name})
+        try:
+            self._send({"type": "thinking", "tool": tool_name})
+        except ConnectionGoneError:
+            pass
 
     def _on_after_tool(self, event: Any) -> None:
         tool_name = event.tool_use.get("name", "")
@@ -119,7 +129,10 @@ class _StreamingToolHooks:
                 emit_metric("ToolInvocationLatency", value=duration_ms, unit="Milliseconds", dimensions={"ToolName": tool_name}, namespace="REGAIN/Coaching")
             except Exception:
                 pass
-        self._send({"type": "thinking_complete", "tool": tool_name})
+        try:
+            self._send({"type": "thinking_complete", "tool": tool_name})
+        except ConnectionGoneError:
+            pass
 
 
 def _validate_cognito_token(token: str) -> Optional[str]:
@@ -337,6 +350,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     jwt_token = body.get("token", "")
 
     # Helper that captures event/connection_id for WebSocket sends.
+    # Raises ConnectionGoneError if the client has disconnected.
     def send_ws(data: Dict[str, Any]) -> None:
         _post_to_connection(event, connection_id, data)
 
@@ -348,7 +362,10 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         if connection_stale.is_set():
             return
         if "data" in kwargs:
-            send_ws({"type": "delta", "text": kwargs["data"]})
+            try:
+                send_ws({"type": "delta", "text": kwargs["data"]})
+            except ConnectionGoneError:
+                connection_stale.set()
 
     # Safety timer: send an error before Lambda is killed by timeout.
     timed_out = threading.Event()
@@ -356,10 +373,13 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     def _on_timeout():
         timed_out.set()
         slog.warning("Safety timeout fired for user %s", user_id)
-        send_ws({
-            "type": "error",
-            "message": "Response took too long. Please try a simpler question.",
-        })
+        try:
+            send_ws({
+                "type": "error",
+                "message": "Response took too long. Please try a simpler question.",
+            })
+        except ConnectionGoneError:
+            pass
 
     safety_timer = threading.Timer(_LAMBDA_TIMEOUT - _SAFETY_MARGIN, _on_timeout)
     safety_timer.daemon = True
@@ -373,6 +393,10 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         while not streaming_done.wait(timeout=30):
             try:
                 send_ws({"type": "heartbeat"})
+            except ConnectionGoneError:
+                logger.info("Client disconnected (heartbeat), marking stale: %s", connection_id)
+                connection_stale.set()
+                break
             except Exception:
                 logger.warning("Heartbeat failed for connection %s, marking stale", connection_id)
                 connection_stale.set()
@@ -401,7 +425,10 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
         # Only send done if we haven't already sent a timeout error.
         if not timed_out.is_set() and not connection_stale.is_set():
-            send_ws({"type": "done", "text": str(result)})
+            try:
+                send_ws({"type": "done", "text": str(result)})
+            except ConnectionGoneError:
+                connection_stale.set()
     except Exception:
         slog.exception("Chat stream failed for user %s (trace=%s)", user_id, trace_id)
         try:
@@ -410,10 +437,13 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         except Exception:
             pass
         if not timed_out.is_set() and not connection_stale.is_set():
-            send_ws({
-                "type": "error",
-                "message": "Coaching agent is temporarily unavailable. Please try again.",
-            })
+            try:
+                send_ws({
+                    "type": "error",
+                    "message": "Coaching agent is temporarily unavailable. Please try again.",
+                })
+            except ConnectionGoneError:
+                connection_stale.set()
     finally:
         safety_timer.cancel()
         streaming_done.set()

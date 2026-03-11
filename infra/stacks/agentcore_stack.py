@@ -600,9 +600,12 @@ class AgentCoreStack(cdk.Stack):
             "regain_store_memory",
         ]
 
+        region_placeholder = cdk.Aws.REGION
+
         session_count_widget = {
             "type": "metric", "x": 0, "y": 0, "width": 8, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Session Count",
                 "metrics": [
                     [namespace, "SessionCount", "Period", "Daily", {"stat": "Sum", "label": "Daily Sessions"}],
@@ -615,6 +618,7 @@ class AgentCoreStack(cdk.Stack):
         active_users_widget = {
             "type": "metric", "x": 8, "y": 0, "width": 8, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Active Users",
                 "metrics": [[namespace, "ActiveUsers", {"stat": "Maximum", "label": "Active Users"}]],
                 "view": "singleValue", "period": 300,
@@ -624,6 +628,7 @@ class AgentCoreStack(cdk.Stack):
         error_rate_widget = {
             "type": "metric", "x": 16, "y": 0, "width": 8, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Error Rate",
                 "metrics": [
                     [namespace, "ErrorCount", {"stat": "Sum", "id": "errors", "visible": False}],
@@ -641,6 +646,7 @@ class AgentCoreStack(cdk.Stack):
         tool_invocation_widget = {
             "type": "metric", "x": 0, "y": 6, "width": 8, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Tool Invocations by Tool",
                 "metrics": tool_invocation_metrics,
                 "view": "timeSeries", "stacked": True, "period": 3600,
@@ -664,6 +670,7 @@ class AgentCoreStack(cdk.Stack):
         token_usage_widget = {
             "type": "metric", "x": 16, "y": 6, "width": 8, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Token Usage",
                 "metrics": [
                     [namespace, "TokenUsage", "Direction", "Input", {"stat": "Sum", "label": "Input Tokens"}],
@@ -676,6 +683,7 @@ class AgentCoreStack(cdk.Stack):
         latency_percentile_widget = {
             "type": "metric", "x": 0, "y": 12, "width": 12, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Tool Invocation Latency Percentiles",
                 "metrics": [
                     [namespace, "ToolInvocationLatency", {"stat": "p50", "label": "p50"}],
@@ -689,6 +697,7 @@ class AgentCoreStack(cdk.Stack):
         memory_ops_widget = {
             "type": "metric", "x": 12, "y": 12, "width": 12, "height": 6,
             "properties": {
+                "region": region_placeholder,
                 "title": "Memory Operations",
                 "metrics": [
                     [namespace, "MemoryOperationCount", "Operation", "Read", {"stat": "Sum", "label": "Reads"}],

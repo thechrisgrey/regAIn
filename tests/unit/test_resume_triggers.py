@@ -41,10 +41,13 @@ class TestAsyncTriggerNonBlocking:
 
         try:
             # Patch boto3 and engine dependencies inside the tools module
+            mock_db = MagicMock()
+            mock_db.get_item.return_value = {"userId": "user-001", "missionId": "m-001", "status": "in_progress"}
             with (
                 patch("backend.agents.coaching.tools.boto3") as mock_boto3,
                 patch("backend.agents.coaching.tools.engine_complete_mission") as mock_engine,
                 patch("backend.agents.coaching.tools.log_evidence") as mock_log_ev,
+                patch("backend.agents.coaching.tools.db", mock_db),
             ):
                 from backend.agents.coaching.tools import complete_mission
 
@@ -88,10 +91,13 @@ class TestAsyncTriggerNonBlocking:
         os.environ["RESUME_LAMBDA_ARN"] = "arn:aws:lambda:us-east-1:123:function:resume"
 
         try:
+            mock_db = MagicMock()
+            mock_db.get_item.return_value = {"userId": "user-002", "missionId": "m-002", "status": "in_progress"}
             with (
                 patch("backend.agents.coaching.tools.boto3") as mock_boto3,
                 patch("backend.agents.coaching.tools.engine_complete_mission") as mock_engine,
                 patch("backend.agents.coaching.tools.log_evidence") as mock_log_ev,
+                patch("backend.agents.coaching.tools.db", mock_db),
             ):
                 from backend.agents.coaching.tools import complete_mission
 

@@ -219,14 +219,14 @@ class ResumeService:
             )
 
         def read_missions() -> list:
-            return self.db.query(
+            return self.db.query_all(
                 "mission_history",
                 Key("userId").eq(user_id),
                 filter_expression=Attr("status").eq("completed"),
             )
 
         def read_evidence() -> list:
-            return self.db.query(
+            return self.db.query_all(
                 "evidence_vault",
                 Key("userId").eq(user_id),
             )

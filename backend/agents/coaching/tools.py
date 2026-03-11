@@ -341,7 +341,7 @@ def get_current_mission(user_id: str) -> dict[str, Any]:
         mission is found.
     """
     try:
-        all_missions = db.query(
+        all_missions = db.query_all(
             "mission_history",
             key_condition=Key("userId").eq(user_id),
         )
@@ -556,7 +556,7 @@ def log_evidence(
         emit_metric("evidence_logged")
 
         # Count all evidence for this user + skill_tag
-        all_evidence = db.query(
+        all_evidence = db.query_all(
             "evidence_vault",
             key_condition=Key("userId").eq(user_id),
             filter_expression=boto3_attr("skillTag").eq(skill_tag),
@@ -647,6 +647,17 @@ def complete_mission(
 
         evidence_id = evidence_result["evidence_id"]
 
+        # If the mission is still in "pending" status, transition it to
+        # "in_progress" first so the engine's lifecycle state machine
+        # accepts the completed transition.
+        mission_item = db.get_item(
+            "mission_history", {"userId": user_id, "missionId": mission_id}
+        )
+        if mission_item and mission_item.get("status") == "pending":
+            from backend.engine.lifecycle import transition_mission
+            updated = transition_mission(mission_item, "in_progress")
+            db.put_item("mission_history", updated)
+
         # Delegate completion logic to the Mission Engine.
         result = engine_complete_mission(
             user_id=user_id,
@@ -701,7 +712,7 @@ def get_evidence_summary(user_id: str) -> dict[str, Any]:
         dict if the query fails.
     """
     try:
-        items = db.query(
+        items = db.query_all(
             "evidence_vault",
             key_condition=Key("userId").eq(user_id),
         )

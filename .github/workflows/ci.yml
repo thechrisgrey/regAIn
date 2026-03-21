@@ -160,7 +160,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Build Lambda layer
+      - name: Build Strands Lambda layer
         run: |
           mkdir -p infra/layer_build/python
           docker run --rm \
@@ -169,14 +169,27 @@ jobs:
             python:3.12-slim \
             bash -c "pip install strands-agents strands-agents-tools aws-sdk-bedrock-runtime 'PyJWT[crypto]' --target /out --no-cache-dir && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
 
-      - name: Report layer size
-        run: du -sh infra/layer_build/python
+      - name: Build MarketIntel deps layer
+        run: |
+          mkdir -p _layer/python
+          docker run --rm \
+            --platform linux/amd64 \
+            -v "$PWD/_layer/python:/out" \
+            python:3.12-slim \
+            bash -c "pip install requests --target /out --no-cache-dir && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
 
-      - name: Upload layer artifact
+      - name: Report layer sizes
+        run: |
+          du -sh infra/layer_build/python
+          du -sh _layer/python
+
+      - name: Upload layer artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: lambda-layer
-          path: infra/layer_build/
+          name: lambda-layers
+          path: |
+            infra/layer_build/
+            _layer/
           retention-days: 1
 
   deploy:
@@ -190,11 +203,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Download layer artifact
+      - name: Download layer artifacts
         uses: actions/download-artifact@v4
         with:
-          name: lambda-layer
-          path: infra/layer_build/
+          name: lambda-layers
 
       - uses: actions/setup-python@v5
         with:

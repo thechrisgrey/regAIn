@@ -57,9 +57,10 @@ class TestRecallMemory:
             tools = _load_tools()
             result = tools.recall_memory(user_id="user-1", query="previous session")
 
-        assert len(result) == 2
-        assert result[0]["content"] == "User avoided networking missions last session."
-        assert "timestamp" in result[0]["metadata"]
+        assert result["source"] == "memory"
+        assert len(result["entries"]) == 2
+        assert result["entries"][0]["content"] == "User avoided networking missions last session."
+        assert "timestamp" in result["entries"][0]["metadata"]
 
         mock_client.retrieve_memory.assert_called_once_with(
             memoryId="test-memory-id",
@@ -67,8 +68,8 @@ class TestRecallMemory:
             query={"text": "previous session"},
         )
 
-    def test_returns_empty_list_on_no_results(self) -> None:
-        """recall_memory returns [] when no memories match the query."""
+    def test_returns_empty_entries_with_memory_source_on_no_results(self) -> None:
+        """recall_memory returns source=memory with empty entries when no memories match."""
         mock_client = MagicMock()
         mock_client.retrieve_memory.return_value = {"memoryEntries": []}
 
@@ -77,10 +78,11 @@ class TestRecallMemory:
             tools = _load_tools()
             result = tools.recall_memory(user_id="user-1", query="nonexistent topic")
 
-        assert result == []
+        assert result["source"] == "memory"
+        assert result["entries"] == []
 
-    def test_returns_empty_list_on_api_failure(self) -> None:
-        """recall_memory returns [] when the API call raises an exception."""
+    def test_returns_unavailable_source_on_api_failure(self) -> None:
+        """recall_memory returns source=unavailable when the API call raises an exception."""
         mock_client = MagicMock()
         mock_client.retrieve_memory.side_effect = Exception("Service unavailable")
 
@@ -89,16 +91,18 @@ class TestRecallMemory:
             tools = _load_tools()
             result = tools.recall_memory(user_id="user-1", query="anything")
 
-        assert result == []
+        assert result["source"] == "unavailable"
+        assert result["entries"] == []
 
-    def test_returns_empty_list_when_client_init_fails(self) -> None:
-        """recall_memory returns [] when the boto3 client cannot be created."""
+    def test_returns_unavailable_source_when_client_init_fails(self) -> None:
+        """recall_memory returns source=unavailable when the boto3 client cannot be created."""
         with patch("boto3.client", side_effect=Exception("Cannot create client")):
             os.environ["AGENTCORE_MEMORY_ID"] = "test-memory-id"
             tools = _load_tools()
             result = tools.recall_memory(user_id="user-1", query="anything")
 
-        assert result == []
+        assert result["source"] == "unavailable"
+        assert result["entries"] == []
 
     def test_uses_correct_namespace(self) -> None:
         """recall_memory scopes the query to regain-coaching-{user_id}."""

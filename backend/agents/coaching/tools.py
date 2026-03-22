@@ -227,7 +227,12 @@ def create_campaign(
         user_id: The unique identifier of the user to create the campaign for.
         title: A descriptive title for the campaign (e.g. "Transition to AI QA Engineer").
         target_role: The job role the user is working toward.
-        skills_focus: A list of skill names the campaign will develop.
+        skills_focus: A list of 3-6 specific skill names extracted from the
+            onboarding conversation, normalized to title case (e.g.
+            ["Python Programming", "Test Automation", "CI/CD"]). These
+            become the prescribed skill tags for all evidence and missions
+            in this campaign — the agent will be constrained to use only
+            these tags.
 
     Returns:
         A dict containing the created campaign fields including the
@@ -430,15 +435,16 @@ def generate_mission(
 ) -> dict[str, Any]:
     """Generate a personalized daily mission for a user's reskilling campaign.
 
+    IMPORTANT: Rate-limited to 3 missions per user per day. The counter
+    resets at midnight UTC. If the limit is reached, returns an error with
+    error_kind='rate_limited'. Before calling this tool, consider informing
+    the user how many missions they have remaining today.
+
     Runs the full Mission Engine pipeline: skill gap analysis, template
     instantiation, difficulty filtering, priority scoring, and ranking.
     Returns the top-scored mission as the primary recommendation plus two
     alternates. The engine handles all intelligence — just provide the user
     and campaign identifiers.
-
-    Rate-limited to 3 missions per user per day via an atomic DynamoDB
-    conditional update on UserProfiles. The counter resets when the date
-    changes.
 
     Args:
         user_id: The unique identifier of the user to generate a mission for.
@@ -494,6 +500,12 @@ def log_evidence(
     evidence record tagged with the relevant skill. After logging, returns
     the cumulative count of evidence for that skill so you can tell the
     user how much proof they've built.
+
+    PRECONDITION: Requires at least one active campaign. If all campaigns
+    are completed, returns error_kind='permanent' with message 'Cannot log
+    evidence — all campaigns completed. Start a new campaign first.' Check
+    campaign status before calling if the user may have finished their
+    campaign.
 
     Args:
         user_id: The unique identifier of the user who produced the evidence.
@@ -618,6 +630,12 @@ def complete_mission(
     adjustment, and phase gate evaluation. Returns completion details
     including any difficulty changes and phase transition info so you can
     share progress with the user.
+
+    SIDE EFFECT: On successful completion, asynchronously triggers resume
+    regeneration in the background. If the completion causes a phase
+    advancement to Expansion or Launch, an additional resume regeneration
+    is triggered. These are fire-and-forget — the user will not see the
+    updated resume immediately but can check it later on the Resume page.
 
     Args:
         user_id: The unique identifier of the user completing the mission.
@@ -752,8 +770,12 @@ def get_market_insights(role_id: str) -> dict[str, Any]:
     trajectory and market positioning with the user.
 
     Args:
-        role_id: The role identifier to query (e.g. "ai_qa_engineer",
-            "project_manager", "data_analyst").
+        role_id: A snake_case identifier derived from the target role
+            name (e.g. "ai_qa_engineer" for "AI QA Engineer",
+            "project_manager" for "Project Manager", "data_analyst"
+            for "Data Analyst"). Use the user's targetRole from their
+            profile, converted to lowercase with spaces replaced by
+            underscores.
 
     Returns:
         A dict with demand_score, trend_direction, growth_rate,
@@ -847,7 +869,7 @@ def _get_memory_client():
 
 
 @tool
-def recall_memory(user_id: str, query: str) -> list[dict[str, Any]]:
+def recall_memory(user_id: str, query: str) -> dict[str, Any]:
     """Retrieve relevant past conversation context for a user.
 
     Use this tool at the start of every coaching session to recall
@@ -861,16 +883,22 @@ def recall_memory(user_id: str, query: str) -> list[dict[str, Any]]:
             "networking avoidance pattern").
 
     Returns:
-        A list of memory entry dicts, each containing content and
-        metadata. Returns an empty list if the memory service is
-        unavailable or no relevant memories are found.
+        A dict with "entries" (list of memory entry dicts, each with
+        content and metadata) and "source" indicating the result origin:
+        - source="memory": The memory service responded successfully.
+          An empty entries list means no relevant memories exist (e.g.
+          first session).
+        - source="unavailable": The memory service could not be reached.
+          You cannot confirm whether prior memories exist. Tell the user
+          you may not have full context from prior sessions rather than
+          assuming it is their first session.
     """
     namespace = f"regain-coaching-{user_id}"
     memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
 
     client = _get_memory_client()
     if client is None:
-        return []
+        return {"entries": [], "source": "unavailable"}
 
     try:
         response = client.retrieve_memory(
@@ -879,18 +907,21 @@ def recall_memory(user_id: str, query: str) -> list[dict[str, Any]]:
             query={"text": query},
         )
         entries = response.get("memoryEntries", [])
-        return [
-            {
-                "content": entry.get("content", ""),
-                "metadata": entry.get("metadata", {}),
-            }
-            for entry in entries
-        ]
+        return {
+            "entries": [
+                {
+                    "content": entry.get("content", ""),
+                    "metadata": entry.get("metadata", {}),
+                }
+                for entry in entries
+            ],
+            "source": "memory",
+        }
     except Exception as exc:
         logger.warning(
             "AgentCore Memory recall failed for user %s: %s", user_id, exc
         )
-        return []
+        return {"entries": [], "source": "unavailable"}
 
 
 @tool
@@ -901,6 +932,12 @@ def store_memory(user_id: str, content: str) -> dict[str, Any]:
     summary of what was discussed, decisions made, evidence logged,
     missions delivered, and any detected behavioral patterns. This
     enables conversational continuity across sessions.
+
+    NOTE: This tool may fail silently if the memory service is
+    unavailable. If it returns status='unavailable', the session summary
+    was NOT persisted. The next session's recall_memory may return
+    incomplete context as a result. Inform the user if storage fails so
+    they are aware their session may not be recalled next time.
 
     Args:
         user_id: The authenticated user's ID.

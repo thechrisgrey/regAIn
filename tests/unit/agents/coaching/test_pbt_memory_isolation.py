@@ -142,7 +142,7 @@ class TestMemoryNamespaceIsolation:
             result = tools.recall_memory(user_id=user_b, query="session data")
 
         # User B must NOT see user A's content
-        for entry in result:
+        for entry in result["entries"]:
             assert entry.get("content") != stored_content, (
                 f"Cross-user leakage: user_b={user_b!r} received content "
                 f"from user_a={user_a!r}"

@@ -1,6 +1,6 @@
 """Integration tests for cascade deletion.
 
-Verifies ProfileService._hard_delete_user_account() correctly deletes across
+Verifies ProfileService.hard_delete_user_account() correctly deletes across
 all DynamoDB tables, S3 buckets, and Cognito.
 """
 
@@ -146,9 +146,9 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["user_profiles"] == 1
+        assert result["deleted"]["user_profiles"] == 1
         assert db.get_item("user_profiles", {"userId": user_id}) is None
 
     def test_deletes_all_campaigns(self, integration_tables):
@@ -158,9 +158,9 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["campaigns"] == 2
+        assert result["deleted"]["campaigns"] == 2
         from boto3.dynamodb.conditions import Key
         remaining = db.query_all("campaigns", Key("userId").eq(user_id))
         assert len(remaining) == 0
@@ -172,9 +172,9 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["mission_history"] == 5
+        assert result["deleted"]["mission_history"] == 5
         from boto3.dynamodb.conditions import Key
         remaining = db.query_all("mission_history", Key("userId").eq(user_id))
         assert len(remaining) == 0
@@ -186,9 +186,9 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["evidence_vault"] == 3
+        assert result["deleted"]["evidence_vault"] == 3
         from boto3.dynamodb.conditions import Key
         remaining = db.query_all("evidence_vault", Key("userId").eq(user_id))
         assert len(remaining) == 0
@@ -200,9 +200,9 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["voice_sessions"] == 2
+        assert result["deleted"]["voice_sessions"] == 2
         from boto3.dynamodb.conditions import Key
         remaining = db.query_all("voice_sessions", Key("userId").eq(user_id))
         assert len(remaining) == 0
@@ -216,7 +216,7 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_b)
 
         service = _make_profile_service(db)
-        service._hard_delete_user_account(user_a)
+        service.hard_delete_user_account(user_a)
 
         # user-B data should remain intact.
         assert db.get_item("user_profiles", {"userId": user_b}) is not None
@@ -233,18 +233,18 @@ class TestDynamoDBCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["user_profiles"] == 1
-        assert result["campaigns"] == 2
-        assert result["mission_history"] == 5
-        assert result["evidence_vault"] == 3
-        assert result["voice_sessions"] == 2
+        assert result["deleted"]["user_profiles"] == 1
+        assert result["deleted"]["campaigns"] == 2
+        assert result["deleted"]["mission_history"] == 5
+        assert result["deleted"]["evidence_vault"] == 3
+        assert result["deleted"]["voice_sessions"] == 2
         # S3 and Cognito not configured -> 0
-        assert result["voice_practice_s3"] == 0
-        assert result["resume_s3"] == 0
-        assert result["code_interpreter_s3"] == 0
-        assert result["cognito"] == 0
+        assert result["deleted"]["voice_practice_s3"] == 0
+        assert result["deleted"]["resume_s3"] == 0
+        assert result["deleted"]["code_interpreter_s3"] == 0
+        assert result["deleted"]["cognito"] == 0
 
 
 class TestS3CascadeDeletion:
@@ -345,11 +345,11 @@ class TestS3CascadeDeletion:
                 cognito_client=None,
                 s3_client=s3_client,
             )
-            result = service._hard_delete_user_account(user_id)
+            result = service.hard_delete_user_account(user_id)
 
-            assert result["voice_practice_s3"] == 2
-            assert result["resume_s3"] == 2
-            assert result["code_interpreter_s3"] == 2
+            assert result["deleted"]["voice_practice_s3"] == 2
+            assert result["deleted"]["resume_s3"] == 2
+            assert result["deleted"]["code_interpreter_s3"] == 2
 
             # Verify S3 is empty for this user.
             for bucket_name in buckets.values():
@@ -367,11 +367,11 @@ class TestS3CascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["voice_practice_s3"] == 0
-        assert result["resume_s3"] == 0
-        assert result["code_interpreter_s3"] == 0
+        assert result["deleted"]["voice_practice_s3"] == 0
+        assert result["deleted"]["resume_s3"] == 0
+        assert result["deleted"]["code_interpreter_s3"] == 0
 
 
 class TestCognitoCascadeDeletion:
@@ -472,9 +472,9 @@ class TestCognitoCascadeDeletion:
                 cognito_client=cognito,
                 s3_client=None,
             )
-            result = service._hard_delete_user_account(user_id)
+            result = service.hard_delete_user_account(user_id)
 
-            assert result["cognito"] == 1
+            assert result["deleted"]["cognito"] == 1
 
             # Verify user no longer exists.
             with pytest.raises(cognito.exceptions.UserNotFoundException):
@@ -495,6 +495,73 @@ class TestCognitoCascadeDeletion:
         _seed_full_user(db, user_id)
 
         service = _make_profile_service(db)
-        result = service._hard_delete_user_account(user_id)
+        result = service.hard_delete_user_account(user_id)
 
-        assert result["cognito"] == 0
+        assert result["deleted"]["cognito"] == 0
+
+
+class TestSoftDeleteAndRecoverCycle:
+    """Tests for soft delete -> recover flow via ProfileService."""
+
+    def test_soft_delete_sets_deletion_markers(self, integration_tables):
+        """soft_delete_user_account sets deletedAt and deletionScheduledFor."""
+        db = DynamoDBClient()
+        user_id = f"soft-del-{uuid.uuid4().hex[:8]}"
+        _seed_full_user(db, user_id)
+
+        service = _make_profile_service(db)
+        result = service.soft_delete_user_account(user_id)
+
+        assert result["status"] == "scheduled"
+        assert "deletionDate" in result
+
+        profile = db.get_item("user_profiles", {"userId": user_id})
+        assert profile is not None
+        assert "deletedAt" in profile
+        assert "deletionScheduledFor" in profile
+        assert profile["firstName"] == "[deleted]"
+        assert profile["lastName"] == "[deleted]"
+
+    def test_recover_clears_deletion_markers(self, integration_tables):
+        """recover_user_account removes deletedAt and deletionScheduledFor."""
+        db = DynamoDBClient()
+        user_id = f"recover-{uuid.uuid4().hex[:8]}"
+        _seed_full_user(db, user_id)
+
+        service = _make_profile_service(db)
+        service.soft_delete_user_account(user_id)
+
+        result = service.recover_user_account(user_id)
+        assert result["status"] == "recovered"
+
+        profile = db.get_item("user_profiles", {"userId": user_id})
+        assert profile is not None
+        assert "deletedAt" not in profile
+        assert "deletionScheduledFor" not in profile
+
+    def test_recover_non_deleted_account_returns_not_deleted(self, integration_tables):
+        """recover on an active account returns not_deleted status."""
+        db = DynamoDBClient()
+        user_id = f"no-del-{uuid.uuid4().hex[:8]}"
+        _seed_full_user(db, user_id)
+
+        service = _make_profile_service(db)
+        result = service.recover_user_account(user_id)
+
+        assert result["status"] == "not_deleted"
+
+    def test_data_preserved_after_soft_delete(self, integration_tables):
+        """Soft delete does NOT remove campaigns, missions, or evidence."""
+        from boto3.dynamodb.conditions import Key
+
+        db = DynamoDBClient()
+        user_id = f"soft-keep-{uuid.uuid4().hex[:8]}"
+        _seed_full_user(db, user_id)
+
+        service = _make_profile_service(db)
+        service.soft_delete_user_account(user_id)
+
+        assert len(db.query_all("campaigns", Key("userId").eq(user_id))) == 2
+        assert len(db.query_all("mission_history", Key("userId").eq(user_id))) == 5
+        assert len(db.query_all("evidence_vault", Key("userId").eq(user_id))) == 3
+        assert len(db.query_all("voice_sessions", Key("userId").eq(user_id))) == 2

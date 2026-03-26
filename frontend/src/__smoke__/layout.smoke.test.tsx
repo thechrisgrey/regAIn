@@ -26,9 +26,22 @@ vi.mock('../hooks/useAuth', () => ({
   })),
 }));
 
-// Mock cachedGet -- Layout imports cachedGet for prefetch
+// Mock api and cachedGet -- Layout imports both for prefetch and recovery
 vi.mock('../services/api', () => ({
   cachedGet: vi.fn(),
+  api: {
+    profile: {
+      recover: vi.fn().mockResolvedValue({ status: 'recovered' }),
+    },
+  },
+}));
+
+// Mock useSharedData -- RecoveryBanner uses it to check for deletedAt
+vi.mock('../hooks/useSharedData', () => ({
+  useSharedData: vi.fn(() => ({
+    dashboard: { data: null, loading: false, error: null },
+    refreshDashboard: vi.fn(),
+  })),
 }));
 
 // Mock ConnectionBanner -- depends on NetworkStatusContext

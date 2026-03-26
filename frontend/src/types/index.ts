@@ -118,6 +118,8 @@ export interface DashboardResponse {
     evidenceCount: number;
     currentPhase: Campaign['phase'];
   };
+  deletedAt?: string;
+  deletionScheduledFor?: string;
 }
 
 // Coaching types

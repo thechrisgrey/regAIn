@@ -235,10 +235,10 @@ export const api = {
       cachedGet<VoiceSessionDetailResponse>(`/voice-sessions/${sessionId}`, token, 10_000),
   },
   profile: {
-    delete: (token: string) =>
-      apiRequest<{ status: string; deletionDate: string }>(
+    delete: (token: string, mode: 'immediate' | 'scheduled' = 'immediate') =>
+      apiRequest<{ status: string; deletionDate?: string; deleted?: Record<string, number> }>(
         '/profile',
-        { method: 'DELETE' },
+        { method: 'DELETE', body: { mode } },
         token,
       ),
     recover: (token: string) =>

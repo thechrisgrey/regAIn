@@ -1,8 +1,6 @@
 """Unit tests for profile handler mode routing."""
 
-from unittest.mock import MagicMock, patch
-
-import pytest
+from unittest.mock import patch
 
 from backend.handlers.profile.handler import lambda_handler
 

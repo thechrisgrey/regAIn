@@ -398,6 +398,7 @@ function DeleteAccount({
       setDeleteError(
         err instanceof Error ? err.message : 'Failed to delete account',
       );
+    } finally {
       setDeleting(false);
     }
   }, [getToken, signOut, navigate]);
@@ -424,6 +425,7 @@ function DeleteAccount({
 
         {step === 'idle' && (
           <button
+            type="button"
             onClick={() => setStep('confirm')}
             className="mt-4 text-sm font-medium text-error-600 hover:text-error-700 transition-colors"
           >
@@ -450,6 +452,7 @@ function DeleteAccount({
                 Continue
               </Button>
               <button
+                type="button"
                 onClick={reset}
                 className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
               >
@@ -466,6 +469,7 @@ function DeleteAccount({
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <button
+                type="button"
                 disabled={deleting}
                 onClick={() => void handleDelete('immediate')}
                 className="rounded-[var(--radius-card)] border border-error-200 bg-error-50/50 p-4 text-left transition-colors hover:bg-error-50 disabled:opacity-50"
@@ -476,6 +480,7 @@ function DeleteAccount({
                 </p>
               </button>
               <button
+                type="button"
                 disabled={deleting}
                 onClick={() => void handleDelete('scheduled')}
                 className="rounded-[var(--radius-card)] border border-neutral-200 bg-surface-1 p-4 text-left transition-colors hover:bg-surface-2 disabled:opacity-50"
@@ -487,6 +492,7 @@ function DeleteAccount({
               </button>
             </div>
             <button
+              type="button"
               onClick={reset}
               className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
             >

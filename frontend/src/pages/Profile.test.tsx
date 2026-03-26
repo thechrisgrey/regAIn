@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import Profile from './Profile';
 
@@ -37,7 +37,7 @@ vi.mock('../hooks/useEvidence', () => ({
 vi.mock('../services/api', () => ({
   api: {
     profile: {
-      delete: vi.fn().mockResolvedValue({ deletionDate: '2025-07-15' }),
+      delete: vi.fn().mockResolvedValue({ status: 'deleted' }),
     },
   },
 }));
@@ -192,10 +192,62 @@ describe('Profile', () => {
     renderPage();
     fireEvent.click(screen.getByText('Delete my account'));
     expect(screen.getByText('Type DELETE to confirm')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Confirm deletion' })).toBeDisabled();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeDisabled();
   });
 
-  it('cancel button hides delete confirmation', () => {
+  it('continue button advances to step 2 after typing DELETE', () => {
+    mockedUseDashboard.mockReturnValue({
+      data: { campaign: MOCK_CAMPAIGN, stats: MOCK_STATS },
+      loading: false,
+      error: null,
+      fetchDashboard: mockFetchDashboard,
+    });
+    renderPage();
+    fireEvent.click(screen.getByText('Delete my account'));
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Delete now')).toBeInTheDocument();
+    expect(screen.getByText('Schedule for later')).toBeInTheDocument();
+    expect(screen.queryByText('Type DELETE to confirm')).not.toBeInTheDocument();
+  });
+
+  it('delete now calls api.profile.delete with immediate mode', async () => {
+    const { api: mockApi } = await import('../services/api');
+    mockedUseDashboard.mockReturnValue({
+      data: { campaign: MOCK_CAMPAIGN, stats: MOCK_STATS },
+      loading: false,
+      error: null,
+      fetchDashboard: mockFetchDashboard,
+    });
+    renderPage();
+    fireEvent.click(screen.getByText('Delete my account'));
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByText('Delete now'));
+    await waitFor(() => {
+      expect(mockApi.profile.delete).toHaveBeenCalledWith('mock-token', 'immediate');
+    });
+  });
+
+  it('schedule for later calls api.profile.delete with scheduled mode', async () => {
+    const { api: mockApi } = await import('../services/api');
+    mockedUseDashboard.mockReturnValue({
+      data: { campaign: MOCK_CAMPAIGN, stats: MOCK_STATS },
+      loading: false,
+      error: null,
+      fetchDashboard: mockFetchDashboard,
+    });
+    renderPage();
+    fireEvent.click(screen.getByText('Delete my account'));
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    fireEvent.click(screen.getByText('Schedule for later'));
+    await waitFor(() => {
+      expect(mockApi.profile.delete).toHaveBeenCalledWith('mock-token', 'scheduled');
+    });
+  });
+
+  it('cancel button hides delete confirmation from step 1', () => {
     mockedUseDashboard.mockReturnValue({
       data: { campaign: MOCK_CAMPAIGN, stats: MOCK_STATS },
       loading: false,
@@ -207,5 +259,22 @@ describe('Profile', () => {
     expect(screen.getByText('Type DELETE to confirm')).toBeInTheDocument();
     fireEvent.click(screen.getByText('Cancel'));
     expect(screen.queryByText('Type DELETE to confirm')).not.toBeInTheDocument();
+  });
+
+  it('cancel button resets from step 2 back to initial state', () => {
+    mockedUseDashboard.mockReturnValue({
+      data: { campaign: MOCK_CAMPAIGN, stats: MOCK_STATS },
+      loading: false,
+      error: null,
+      fetchDashboard: mockFetchDashboard,
+    });
+    renderPage();
+    fireEvent.click(screen.getByText('Delete my account'));
+    fireEvent.change(screen.getByPlaceholderText('DELETE'), { target: { value: 'DELETE' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
+    expect(screen.getByText('Delete now')).toBeInTheDocument();
+    fireEvent.click(screen.getByText('Cancel'));
+    expect(screen.queryByText('Delete now')).not.toBeInTheDocument();
+    expect(screen.getByText('Delete my account')).toBeInTheDocument();
   });
 });

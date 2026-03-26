@@ -381,114 +381,118 @@ function DeleteAccount({
   signOut: () => Promise<void>;
 }) {
   const navigate = useNavigate();
-  const [showConfirm, setShowConfirm] = useState(false);
+  const [step, setStep] = useState<'idle' | 'confirm' | 'choose'>('idle');
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState('');
-  const [scheduledDate, setScheduledDate] = useState('');
 
-  const handleDelete = useCallback(async () => {
-    if (confirmText !== 'DELETE') return;
+  const handleDelete = useCallback(async (mode: 'immediate' | 'scheduled') => {
     setDeleting(true);
     setDeleteError('');
     try {
       const token = await getToken();
-      const result = await api.profile.delete(token);
-      setScheduledDate(result.deletionDate ?? '');
-      setShowConfirm(false);
-      setConfirmText('');
+      await api.profile.delete(token, mode);
+      await signOut();
+      navigate('/login');
     } catch (err) {
       setDeleteError(
         err instanceof Error ? err.message : 'Failed to delete account',
       );
-    } finally {
       setDeleting(false);
     }
-  }, [confirmText, getToken]);
+  }, [getToken, signOut, navigate]);
 
-  const handleSignOut = useCallback(async () => {
-    await signOut();
-    navigate('/login');
-  }, [signOut, navigate]);
+  const reset = useCallback(() => {
+    setStep('idle');
+    setConfirmText('');
+    setDeleteError('');
+  }, []);
 
   return (
     <Card className="p-6">
       <SectionLabel>Account</SectionLabel>
 
       <div className="mt-5 border-t border-neutral-100 pt-5">
-        {scheduledDate ? (
-          <div>
-            <p className="text-sm font-medium text-neutral-900">
-              Account scheduled for deletion
-            </p>
-            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
-              Your account data will be permanently deleted on{' '}
-              <span className="font-medium text-neutral-700">
-                {new Date(scheduledDate).toLocaleDateString()}
-              </span>.
-              You have 30 days to recover your account by logging back in.
-            </p>
-            <Button
-              variant="secondary"
-              size="sm"
-              className="mt-4"
-              onClick={() => void handleSignOut()}
-            >
-              Sign out
-            </Button>
-          </div>
-        ) : (
-          <>
-            <p className="text-sm font-medium text-neutral-900">Delete account</p>
-            <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
-              Your account will be scheduled for deletion with a 30-day grace
-              period. During this time you can recover your account by logging
-              back in. After 30 days, all data will be permanently removed.
-            </p>
+        <p className="text-sm font-medium text-neutral-900">Delete account</p>
+        <p className="mt-1.5 text-sm leading-relaxed text-neutral-500">
+          Permanently delete your account and all associated data.
+        </p>
 
-            {deleteError && (
-              <p className="mt-3 text-sm text-error-600">{deleteError}</p>
-            )}
+        {deleteError && (
+          <p className="mt-3 text-sm text-error-600">{deleteError}</p>
+        )}
 
-            {!showConfirm ? (
-              <button
-                onClick={() => setShowConfirm(true)}
-                className="mt-4 text-sm font-medium text-error-600 hover:text-error-700 transition-colors"
+        {step === 'idle' && (
+          <button
+            onClick={() => setStep('confirm')}
+            className="mt-4 text-sm font-medium text-error-600 hover:text-error-700 transition-colors"
+          >
+            Delete my account
+          </button>
+        )}
+
+        {step === 'confirm' && (
+          <div className="mt-4 space-y-3">
+            <Input
+              label="Type DELETE to confirm"
+              placeholder="DELETE"
+              value={confirmText}
+              onChange={(e) => setConfirmText(e.target.value)}
+              autoComplete="off"
+            />
+            <div className="flex items-center gap-3">
+              <Button
+                variant="destructive"
+                size="sm"
+                disabled={confirmText !== 'DELETE'}
+                onClick={() => setStep('choose')}
               >
-                Delete my account
+                Continue
+              </Button>
+              <button
+                onClick={reset}
+                className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+              >
+                Cancel
               </button>
-            ) : (
-              <div className="mt-4 space-y-3">
-                <Input
-                  label="Type DELETE to confirm"
-                  placeholder="DELETE"
-                  value={confirmText}
-                  onChange={(e) => setConfirmText(e.target.value)}
-                  autoComplete="off"
-                />
-                <div className="flex items-center gap-3">
-                  <Button
-                    variant="destructive"
-                    size="sm"
-                    disabled={confirmText !== 'DELETE' || deleting}
-                    onClick={() => void handleDelete()}
-                  >
-                    {deleting ? 'Scheduling...' : 'Confirm deletion'}
-                  </Button>
-                  <button
-                    onClick={() => {
-                      setShowConfirm(false);
-                      setConfirmText('');
-                      setDeleteError('');
-                    }}
-                    className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-          </>
+            </div>
+          </div>
+        )}
+
+        {step === 'choose' && (
+          <div className="mt-4 space-y-3">
+            <p className="text-sm font-medium text-neutral-700">
+              How would you like to proceed?
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button
+                disabled={deleting}
+                onClick={() => void handleDelete('immediate')}
+                className="rounded-[var(--radius-card)] border border-error-200 bg-error-50/50 p-4 text-left transition-colors hover:bg-error-50 disabled:opacity-50"
+              >
+                <p className="text-sm font-semibold text-error-700">Delete now</p>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                  Permanently erase all data immediately. This cannot be undone.
+                </p>
+              </button>
+              <button
+                disabled={deleting}
+                onClick={() => void handleDelete('scheduled')}
+                className="rounded-[var(--radius-card)] border border-neutral-200 bg-surface-1 p-4 text-left transition-colors hover:bg-surface-2 disabled:opacity-50"
+              >
+                <p className="text-sm font-semibold text-neutral-700">Schedule for later</p>
+                <p className="mt-1 text-xs leading-relaxed text-neutral-500">
+                  Data kept 30 days. Recover anytime by signing back in.
+                </p>
+              </button>
+            </div>
+            <button
+              onClick={reset}
+              className="text-sm text-neutral-500 hover:text-neutral-700 transition-colors"
+            >
+              Cancel
+            </button>
+          </div>
         )}
       </div>
     </Card>

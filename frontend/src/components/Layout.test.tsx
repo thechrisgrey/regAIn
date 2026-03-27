@@ -52,7 +52,7 @@ describe('Layout navigation', () => {
     mockedUseSharedData.mockReturnValue({
       dashboard: { data: null, loading: false, error: null },
       refreshDashboard: mockRefreshDashboard,
-    } as ReturnType<typeof useSharedData>);
+    } as unknown as ReturnType<typeof useSharedData>);
   });
 
   it('includes Resume nav item between Evidence and Profile (Req 9.1)', () => {

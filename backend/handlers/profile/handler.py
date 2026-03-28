@@ -4,6 +4,7 @@ Thin handler that extracts the user identity, delegates to
 ProfileService, and returns a formatted response.
 """
 
+import json
 import logging
 from typing import Any, Dict
 
@@ -13,6 +14,8 @@ from backend.handlers.shared.structured_log import get_logger
 from backend.handlers.profile.service import ProfileService
 
 logger = logging.getLogger(__name__)
+
+_VALID_MODES = {"immediate", "scheduled"}
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
@@ -41,7 +44,30 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return success_response(result)
 
         if http_method == "DELETE":
-            result = service.soft_delete_user_account(user_id)
+            raw_body = event.get("body")
+            if not raw_body:
+                return error_response(
+                    "Missing required field: mode", 400, error_kind="VALIDATION",
+                )
+            try:
+                body = json.loads(raw_body)
+            except (json.JSONDecodeError, TypeError):
+                return error_response(
+                    "Invalid JSON body", 400, error_kind="VALIDATION",
+                )
+
+            mode = body.get("mode")
+            if mode not in _VALID_MODES:
+                return error_response(
+                    "Invalid mode. Must be 'immediate' or 'scheduled'",
+                    400,
+                    error_kind="VALIDATION",
+                )
+
+            if mode == "immediate":
+                result = service.hard_delete_user_account(user_id)
+            else:
+                result = service.soft_delete_user_account(user_id)
             return success_response(result)
 
         return error_response("Not found", 404)

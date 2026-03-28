@@ -1,7 +1,8 @@
 import { Suspense, useState, useEffect, useCallback } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { cachedGet } from '../services/api';
+import { useSharedData } from '../hooks/useSharedData';
+import { api, cachedGet } from '../services/api';
 import NavIcon from './ui/NavIcon';
 import ErrorBoundary from './ErrorBoundary';
 import RouteLoader from './RouteLoader';
@@ -26,6 +27,52 @@ const prefetchRoutes: Record<string, string[]> = {
   '/evidence': ['/evidence'],
   '/analytics': ['/analytics'],
 };
+
+function RecoveryBanner() {
+  const { getToken } = useAuth();
+  const { dashboard, refreshDashboard } = useSharedData();
+  const [recovering, setRecovering] = useState(false);
+
+  const deletedAt = dashboard.data?.deletedAt;
+  const deletionScheduledFor = dashboard.data?.deletionScheduledFor;
+
+  if (!deletedAt) return null;
+
+  const formattedDate = deletionScheduledFor
+    ? new Date(deletionScheduledFor).toLocaleDateString('en-US', {
+        month: 'long',
+        day: 'numeric',
+        year: 'numeric',
+      })
+    : 'soon';
+
+  const handleRecover = async () => {
+    setRecovering(true);
+    try {
+      const token = await getToken();
+      await api.profile.recover(token);
+      await refreshDashboard();
+    } catch {
+      setRecovering(false);
+    }
+  };
+
+  return (
+    <div className="mb-4 rounded-[var(--radius-card)] border border-warning-200 bg-warning-50 px-4 py-3">
+      <p className="text-sm text-warning-700">
+        Your account is scheduled for deletion on {formattedDate}.{' '}
+        <button
+          type="button"
+          onClick={() => void handleRecover()}
+          disabled={recovering}
+          className="font-medium text-primary-600 hover:text-primary-700 transition-colors disabled:opacity-50"
+        >
+          {recovering ? 'Recovering...' : 'Recover account'}
+        </button>
+      </p>
+    </div>
+  );
+}
 
 export default function Layout() {
   const { user, signOut, getToken } = useAuth();
@@ -162,6 +209,7 @@ export default function Layout() {
       <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:pt-0">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
           <ConnectionBanner />
+          <RecoveryBanner />
           <ErrorBoundary>
             <Suspense fallback={<RouteLoader />}>
               <Outlet />

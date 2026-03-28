@@ -67,7 +67,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             if not user_id:
                 continue
             try:
-                service._hard_delete_user_account(user_id)
+                service.hard_delete_user_account(user_id)
                 processed += 1
                 logger.info("Hard-deleted expired account: %s", user_id)
             except Exception:

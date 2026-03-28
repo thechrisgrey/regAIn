@@ -115,18 +115,17 @@ class ProfileService:
         logger.info("Recovered soft-deleted account for user %s", user_id)
         return {"status": "recovered"}
 
-    def _hard_delete_user_account(self, user_id: str) -> Dict[str, Any]:
+    def hard_delete_user_account(self, user_id: str) -> Dict[str, Any]:
         """Permanently delete all user data from DynamoDB, S3, and Cognito.
 
-        This is called by the scheduled cleanup Lambda for accounts past
-        their grace period. Deletion order: DynamoDB tables first,
-        S3 second, AgentCore Memory third, Cognito last.
+        Deletion order: DynamoDB tables first, S3 second,
+        AgentCore Memory third, Cognito last.
 
         Args:
             user_id: Cognito sub from JWT claims.
 
         Returns:
-            Dict with deleted item counts per table.
+            Dict with status and deleted item counts.
         """
         deleted: Dict[str, int] = {}
 
@@ -211,7 +210,7 @@ class ProfileService:
             deleted["cognito"] = 0
 
         logger.info("Hard-deleted account for user %s: %s", user_id, deleted)
-        return deleted
+        return {"status": "deleted", "deleted": deleted}
 
     def _delete_s3_prefix(self, bucket: str, prefix: str) -> int:
         """Delete all object versions and delete markers under an S3 prefix.

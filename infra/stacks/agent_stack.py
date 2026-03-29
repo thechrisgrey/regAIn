@@ -177,8 +177,9 @@ class AgentStack(cdk.Stack):
         """Create IAM policy statement for AgentCore Memory operations."""
         return iam.PolicyStatement(
             actions=[
-                "bedrock:RetrieveMemory",
-                "bedrock:CreateMemory",
+                "bedrock:CreateEvent",
+                "bedrock:RetrieveMemoryRecords",
+                "bedrock:ListMemoryRecords",
             ],
             resources=["*"],
         )
@@ -237,7 +238,11 @@ class AgentStack(cdk.Stack):
             if key not in gateway_keys:
                 self.coaching_lambda.add_environment(key, value)
 
-        if self.gateway_id:
+        # On bootstrap deploys (skip_alert_import=true), AgentCoreStack doesn't
+        # exist yet so Fn::ImportValue would fail. Use sentinel values and
+        # redeploy after AgentCoreStack is up.
+        skip_bootstrap = self.node.try_get_context("skip_alert_import")
+        if self.gateway_id and not skip_bootstrap:
             self.coaching_lambda.add_environment(
                 "AGENTCORE_GATEWAY_ID",
                 cdk.Fn.import_value("RegainAgentCoreGatewayId"),

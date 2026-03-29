@@ -32,6 +32,7 @@ class AgentStack(cdk.Stack):
         resume_bucket_name: str | None = None,
         gateway_id: str | None = None,
         gateway_endpoint: str | None = None,
+        memory_id: str | None = None,
         **kwargs,
     ) -> None:
         super().__init__(scope, construct_id, **kwargs)
@@ -43,6 +44,7 @@ class AgentStack(cdk.Stack):
         self.resume_bucket_name = resume_bucket_name
         self.gateway_id = gateway_id
         self.gateway_endpoint = gateway_endpoint
+        self.memory_id = memory_id
         self.strands_layer = self._create_strands_layer()
 
         voice_lambda = self._create_voice_lambda()
@@ -83,7 +85,7 @@ class AgentStack(cdk.Stack):
         return {
             "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
             "NOVA_SONIC_MODEL_ID": "amazon.nova-2-sonic-v1:0",
-            "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
+            "AGENTCORE_MEMORY_ID": self.memory_id or "pending-memory-deploy",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
             "AWS_REGION_NAME": "us-east-1",
             "AGENTCORE_GATEWAY_ID": self.gateway_id or "pending-agentcore-deploy",
@@ -233,9 +235,9 @@ class AgentStack(cdk.Stack):
         # Gateway values use Fn.import_value() instead of CDK token references
         # to avoid cyclic dependency: coaching_lambda is owned by ApiStack, and
         # AgentCoreStack already depends on ApiStack for Lambda ARNs.
-        gateway_keys = {"AGENTCORE_GATEWAY_ID", "AGENTCORE_GATEWAY_ENDPOINT"}
+        cross_stack_keys = {"AGENTCORE_GATEWAY_ID", "AGENTCORE_GATEWAY_ENDPOINT", "AGENTCORE_MEMORY_ID"}
         for key, value in self._bedrock_env().items():
-            if key not in gateway_keys:
+            if key not in cross_stack_keys:
                 self.coaching_lambda.add_environment(key, value)
 
         # On bootstrap deploys (skip_alert_import=true), AgentCoreStack doesn't
@@ -257,6 +259,16 @@ class AgentStack(cdk.Stack):
             )
             self.coaching_lambda.add_environment(
                 "AGENTCORE_GATEWAY_ENDPOINT", "pending-agentcore-deploy",
+            )
+
+        if self.memory_id and not skip_bootstrap:
+            self.coaching_lambda.add_environment(
+                "AGENTCORE_MEMORY_ID",
+                cdk.Fn.import_value("RegainAgentCoreMemoryId"),
+            )
+        else:
+            self.coaching_lambda.add_environment(
+                "AGENTCORE_MEMORY_ID", "pending-memory-deploy",
             )
 
         # Grant scoped DynamoDB access (upgrades from read-only on UserProfiles)

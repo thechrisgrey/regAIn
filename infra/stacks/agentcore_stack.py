@@ -619,9 +619,6 @@ def handler(event, context):
         )
 
         # AgentCore Memory cleanup permissions for cascade deletion
-        self._profile_lambda.add_environment(
-            "AGENTCORE_MEMORY_ID", self._memory_id,
-        )
         self._profile_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["bedrock:ListMemoryRecords", "bedrock:DeleteMemoryRecord"],
@@ -880,6 +877,11 @@ def handler(event, context):
     def gateway_endpoint(self) -> str:
         """Gateway URL for MCP tool routing (for Lambda env vars)."""
         return self.gateway.get_att("GatewayUrl").to_string()
+
+    @property
+    def memory_id(self) -> str:
+        """Physical ID of the AgentCore Memory resource."""
+        return self._memory_id
 
     # -- Outputs ---------------------------------------------------------------
 

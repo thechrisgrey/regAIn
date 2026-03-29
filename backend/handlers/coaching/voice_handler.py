@@ -58,7 +58,6 @@ _TOOL_FUNCTIONS = [
     _tools_mod.get_evidence_summary,
     _tools_mod.get_market_insights,
     _tools_mod.recall_memory,
-    _tools_mod.store_memory,
 ]
 _TOOL_MAP: Dict[str, Any] = {
     getattr(f, "__name__", str(f)): f for f in _TOOL_FUNCTIONS
@@ -371,8 +370,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     """Handle WebSocket $disconnect event.
 
-    Closes the Nova Sonic session and stores a session summary
-    in AgentCore Memory via the store_memory tool.
+    Closes the Nova Sonic session and logs session end.
 
     Args:
         event: API Gateway WebSocket $disconnect event.
@@ -403,18 +401,8 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
                     connection_id,
                 )
 
-    # Store session summary in AgentCore Memory.
     if user_id:
-        try:
-            _tools_mod.store_memory(
-                user_id=user_id,
-                content="Voice coaching session ended. Session conducted via Nova Sonic.",
-            )
-            logger.info("Session summary stored for user %s", user_id)
-        except Exception:
-            logger.warning(
-                "Failed to store session summary for user %s", user_id
-            )
+        logger.info("Voice coaching session ended for user %s", user_id)
 
     logger.info("Connection %s disconnected", connection_id)
     return {"statusCode": 200}

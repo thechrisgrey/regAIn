@@ -44,7 +44,7 @@ _sessions: Dict[str, Dict[str, Any]] = {}  # connection_id -> session state
 _s3_client = None
 _apigw_clients: Dict[str, Any] = {}  # endpoint -> client
 
-# Lazy-loaded coaching tools module (only needed for store_memory on disconnect).
+# Lazy-loaded coaching tools module (used for recall_memory in _recall_coaching_notes).
 _tools_mod = None
 
 # Auth deadline: max seconds to send auth message after unauthenticated $connect.
@@ -662,20 +662,7 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     from backend.handlers.shared.metrics import emit_metric
     emit_metric("voice_session_completed")
 
-    # Store memory summary (lazy-import to avoid cold start penalty).
-    try:
-        global _tools_mod
-        if _tools_mod is None:
-            import importlib
-            _tools_mod = importlib.import_module("backend.agents.coaching.tools")
-        _tools_mod.store_memory(
-            user_id=user_id,
-            content=f"Voice {session_type.replace('_', ' ')} session completed. "
-                    f"Duration: {duration_seconds}s, turns: {len(transcript)}, "
-                    f"score: {overall_score}/10.",
-        )
-    except Exception:
-        logger.warning("Failed to store session memory for user %s", user_id)
+    logger.info("Voice practice session ended for user %s", user_id)
 
     logger.info(
         "Connection %s disconnected. Session %s saved (score=%d)",

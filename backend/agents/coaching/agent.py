@@ -1,12 +1,7 @@
 """Coaching Agent configuration for the REGAIN platform.
 
 Creates and configures the Strands Coaching Agent with model, tools,
-and system prompt. Detects whether AgentCore Gateway is provisioned:
-
-- If Gateway is available → discover tools via GatewayToolClient
-  (centralized auth, policy, and observability).
-- If Gateway is pending → use direct @tool functions from tools.py
-  (local invocation, no Gateway dependency).
+session manager (AgentCore Memory), and system prompt.
 
 Agent configuration lives here; business logic lives in tools.py;
 persona definition lives in prompts.py.
@@ -14,6 +9,7 @@ persona definition lives in prompts.py.
 
 import logging
 import os
+import uuid
 
 from strands import Agent
 from strands.models.bedrock import BedrockModel
@@ -55,7 +51,6 @@ def _get_direct_tools() -> list:
         get_market_insights,
         get_alignment,
         recall_memory,
-        store_memory,
     )
 
     return [
@@ -71,8 +66,42 @@ def _get_direct_tools() -> list:
         get_market_insights,
         get_alignment,
         recall_memory,
-        store_memory,
     ]
+
+
+def _create_session_manager(user_id: str):
+    """Create an AgentCoreMemorySessionManager for automatic turn storage.
+
+    Returns None if the memory ID is not configured or initialization fails.
+    The agent will run without memory in that case (graceful degradation).
+    """
+    memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
+    if not memory_id or memory_id == _PENDING:
+        logger.info("AGENTCORE_MEMORY_ID not set; running without memory")
+        return None
+
+    try:
+        from bedrock_agentcore.memory.integrations.strands.config import (
+            AgentCoreMemoryConfig,
+            RetrievalConfig,
+        )
+        from bedrock_agentcore.memory.integrations.strands.session_manager import (
+            AgentCoreMemorySessionManager,
+        )
+
+        config = AgentCoreMemoryConfig(
+            memory_id=memory_id,
+            actor_id=user_id,
+            session_id=f"session-{uuid.uuid4().hex[:12]}",
+            retrieval_config=RetrievalConfig(),
+        )
+        return AgentCoreMemorySessionManager(
+            agentcore_memory_config=config,
+            region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        )
+    except Exception:
+        logger.warning("Failed to create AgentCoreMemorySessionManager", exc_info=True)
+        return None
 
 
 def create_coaching_agent(
@@ -81,22 +110,13 @@ def create_coaching_agent(
     callback_handler=None,
     hooks: list | None = None,
 ) -> Agent:
-    """Create a Coaching Agent with tools routed through Gateway or invoked directly.
-
-    Detects Gateway availability via the AGENTCORE_GATEWAY_ENDPOINT env var.
-    If the endpoint is "pending-agentcore-deploy" or empty, falls back to
-    direct @tool function invocation from tools.py.
+    """Create a Coaching Agent with tools, memory session manager, and system prompt.
 
     Args:
-        user_id: The authenticated user's ID. Kept for future
-            memory-namespace scoping.
+        user_id: The authenticated user's ID.
         jwt_token: The user's Cognito JWT for Gateway authorization.
         callback_handler: Optional callback for streaming text chunks.
-            When provided, the agent calls this function with each token
-            as it is generated. Used by the WebSocket streaming handler.
         hooks: Optional list of HookProvider instances for lifecycle events.
-            Used by the WebSocket streaming handler to send tool execution
-            status to the client.
 
     Returns:
         A configured Strands Agent.
@@ -119,8 +139,6 @@ def create_coaching_agent(
             logger.info("Gateway not provisioned, using direct tool invocation")
         tools = _get_direct_tools()
 
-    # Inject the user's campaign skill tags into the system prompt so
-    # the agent uses prescribed tags when logging evidence.
     from backend.agents.coaching.tools import get_valid_skill_tags
 
     valid_tags = get_valid_skill_tags(user_id)
@@ -131,11 +149,15 @@ def create_coaching_agent(
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
     )
 
+    session_manager = _create_session_manager(user_id)
+
     kwargs: dict = {
         "model": model,
         "system_prompt": system_prompt,
         "tools": tools,
     }
+    if session_manager is not None:
+        kwargs["session_manager"] = session_manager
     if callback_handler is not None:
         kwargs["callback_handler"] = callback_handler
     if hooks:

@@ -246,11 +246,20 @@ class ProfileService:
             deleted_count += len(to_delete) - len(errors)
         return deleted_count
 
-    def _delete_agentcore_memory(self, user_id: str) -> int:
-        """Delete all AgentCore Memory records for a user's coaching namespace.
+    _MEMORY_NAMESPACES = [
+        "regain-coaching-{user_id}",
+        "/summaries/{user_id}/",
+        "/preferences/{user_id}/",
+        "/facts/{user_id}/",
+    ]
 
-        Gracefully degrades if the ``bedrock-agentcore`` service model is
-        unavailable in the Lambda runtime's boto3 version.
+    def _delete_agentcore_memory(self, user_id: str) -> int:
+        """Delete all AgentCore Memory records for a user across all namespaces.
+
+        Iterates over all strategy namespace patterns (summaries, preferences,
+        facts) plus the legacy flat namespace to ensure complete cleanup.
+        Each namespace is cleaned independently so a failure in one does not
+        block the others.
 
         Args:
             user_id: Cognito sub from JWT claims.
@@ -272,22 +281,25 @@ class ProfileService:
             logger.warning("bedrock-agentcore client unavailable; skipping memory cleanup")
             return 0
 
-        namespace = f"regain-coaching-{user_id}"
         deleted_count = 0
-
-        try:
-            paginator = client.get_paginator("list_memory_records")
-            for page in paginator.paginate(memoryId=memory_id, namespace=namespace):
-                for record in page.get("memoryRecordSummaries", []):
-                    record_id = record.get("memoryRecordId", "")
-                    if not record_id:
-                        continue
-                    client.delete_memory_record(
-                        memoryId=memory_id,
-                        memoryRecordId=record_id,
-                    )
-                    deleted_count += 1
-        except Exception as exc:
-            logger.warning("AgentCore Memory cleanup failed for user %s: %s", user_id, exc)
+        for ns_template in self._MEMORY_NAMESPACES:
+            namespace = ns_template.format(user_id=user_id)
+            try:
+                paginator = client.get_paginator("list_memory_records")
+                for page in paginator.paginate(memoryId=memory_id, namespace=namespace):
+                    for record in page.get("memoryRecordSummaries", []):
+                        record_id = record.get("memoryRecordId", "")
+                        if not record_id:
+                            continue
+                        client.delete_memory_record(
+                            memoryId=memory_id,
+                            memoryRecordId=record_id,
+                        )
+                        deleted_count += 1
+            except Exception as exc:
+                logger.warning(
+                    "AgentCore Memory cleanup failed for namespace %s: %s",
+                    namespace, exc,
+                )
 
         return deleted_count

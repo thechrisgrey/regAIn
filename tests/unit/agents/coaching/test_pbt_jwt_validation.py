@@ -91,7 +91,6 @@ _tool_name = st.sampled_from([
     "regain_get_market_insights",
     "regain_get_alignment",
     "regain_recall_memory",
-    "regain_store_memory",
 ])
 
 

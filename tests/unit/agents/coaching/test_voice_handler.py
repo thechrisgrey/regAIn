@@ -171,7 +171,7 @@ class TestDisconnectCleanup:
     """Test $disconnect cleans up connection and session state."""
 
     def test_disconnect_cleanup(self) -> None:
-        """Disconnect removes connection, closes session, calls store_memory."""
+        """Disconnect removes connection, closes session, returns 200."""
         vh = _load_voice_handler()
 
         # Pre-populate state as if a connection + session exist.
@@ -186,18 +186,13 @@ class TestDisconnectCleanup:
 
         event = _disconnect_event(connection_id="conn-4")
 
-        with patch.object(vh._tools_mod, "store_memory") as mock_store, \
-             patch.object(vh, "run_async") as mock_run_async:
+        with patch.object(vh, "run_async") as mock_run_async:
             result = vh.lambda_handler(event, None)
 
         assert result["statusCode"] == 200
         assert "conn-4" not in vh._connections
         assert "conn-4" not in vh._sessions
         mock_run_async.assert_called_once()
-        mock_store.assert_called_once_with(
-            user_id="user-xyz",
-            content="Voice coaching session ended. Session conducted via Nova Sonic.",
-        )
 
 
 class TestDisconnectNoSession:
@@ -212,14 +207,11 @@ class TestDisconnectNoSession:
 
         event = _disconnect_event(connection_id="conn-5")
 
-        with patch.object(vh._tools_mod, "store_memory") as mock_store:
-            result = vh.lambda_handler(event, None)
+        result = vh.lambda_handler(event, None)
 
         assert result["statusCode"] == 200
         assert "conn-5" not in vh._connections
         assert "conn-5" not in vh._sessions
-        # store_memory still called for the user.
-        mock_store.assert_called_once()
 
 
 # -- $default fallback test ------------------------------------------------

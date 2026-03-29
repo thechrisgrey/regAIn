@@ -40,7 +40,6 @@ ALL_TOOL_NAMES = [
     "regain_get_market_insights",
     "regain_get_alignment",
     "regain_recall_memory",
-    "regain_store_memory",
 ]
 
 OPERATION_TYPES = ["read", "write", "update", "delete"]

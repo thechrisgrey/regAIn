@@ -439,26 +439,6 @@ class AgentCoreStack(cdk.Stack):
                     "Items": {"Type": "object"},
                 },
             },
-            {
-                "name": "regain_store_memory",
-                "description": "Store a coaching session summary for long-term memory.",
-                "lambda_target": "coaching",
-                "input_schema": {
-                    "Type": "object",
-                    "Properties": {
-                        "userId": user_id_prop,
-                        "content": {"Type": "string"},
-                    },
-                    "Required": ["userId", "content"],
-                },
-                "output_schema": {
-                    "Type": "object",
-                    "Properties": {
-                        "status": {"Type": "string"},
-                        "namespace": {"Type": "string"},
-                    },
-                },
-            },
         ]
 
     def _register_tool_schemas(self) -> list[cdk.CfnResource]:
@@ -692,7 +672,6 @@ def handler(event, context):
             "regain_get_market_insights",
             "regain_get_alignment",
             "regain_recall_memory",
-            "regain_store_memory",
         ]
 
         region_placeholder = cdk.Aws.REGION

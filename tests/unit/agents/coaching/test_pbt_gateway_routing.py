@@ -71,7 +71,7 @@ _EXCLUDED_TOOLS = {
     "regain_get_market_insights",
     "regain_get_alignment",
     "regain_recall_memory",
-    "regain_store_memory",
+    "regain_store_memory",  # Removed — memory writes handled by AgentCore session manager
     "regain_generate_mission",
     "regain_complete_mission",
     "regain_code_interpreter",  # Gateway-managed service, not a @tool function

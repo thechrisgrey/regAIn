@@ -73,6 +73,13 @@ agentcore_stack = AgentCoreStack(
     env=env,
 )
 
+# Set AGENTCORE_MEMORY_ID on profile Lambda via Fn.import_value to avoid
+# cyclic cross-stack reference (profile Lambda is owned by ApiStack).
+api_stack.profile_lambda.add_environment(
+    "AGENTCORE_MEMORY_ID",
+    cdk.Fn.import_value("RegainAgentCoreMemoryId"),
+)
+
 agent_stack = AgentStack(
     app,
     "RegainAgentStack",
@@ -85,6 +92,7 @@ agent_stack = AgentStack(
     resume_bucket_name=f"regain-resume-{_ACCOUNT}",
     gateway_id=agentcore_stack.gateway_id,
     gateway_endpoint=agentcore_stack.gateway_endpoint,
+    memory_id=agentcore_stack.memory_id,
     env=env,
 )
 

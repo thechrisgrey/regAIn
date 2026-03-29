@@ -73,6 +73,7 @@ class AgentCoreStack(cdk.Stack):
         self.create_dashboard()
 
         self._code_interpreter_bucket = self._create_code_interpreter_bucket()
+        self._create_memory_resource()
         self._grant_profile_lambda_permissions()
         self._create_outputs()
 
@@ -438,26 +439,6 @@ class AgentCoreStack(cdk.Stack):
                     "Items": {"Type": "object"},
                 },
             },
-            {
-                "name": "regain_store_memory",
-                "description": "Store a coaching session summary for long-term memory.",
-                "lambda_target": "coaching",
-                "input_schema": {
-                    "Type": "object",
-                    "Properties": {
-                        "userId": user_id_prop,
-                        "content": {"Type": "string"},
-                    },
-                    "Required": ["userId", "content"],
-                },
-                "output_schema": {
-                    "Type": "object",
-                    "Properties": {
-                        "status": {"Type": "string"},
-                        "namespace": {"Type": "string"},
-                    },
-                },
-            },
         ]
 
     def _register_tool_schemas(self) -> list[cdk.CfnResource]:
@@ -522,6 +503,100 @@ class AgentCoreStack(cdk.Stack):
 
         return targets
 
+    # -- AgentCore Memory custom resource -------------------------------------
+
+    MEMORY_LAMBDA_CODE = '''
+import json
+import boto3
+import cfnresponse
+
+def handler(event, context):
+    request_type = event.get("RequestType", "")
+    props = event.get("ResourceProperties", {})
+    region = props.get("Region", "us-east-1")
+    try:
+        client = boto3.client("bedrock-agentcore-control", region_name=region)
+        if request_type == "Create":
+            resp = client.create_memory(
+                name=props["MemoryName"],
+                description=props.get("Description", ""),
+                eventExpiryDuration=int(props.get("EventExpiryDuration", "90")),
+                memoryStrategies=json.loads(props.get("MemoryStrategies", "[]")),
+            )
+            memory_id = resp["memory"]["id"]
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {"MemoryId": memory_id}, memory_id)
+        elif request_type == "Delete":
+            memory_id = event.get("PhysicalResourceId", "")
+            if memory_id:
+                try:
+                    client.delete_memory(memoryId=memory_id)
+                except Exception:
+                    pass
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {})
+        else:
+            cfnresponse.send(event, context, cfnresponse.SUCCESS, {}, event.get("PhysicalResourceId", ""))
+    except Exception as e:
+        cfnresponse.send(event, context, cfnresponse.FAILED, {"Error": str(e)})
+'''
+
+    def _create_memory_resource(self) -> None:
+        """Provision AgentCore Memory resource via CloudFormation custom resource."""
+        memory_fn = _lambda.Function(
+            self,
+            "MemoryProvisionerFn",
+            runtime=_lambda.Runtime.PYTHON_3_12,
+            handler="index.handler",
+            code=_lambda.Code.from_inline(self.MEMORY_LAMBDA_CODE),
+            timeout=cdk.Duration.seconds(60),
+        )
+
+        memory_fn.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=[
+                    "bedrock:CreateMemory",
+                    "bedrock:DeleteMemory",
+                    "bedrock:GetMemory",
+                ],
+                resources=["*"],
+            )
+        )
+
+        strategies = json.dumps([
+            {
+                "summaryMemoryStrategy": {
+                    "name": "SessionSummarizer",
+                    "namespaceTemplates": ["/summaries/{actorId}/"],
+                },
+            },
+            {
+                "userPreferenceMemoryStrategy": {
+                    "name": "PreferenceLearner",
+                    "namespaceTemplates": ["/preferences/{actorId}/"],
+                },
+            },
+            {
+                "semanticMemoryStrategy": {
+                    "name": "FactExtractor",
+                    "namespaceTemplates": ["/facts/{actorId}/"],
+                },
+            },
+        ])
+
+        custom_resource = cdk.CfnCustomResource(
+            self,
+            "AgentCoreMemory",
+            service_token=memory_fn.function_arn,
+        )
+        custom_resource.add_property_override("MemoryName", "regain-coaching")
+        custom_resource.add_property_override(
+            "Description", "Coaching session memory for REGAIN platform",
+        )
+        custom_resource.add_property_override("EventExpiryDuration", "90")
+        custom_resource.add_property_override("Region", cdk.Aws.REGION)
+        custom_resource.add_property_override("MemoryStrategies", strategies)
+
+        self._memory_id = custom_resource.get_att("MemoryId").to_string()
+
     # -- Profile Lambda permissions for cascade delete -------------------------
 
     def _grant_profile_lambda_permissions(self) -> None:
@@ -535,7 +610,7 @@ class AgentCoreStack(cdk.Stack):
         bucket_arn = f"arn:aws:s3:::{bucket_name}"
         self._profile_lambda.add_to_role_policy(
             iam.PolicyStatement(
-                actions=["s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
+                actions=["s3:GetObject", "s3:ListBucket", "s3:ListBucketVersions", "s3:DeleteObject", "s3:DeleteObjectVersion"],
                 resources=[bucket_arn, f"{bucket_arn}/*"],
             )
         )
@@ -544,9 +619,6 @@ class AgentCoreStack(cdk.Stack):
         )
 
         # AgentCore Memory cleanup permissions for cascade deletion
-        self._profile_lambda.add_environment(
-            "AGENTCORE_MEMORY_ID", "regain-coaching-memory",
-        )
         self._profile_lambda.add_to_role_policy(
             iam.PolicyStatement(
                 actions=["bedrock:ListMemoryRecords", "bedrock:DeleteMemoryRecord"],
@@ -597,7 +669,6 @@ class AgentCoreStack(cdk.Stack):
             "regain_get_market_insights",
             "regain_get_alignment",
             "regain_recall_memory",
-            "regain_store_memory",
         ]
 
         region_placeholder = cdk.Aws.REGION
@@ -807,6 +878,11 @@ class AgentCoreStack(cdk.Stack):
         """Gateway URL for MCP tool routing (for Lambda env vars)."""
         return self.gateway.get_att("GatewayUrl").to_string()
 
+    @property
+    def memory_id(self) -> str:
+        """Physical ID of the AgentCore Memory resource."""
+        return self._memory_id
+
     # -- Outputs ---------------------------------------------------------------
 
     def _create_outputs(self) -> None:
@@ -840,4 +916,9 @@ class AgentCoreStack(cdk.Stack):
             self, "CodeInterpreterBucketName",
             value=self._code_interpreter_bucket.bucket_name,
             export_name="RegainCodeInterpreterBucketName",
+        )
+        cdk.CfnOutput(
+            self, "MemoryId",
+            value=self._memory_id,
+            export_name="RegainAgentCoreMemoryId",
         )

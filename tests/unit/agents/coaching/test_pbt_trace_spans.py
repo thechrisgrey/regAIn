@@ -51,7 +51,6 @@ ALL_TOOL_NAMES: list[str] = [
     "regain_get_market_insights",
     "regain_get_alignment",
     "regain_recall_memory",
-    "regain_store_memory",
 ]
 
 MODEL_IDS: list[str] = [

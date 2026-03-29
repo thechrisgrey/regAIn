@@ -211,24 +211,10 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
 
     trace_id = conn_info.get("trace_id", "") if conn_info else ""
 
-    # Store session-end memory for continuity across sessions.
-    # Only store memory for fully authenticated connections.
     user_id = conn_info.get("user_id", "") if conn_info else ""
     authenticated = conn_info.get("authenticated", "false") if conn_info else "false"
-    if user_id and authenticated == "true":
-        try:
-            from backend.agents.coaching.tools import store_memory
-
-            session_type = conn_info.get("session_type", "general") if conn_info else "general"
-            store_memory(
-                user_id=user_id,
-                content=f"Text coaching session ended. Session type: {session_type}. "
-                "The user disconnected from the chat interface.",
-            )
-        except Exception:
-            slog.exception(
-                "Failed to store disconnect memory for user %s (trace=%s)", user_id, trace_id
-            )
+    if user_id:
+        slog.info("Coaching session ended for user %s", user_id)
 
     # Emit coaching session duration metric (only for authenticated sessions).
     connect_time_str = conn_info.get("connect_time", "") if conn_info else ""

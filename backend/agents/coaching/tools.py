@@ -846,35 +846,19 @@ def get_alignment(user_id: str, target_role_id: str) -> dict[str, Any]:
 # AgentCore Memory tools
 # ---------------------------------------------------------------------------
 
-_memory_client = None
-
-
-def _get_memory_client():
-    """Lazily initialize the bedrock-agent-runtime boto3 client.
-
-    Returns:
-        A boto3 client for bedrock-agent-runtime, or None if creation fails.
-    """
-    global _memory_client
-    if _memory_client is None:
-        try:
-            region = os.environ.get("AWS_REGION", "us-east-1")
-            _memory_client = boto3.client(
-                "bedrock-agent-runtime", region_name=region
-            )
-        except Exception:
-            logger.exception("Failed to create bedrock-agent-runtime client")
-            return None
-    return _memory_client
+_MEMORY_NAMESPACES = ["/summaries/{user_id}/", "/preferences/{user_id}/", "/facts/{user_id}/"]
 
 
 @tool
 def recall_memory(user_id: str, query: str) -> dict[str, Any]:
     """Retrieve relevant past conversation context for a user.
 
-    Use this tool at the start of every coaching session to recall
-    prior session summaries, key decisions, and detected patterns.
-    Results are ranked by semantic relevance to the query and recency.
+    Use this tool for targeted mid-conversation memory queries when you
+    need specific context beyond what was automatically recalled at
+    session start (e.g. "what did we discuss about Python skills?").
+
+    Searches across all memory strategy namespaces (summaries, preferences,
+    facts) and returns combined results ranked by relevance.
 
     Args:
         user_id: The authenticated user's ID.
@@ -886,34 +870,35 @@ def recall_memory(user_id: str, query: str) -> dict[str, Any]:
         A dict with "entries" (list of memory entry dicts, each with
         content and metadata) and "source" indicating the result origin:
         - source="memory": The memory service responded successfully.
-          An empty entries list means no relevant memories exist (e.g.
-          first session).
+          An empty entries list means no relevant memories exist.
         - source="unavailable": The memory service could not be reached.
-          You cannot confirm whether prior memories exist. Tell the user
-          you may not have full context from prior sessions rather than
-          assuming it is their first session.
     """
-    namespace = f"regain-coaching-{user_id}"
     memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
-
-    client = _get_memory_client()
-    if client is None:
+    if not memory_id:
         return {"entries": [], "source": "unavailable"}
 
     try:
-        response = client.retrieve_memory(
-            memoryId=memory_id,
-            namespace=namespace,
-            query={"text": query},
+        client = boto3.client(
+            "bedrock-agentcore",
+            region_name=os.environ.get("AWS_REGION", "us-east-1"),
         )
-        entries = response.get("memoryEntries", [])
+        all_records = []
+        for ns_template in _MEMORY_NAMESPACES:
+            ns = ns_template.format(user_id=user_id)
+            response = client.retrieve_memory_records(
+                memoryId=memory_id,
+                namespace=ns,
+                searchCriteria={"query": {"text": query}},
+            )
+            all_records.extend(response.get("memoryRecordSummaries", []))
+
         return {
             "entries": [
                 {
-                    "content": entry.get("content", ""),
-                    "metadata": entry.get("metadata", {}),
+                    "content": record.get("content", ""),
+                    "metadata": record.get("metadata", {}),
                 }
-                for entry in entries
+                for record in all_records
             ],
             "source": "memory",
         }
@@ -922,61 +907,6 @@ def recall_memory(user_id: str, query: str) -> dict[str, Any]:
             "AgentCore Memory recall failed for user %s: %s", user_id, exc
         )
         return {"entries": [], "source": "unavailable"}
-
-
-@tool
-def store_memory(user_id: str, content: str) -> dict[str, Any]:
-    """Store a coaching session summary or key observation for a user.
-
-    Use this tool at the end of every coaching session to persist a
-    summary of what was discussed, decisions made, evidence logged,
-    missions delivered, and any detected behavioral patterns. This
-    enables conversational continuity across sessions.
-
-    NOTE: This tool may fail silently if the memory service is
-    unavailable. If it returns status='unavailable', the session summary
-    was NOT persisted. The next session's recall_memory may return
-    incomplete context as a result. Inform the user if storage fails so
-    they are aware their session may not be recalled next time.
-
-    Args:
-        user_id: The authenticated user's ID.
-        content: The text content to store (e.g. a session summary
-            or a key coaching observation).
-
-    Returns:
-        A confirmation dict with status and namespace on success,
-        or a dict with status "unavailable" and a message on failure.
-    """
-    namespace = f"regain-coaching-{user_id}"
-    memory_id = os.environ.get("AGENTCORE_MEMORY_ID", "")
-    timestamp = datetime.now(timezone.utc).isoformat()
-
-    client = _get_memory_client()
-    if client is None:
-        return {
-            "status": "unavailable",
-            "error_kind": ERR_TRANSIENT,
-            "message": "Memory service client could not be initialized.",
-        }
-
-    try:
-        client.create_memory(
-            memoryId=memory_id,
-            namespace=namespace,
-            content={"text": content},
-            metadata={"timestamp": timestamp, "user_id": user_id},
-        )
-        return {"status": "stored", "namespace": namespace}
-    except Exception as exc:
-        logger.warning(
-            "AgentCore Memory store failed for user %s: %s", user_id, exc
-        )
-        return {
-            "status": "unavailable",
-            "error_kind": ERR_TRANSIENT,
-            "message": f"Memory service unavailable: {exc}",
-        }
 
 
 @tool

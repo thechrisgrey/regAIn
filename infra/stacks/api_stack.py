@@ -187,7 +187,8 @@ class ApiStack(cdk.Stack):
         # Coaching: read UserProfiles
         self.tables["UserProfiles"].grant_read_data(lambdas["Coaching"])
 
-        # Dashboard: read Campaigns, MissionHistory, EvidenceVault
+        # Dashboard: read UserProfiles, Campaigns, MissionHistory, EvidenceVault
+        self.tables["UserProfiles"].grant_read_data(lambdas["Dashboard"])
         self.tables["Campaigns"].grant_read_data(lambdas["Dashboard"])
         self.tables["MissionHistory"].grant_read_data(lambdas["Dashboard"])
         self.tables["EvidenceVault"].grant_read_data(lambdas["Dashboard"])
@@ -482,10 +483,18 @@ class ApiStack(cdk.Stack):
 
     def _create_monitoring(self, lambdas: dict[str, _lambda.Function]) -> None:
         """Add CloudWatch alarms for all Lambda functions and the API Gateway."""
-        alert_topic = sns.Topic.from_topic_arn(
-            self, "ImportedAlertTopic",
-            cdk.Fn.import_value("RegainAlertSnsTopicArn"),
-        )
+        # On first deploy, AgentCoreStack (which exports RegainAlertSnsTopicArn)
+        # doesn't exist yet because it depends on ApiStack's lambdas. Use a
+        # context flag to skip the import on bootstrap deploys.
+        skip_alert_import = self.node.try_get_context("skip_alert_import")
+        if skip_alert_import:
+            alert_topic = sns.Topic(self, "RegainApiAlertTopic",
+                                    topic_name="RegainApiAlerts")
+        else:
+            alert_topic = sns.Topic.from_topic_arn(
+                self, "ImportedAlertTopic",
+                cdk.Fn.import_value("RegainAlertSnsTopicArn"),
+            )
 
         for name, fn in lambdas.items():
             add_lambda_alarms(self, fn, alert_topic, name=name, timeout_seconds=30)

@@ -553,9 +553,9 @@ def handler(event, context):
         memory_fn.add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
-                    "bedrock:CreateMemory",
-                    "bedrock:DeleteMemory",
-                    "bedrock:GetMemory",
+                    "bedrock-agentcore:CreateMemory",
+                    "bedrock-agentcore:DeleteMemory",
+                    "bedrock-agentcore:GetMemory",
                 ],
                 resources=["*"],
             )
@@ -565,19 +565,19 @@ def handler(event, context):
             {
                 "summaryMemoryStrategy": {
                     "name": "SessionSummarizer",
-                    "namespaceTemplates": ["/summaries/{actorId}/"],
+                    "namespaces": ["/summaries/{actorId}/{sessionId}/"],
                 },
             },
             {
                 "userPreferenceMemoryStrategy": {
                     "name": "PreferenceLearner",
-                    "namespaceTemplates": ["/preferences/{actorId}/"],
+                    "namespaces": ["/preferences/{actorId}/"],
                 },
             },
             {
                 "semanticMemoryStrategy": {
                     "name": "FactExtractor",
-                    "namespaceTemplates": ["/facts/{actorId}/"],
+                    "namespaces": ["/facts/{actorId}/"],
                 },
             },
         ])
@@ -587,7 +587,7 @@ def handler(event, context):
             "AgentCoreMemory",
             service_token=memory_fn.function_arn,
         )
-        custom_resource.add_property_override("MemoryName", "regain-coaching")
+        custom_resource.add_property_override("MemoryName", "regain_coaching")
         custom_resource.add_property_override(
             "Description", "Coaching session memory for REGAIN platform",
         )
@@ -671,7 +671,7 @@ def handler(event, context):
             "regain_recall_memory",
         ]
 
-        region_placeholder = cdk.Aws.REGION
+        region_placeholder = cdk.Stack.of(self).region
 
         session_count_widget = {
             "type": "metric", "x": 0, "y": 0, "width": 8, "height": 6,

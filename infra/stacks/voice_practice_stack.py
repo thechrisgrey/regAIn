@@ -370,7 +370,7 @@ class VoicePracticeStack(cdk.Stack):
         bucket_arn = f"arn:aws:s3:::{bucket_name}"
         self.profile_lambda.add_to_role_policy(
             iam.PolicyStatement(
-                actions=["s3:GetObject", "s3:ListBucket", "s3:DeleteObject"],
+                actions=["s3:GetObject", "s3:ListBucket", "s3:ListBucketVersions", "s3:DeleteObject", "s3:DeleteObjectVersion"],
                 resources=[bucket_arn, f"{bucket_arn}/*"],
             )
         )

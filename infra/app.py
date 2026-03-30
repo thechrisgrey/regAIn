@@ -75,10 +75,18 @@ agentcore_stack = AgentCoreStack(
 
 # Set AGENTCORE_MEMORY_ID on profile Lambda via Fn.import_value to avoid
 # cyclic cross-stack reference (profile Lambda is owned by ApiStack).
-api_stack.profile_lambda.add_environment(
-    "AGENTCORE_MEMORY_ID",
-    cdk.Fn.import_value("RegainAgentCoreMemoryId"),
-)
+# On bootstrap deploys (skip_alert_import=true), AgentCoreStack doesn't
+# exist yet so Fn::ImportValue would fail.
+_skip_bootstrap = app.node.try_get_context("skip_alert_import")
+if not _skip_bootstrap:
+    api_stack.profile_lambda.add_environment(
+        "AGENTCORE_MEMORY_ID",
+        cdk.Fn.import_value("RegainAgentCoreMemoryId"),
+    )
+else:
+    api_stack.profile_lambda.add_environment(
+        "AGENTCORE_MEMORY_ID", "pending-memory-deploy",
+    )
 
 agent_stack = AgentStack(
     app,

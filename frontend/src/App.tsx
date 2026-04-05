@@ -25,11 +25,16 @@ const ResumePage = lazy(() => import('./pages/ResumePage'));
 const OnetPage = lazy(() => import('./pages/OnetPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ImpactScorecardPage = lazy(() => import('./pages/ImpactScorecardPage'));
+const PublicScorecardPage = lazy(() => import('./pages/PublicScorecardPage'));
 
 const router = createBrowserRouter([
   {
     path: '/login',
     element: <Login />,
+  },
+  {
+    path: '/s/:shortCode',
+    element: <PublicScorecardPage />,
   },
   {
     path: '/',

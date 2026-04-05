@@ -284,8 +284,13 @@ export default function Login() {
           className="h-20 w-auto brightness-0 invert self-start"
         />
         <p className="mt-6 max-w-md text-lg leading-relaxed text-neutral-400">
-          Build documented evidence of your capabilities. Complete missions,
-          track your progress, and land your next role.
+          The AI-powered career reskilling platform for veterans, career pivoters,
+          and AI-displaced professionals. Complete daily missions, build a
+          timestamped evidence vault, and earn a Career Readiness Score that
+          proves what you can do — not what you say you can do.
+        </p>
+        <p className="mt-4 max-w-md text-sm text-neutral-500">
+          Every score has receipts.
         </p>
       </div>
 
@@ -299,7 +304,7 @@ export default function Login() {
             className="mx-auto h-12 w-auto"
           />
           <p className="mt-3 text-sm text-neutral-500">
-            Build evidence. Complete missions. Land your next role.
+            Career reskilling with evidence-backed readiness scores.
           </p>
         </div>
 

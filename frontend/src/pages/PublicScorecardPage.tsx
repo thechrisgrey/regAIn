@@ -27,7 +27,6 @@ export default function PublicScorecardPage() {
 
   useEffect(() => {
     if (!shortCode) return;
-    setLoading(true);
     fetch(`${API_BASE_URL}/score/public/${shortCode}`)
       .then(res => {
         if (!res.ok) throw new Error(res.status === 404 ? 'Scorecard not found' : 'Failed to load');

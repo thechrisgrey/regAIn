@@ -39,7 +39,7 @@ jobs:
         run: pip install -r tests/requirements.txt -r infra/requirements.txt
 
       - name: Create Lambda layer stubs
-        run: mkdir -p infra/layer_build/python _layer/python
+        run: mkdir -p infra/layer_build/python infra/weasyprint_layer/python infra/weasyprint_layer/lib _layer/python
 
       - name: Run tests with coverage
         run: pytest tests/ -x -q --cov=backend --cov-report=term-missing:skip-covered --cov-report=xml:coverage.xml
@@ -138,7 +138,7 @@ jobs:
         run: npm install -g aws-cdk
 
       - name: Create Lambda layer stubs
-        run: mkdir -p infra/layer_build/python _layer/python
+        run: mkdir -p infra/layer_build/python infra/weasyprint_layer/python infra/weasyprint_layer/lib _layer/python
 
       - name: Synthesize all stacks
         working-directory: infra

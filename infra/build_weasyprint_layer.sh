@@ -27,9 +27,10 @@ mkdir -p "$LAYER_DIR"
 # Build in Amazon Linux 2023 container (matches Lambda Python 3.12 runtime)
 $DOCKER run --rm \
   --platform linux/amd64 \
+  --entrypoint bash \
   -v "$LAYER_DIR:/out" \
   public.ecr.aws/lambda/python:3.12 \
-  bash -c '
+  -c '
     set -e
 
     # Install system dependencies for WeasyPrint

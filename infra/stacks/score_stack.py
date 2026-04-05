@@ -45,6 +45,7 @@ class ScoreStack(cdk.Stack):
         self.tables = tables
         self._score_tables = self._create_tables()
         self.exports_bucket = self._create_exports_bucket()
+        self._weasyprint_layer = self._create_weasyprint_layer()
         self.score_lambda = self._create_score_lambda()
         self.public_lambda = self._create_public_lambda()
         self._grant_permissions()
@@ -120,6 +121,23 @@ class ScoreStack(cdk.Stack):
         )
 
     # ------------------------------------------------------------------
+    # Lambda Layer
+    # ------------------------------------------------------------------
+
+    def _create_weasyprint_layer(self) -> _lambda.LayerVersion:
+        """Create a Lambda Layer with WeasyPrint + system dependencies (Cairo, Pango)."""
+        return _lambda.LayerVersion(
+            self,
+            "RegainWeasyPrintLayer",
+            layer_version_name="RegainWeasyPrint",
+            code=_lambda.Code.from_asset(
+                str(Path(__file__).resolve().parent.parent / "weasyprint_layer"),
+            ),
+            compatible_runtimes=[_lambda.Runtime.PYTHON_3_12],
+            description="WeasyPrint + Cairo/Pango for PDF generation",
+        )
+
+    # ------------------------------------------------------------------
     # Lambda Functions
     # ------------------------------------------------------------------
 
@@ -137,7 +155,15 @@ class ScoreStack(cdk.Stack):
         }
 
     def _create_score_lambda(self) -> _lambda.Function:
-        """Create the score computation Lambda (API + EventBridge trigger)."""
+        """Create the score computation Lambda (API + EventBridge trigger).
+
+        Includes the WeasyPrint layer for PDF generation. LD_LIBRARY_PATH
+        is set so the Lambda runtime can find Cairo/Pango shared libraries
+        in the layer's /opt/lib directory.
+        """
+        env = self._table_env()
+        env["LD_LIBRARY_PATH"] = "/opt/lib:/var/lang/lib:/lib64:/usr/lib64"
+
         return _lambda.Function(
             self,
             "RegainScoreComputeFunction",
@@ -148,9 +174,10 @@ class ScoreStack(cdk.Stack):
                 str(Path(__file__).resolve().parent.parent.parent),
                 exclude=["frontend", "tests", "infra", ".venv", "node_modules", ".git", "_layer"],
             ),
-            environment=self._table_env(),
+            layers=[self._weasyprint_layer],
+            environment=env,
             timeout=cdk.Duration.seconds(60),
-            memory_size=512,
+            memory_size=1024,  # WeasyPrint needs more memory for PDF rendering
             tracing=_lambda.Tracing.ACTIVE,
             log_retention=logs.RetentionDays.ONE_MONTH,
         )

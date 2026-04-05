@@ -6,6 +6,7 @@ __pycache__/
 cdk.out/
 infra/.venv/
 infra/layer_build/
+infra/weasyprint_layer/
 _layer/
 frontend/coverage/
 .DS_Store

@@ -11,6 +11,7 @@ from stacks.agentcore_stack import AgentCoreStack
 from stacks.market_intel_stack import MarketIntelStack
 from stacks.resume_stack import ResumeStack
 from stacks.voice_practice_stack import VoicePracticeStack
+from stacks.score_stack import ScoreStack
 
 _ACCOUNT = os.environ.get("CDK_DEFAULT_ACCOUNT", "563170906428")
 _REGION = os.environ.get("CDK_DEFAULT_REGION", "us-east-1")
@@ -56,6 +57,15 @@ market_intel_stack = MarketIntelStack(
     app,
     "RegainMarketIntelStack",
     tables=data_stack.tables,
+    env=env,
+)
+
+score_stack = ScoreStack(
+    app,
+    "RegainScoreStack",
+    tables=data_stack.tables,
+    api=api_stack.api,
+    user_pool=auth_stack.user_pool,
     env=env,
 )
 
@@ -117,6 +127,7 @@ for stack, service in [
     (market_intel_stack, "MarketIntel"),
     (agentcore_stack, "AgentCore"),
     (agent_stack, "Agent"),
+    (score_stack, "Score"),
 ]:
     cdk.Tags.of(stack).add("Service", service)
 

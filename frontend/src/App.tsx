@@ -24,6 +24,7 @@ const VoiceSessionDetailPage = lazy(() => import('./pages/VoiceSessionDetailPage
 const ResumePage = lazy(() => import('./pages/ResumePage'));
 const OnetPage = lazy(() => import('./pages/OnetPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
+const ImpactScorecardPage = lazy(() => import('./pages/ImpactScorecardPage'));
 
 const router = createBrowserRouter([
   {
@@ -53,6 +54,7 @@ const router = createBrowserRouter([
       { path: 'missions', element: <Missions /> },
       { path: 'evidence', element: <Evidence /> },
       { path: 'analytics', element: <AnalyticsPage /> },
+      { path: 'scorecard', element: <ImpactScorecardPage /> },
       { path: 'resume', element: <ResumePage /> },
       { path: 'onet', element: <OnetPage /> },
       { path: 'profile', element: <Profile /> },

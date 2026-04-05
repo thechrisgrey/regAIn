@@ -343,6 +343,105 @@ export interface SkillSuggestionsResponse {
   suggestions: string[];
 }
 
+// Impact Scorecard types
+
+export interface SkillDetail {
+  skill: string;
+  count: number;
+  lastDate: string;
+}
+
+export interface HotSkillGap {
+  skill: string;
+  gap: number;
+  demand: number;
+}
+
+export interface GateCriterion {
+  required: number;
+  current: number;
+  met: boolean;
+}
+
+export interface DimensionDetail {
+  missionVelocity: {
+    wcr: number;
+    cds: number;
+    velocityTrend: number;
+    categoryBreakdown: Record<string, number>;
+    last7d: number;
+    prior7d: number;
+    totalCompleted: number;
+  };
+  evidenceDensity: {
+    ecr: number;
+    ers: number;
+    stb: number;
+    uniqueSkills: number;
+    totalEntries: number;
+    skillDetail: SkillDetail[];
+  };
+  marketAlignment: {
+    cosine: number;
+    demandMultiplier: number;
+    matchedSkills: number;
+    totalTargetSkills: number;
+    hotSkillsGap: HotSkillGap[];
+    hasMarketData: boolean;
+    targetRole?: string;
+  };
+  phaseProgression: {
+    phase: string;
+    phaseIndex: number;
+    gatesMet: Record<string, GateCriterion>;
+    startDate: string;
+  };
+  adaptiveDifficulty: {
+    adaptationRates: Record<string, number>;
+    difficultyCeilings: Record<string, number>;
+    peak_difficulty_avg: number;
+    historyByCategory?: Record<string, { day: number; difficulty: number }[]>;
+  };
+}
+
+export interface ScoreResponse {
+  cri: number;
+  missionVelocityScore: number;
+  evidenceDensityScore: number;
+  marketAlignmentScore: number;
+  phaseProgressionScore: number;
+  adaptiveDifficultyScore: number;
+  dimensionDetail: DimensionDetail;
+  evidenceCount: number;
+  missionsCompleted: number;
+  targetRole: string;
+  computedAt: string;
+}
+
+export interface ScoreSnapshot {
+  cri: number;
+  missionVelocityScore: number;
+  evidenceDensityScore: number;
+  marketAlignmentScore: number;
+  phaseProgressionScore: number;
+  adaptiveDifficultyScore: number;
+  computedAt: string;
+  sk: string;
+}
+
+export interface ScoreHistoryResponse {
+  snapshots: ScoreSnapshot[];
+}
+
+export interface ShareResponse {
+  shortCode: string;
+  url: string;
+}
+
+export interface ExportResponse {
+  url: string;
+}
+
 export interface VoiceSessionDetailResponse {
   sessionId: string;
   sessionType: VoicePracticeSessionType;

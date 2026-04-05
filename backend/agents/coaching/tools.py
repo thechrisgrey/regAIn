@@ -557,6 +557,7 @@ def log_evidence(
         "skillTag": skill_tag,
         "reflection": reflection,
         "createdAt": datetime.now(timezone.utc).isoformat(),
+        "wordCount": len(reflection.split()) if reflection else 0,
     }
     if artifact_url:
         item["artifactUrl"] = artifact_url

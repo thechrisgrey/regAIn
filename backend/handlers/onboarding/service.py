@@ -42,6 +42,9 @@ class OnboardingService:
                     title=candidate.title,
                     description=candidate.description,
                     status="pending",
+                    category=candidate.category,
+                    difficulty=candidate.difficulty,
+                    skill_tags=candidate.skill_tags,
                 )
                 self.db.put_item("mission_history", mission.to_dynamodb_item())
                 missions.append(mission.to_dynamodb_item())

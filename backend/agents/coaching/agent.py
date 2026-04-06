@@ -109,6 +109,8 @@ def create_coaching_agent(
     jwt_token: str,
     callback_handler=None,
     hooks: list | None = None,
+    conversation_history: list | None = None,
+    attention_mode: str = "focus",
 ) -> Agent:
     """Create a Coaching Agent with tools, memory session manager, and system prompt.
 
@@ -117,6 +119,8 @@ def create_coaching_agent(
         jwt_token: The user's Cognito JWT for Gateway authorization.
         callback_handler: Optional callback for streaming text chunks.
         hooks: Optional list of HookProvider instances for lifecycle events.
+        conversation_history: Optional list of prior conversation turns to load into agent context.
+        attention_mode: The user's current attention mode ('dnd', 'focus', or 'explore'). Default 'focus'.
 
     Returns:
         A configured Strands Agent.
@@ -142,7 +146,10 @@ def create_coaching_agent(
     from backend.agents.coaching.tools import get_valid_skill_tags
 
     valid_tags = get_valid_skill_tags(user_id)
-    system_prompt = get_system_prompt(valid_skill_tags=valid_tags)
+    system_prompt = get_system_prompt(
+        valid_skill_tags=valid_tags,
+        attention_mode=attention_mode,
+    )
 
     model = BedrockModel(
         model_id=os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"),
@@ -163,4 +170,15 @@ def create_coaching_agent(
     if hooks:
         kwargs["hooks"] = hooks
 
-    return Agent(**kwargs)
+    agent = Agent(**kwargs)
+
+    if conversation_history:
+        for turn in conversation_history:
+            role = turn.get("role", "")
+            content = turn.get("content", "")
+            if role == "user":
+                agent.messages.append({"role": "user", "content": [{"text": content}]})
+            elif role == "assistant":
+                agent.messages.append({"role": "assistant", "content": [{"text": content}]})
+
+    return agent

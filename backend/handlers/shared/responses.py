@@ -6,6 +6,7 @@ for all Lambda handlers.
 
 import json
 import os
+from decimal import Decimal
 from typing import Any, Dict
 
 _ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGIN", "https://regain.altivum.ai")
@@ -16,6 +17,13 @@ CORS_HEADERS = {
     "Access-Control-Allow-Headers": "Content-Type,Authorization,Idempotency-Key",
     "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
 }
+
+
+def _default_serializer(obj: Any) -> Any:
+    """Handle types that json.dumps cannot serialize natively."""
+    if isinstance(obj, Decimal):
+        return int(obj) if obj == obj.to_integral_value() else float(obj)
+    raise TypeError(f"Object of type {type(obj).__name__} is not JSON serializable")
 
 
 def success_response(data: Dict[str, Any], status_code: int = 200) -> Dict[str, Any]:
@@ -31,7 +39,7 @@ def success_response(data: Dict[str, Any], status_code: int = 200) -> Dict[str, 
     return {
         "statusCode": status_code,
         "headers": CORS_HEADERS,
-        "body": json.dumps(data),
+        "body": json.dumps(data, default=_default_serializer),
     }
 
 

@@ -20,7 +20,6 @@ const navGroups = [
     label: 'Act',
     items: [
       { to: '/missions', label: 'Missions', icon: 'missions' },
-      { to: '/coaching', label: 'Coaching', icon: 'coaching' },
       { to: '/voice-practice', label: 'Voice Practice', icon: 'voice-practice' },
     ],
   },

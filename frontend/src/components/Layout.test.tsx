@@ -24,6 +24,10 @@ vi.mock('../services/api', () => ({
   },
 }));
 
+vi.mock('./CoachModal', () => ({
+  default: () => null,
+}));
+
 vi.mock('../hooks/useSharedData', () => ({
   useSharedData: vi.fn(() => ({
     dashboard: {

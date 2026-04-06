@@ -44,6 +44,11 @@ vi.mock('../hooks/useSharedData', () => ({
   })),
 }));
 
+// Mock CoachModal -- depends on CoachingContext
+vi.mock('../components/CoachModal', () => ({
+  default: () => null,
+}));
+
 // Mock ConnectionBanner -- depends on NetworkStatusContext
 vi.mock('../components/ConnectionBanner', () => ({
   default: () => null,
@@ -72,6 +77,7 @@ describe('Smoke: Layout', () => {
 
   it('renders the sidebar navigation with all nav items', () => {
     // Verifies every expected navigation link is present in the sidebar
+    // Coaching removed — replaced by persistent CoachModal
     renderLayout();
 
     const nav = screen.getByRole('navigation', { name: /main navigation/i });
@@ -81,7 +87,6 @@ describe('Smoke: Layout', () => {
     const expectedLabels = [
       'Dashboard',
       'Missions',
-      'Coaching',
       'Voice Practice',
       'Evidence',
       'Scorecard',
@@ -94,6 +99,7 @@ describe('Smoke: Layout', () => {
     for (const label of expectedLabels) {
       expect(labels).toContain(label);
     }
+    expect(labels).not.toContain('Coaching');
   });
 
   it('renders the sign-out button', () => {
@@ -140,7 +146,6 @@ describe('Smoke: Layout', () => {
     const expectedRoutes: Record<string, string> = {
       Dashboard: '/dashboard',
       Missions: '/missions',
-      Coaching: '/coaching',
       'Voice Practice': '/voice-practice',
       Evidence: '/evidence',
       Scorecard: '/scorecard',

@@ -4,6 +4,7 @@ from aws_cdk import (
     aws_cloudwatch as cloudwatch,
     aws_cloudwatch_actions as cw_actions,
     aws_dynamodb as dynamodb,
+    aws_s3 as s3,
     aws_sns as sns,
 )
 from constructs import Construct
@@ -28,6 +29,8 @@ class DataStack(cdk.Stack):
         self._create_voice_sessions_table()
         self._create_ws_connections_table()
         self._create_idempotency_keys_table()
+        self._create_conversation_threads_table()
+        self._create_thread_archives_bucket()
 
         self._create_monitoring()
         self._create_outputs()
@@ -224,8 +227,46 @@ class DataStack(cdk.Stack):
             time_to_live_attribute="expiresAt",
         )
 
+    def _create_conversation_threads_table(self) -> None:
+        """Create ConversationThreads table (PK: userId, SK: threadId)."""
+        self.tables["ConversationThreads"] = dynamodb.Table(
+            self,
+            "RegainConversationThreads",
+            table_name="RegainConversationThreads",
+            partition_key=dynamodb.Attribute(
+                name="userId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="threadId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=self._removal_policy,
+            point_in_time_recovery=True,
+        )
+
+    def _create_thread_archives_bucket(self) -> None:
+        """Create S3 bucket for compacted thread archives."""
+        self.thread_archives_bucket = s3.Bucket(
+            self,
+            "RegainThreadArchives",
+            bucket_name=f"regain-thread-archives-{self.account}-{self.region}",
+            versioned=True,
+            encryption=s3.BucketEncryption.S3_MANAGED,
+            removal_policy=self._removal_policy,
+            lifecycle_rules=[
+                s3.LifecycleRule(
+                    transitions=[
+                        s3.Transition(
+                            storage_class=s3.StorageClass.GLACIER,
+                            transition_after=cdk.Duration.days(30),
+                        )
+                    ],
+                )
+            ],
+        )
+
     def _create_monitoring(self) -> None:
-        """Add CloudWatch throttle alarms for the 6 data tables.
+        """Add CloudWatch throttle alarms for the 7 data tables.
 
         Creates its own SNS topic for DynamoDB alerts to avoid a cyclic
         dependency with AgentCoreStack (which owns the main alert topic
@@ -250,6 +291,7 @@ class DataStack(cdk.Stack):
         monitored_tables = [
             "UserProfiles", "Campaigns", "MissionHistory",
             "EvidenceVault", "MarketData", "VoiceSessions",
+            "ConversationThreads",
         ]
 
         for table_name in monitored_tables:
@@ -296,3 +338,9 @@ class DataStack(cdk.Stack):
                 value=table.table_arn,
                 export_name=f"Regain{table_name}Arn",
             )
+        cdk.CfnOutput(
+            self,
+            "ThreadArchivesBucketName",
+            value=self.thread_archives_bucket.bucket_name,
+            export_name="RegainThreadArchivesBucketName",
+        )

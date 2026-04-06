@@ -15,6 +15,10 @@ import type {
   OnetCareerReport,
   AnalyticsResponse,
   SkillSuggestionsResponse,
+  ScoreResponse,
+  ScoreHistoryResponse,
+  ShareResponse,
+  ExportResponse,
 } from '../types';
 import type { ResumeResponse } from '../types/resume';
 
@@ -244,6 +248,24 @@ export const api = {
     recover: (token: string) =>
       apiRequest<{ status: string }>(
         '/profile/recover',
+        { method: 'POST' },
+        token,
+      ),
+  },
+  score: {
+    get: (token: string) =>
+      cachedGet<ScoreResponse>('/score', token, 60_000),
+    history: (token: string) =>
+      cachedGet<ScoreHistoryResponse>('/score/history', token, 60_000),
+    share: (token: string) =>
+      apiRequest<ShareResponse>(
+        '/score/share',
+        { method: 'POST' },
+        token,
+      ),
+    exportPdf: (token: string) =>
+      apiRequest<ExportResponse>(
+        '/score/export',
         { method: 'POST' },
         token,
       ),

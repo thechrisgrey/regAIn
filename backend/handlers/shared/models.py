@@ -147,6 +147,9 @@ class Mission:
     status: str  # 'pending', 'in_progress', 'completed', 'skipped'
     completed_date: Optional[str] = None
     evidence_id: Optional[str] = None
+    category: Optional[str] = None  # "reflection", "skill_building", etc.
+    difficulty: Optional[int] = None  # 1-5
+    skill_tags: Optional[List[str]] = None
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
@@ -162,6 +165,12 @@ class Mission:
             item["completedDate"] = self.completed_date
         if self.evidence_id is not None:
             item["evidenceId"] = self.evidence_id
+        if self.category is not None:
+            item["category"] = self.category
+        if self.difficulty is not None:
+            item["difficulty"] = self.difficulty
+        if self.skill_tags is not None:
+            item["skillTags"] = self.skill_tags
         return item
 
     @classmethod
@@ -176,6 +185,9 @@ class Mission:
             status=item["status"],
             completed_date=item.get("completedDate"),
             evidence_id=item.get("evidenceId"),
+            category=item.get("category"),
+            difficulty=item.get("difficulty"),
+            skill_tags=item.get("skillTags"),
         )
 
 
@@ -190,6 +202,7 @@ class Evidence:
     reflection: str
     created_at: str
     artifact_url: Optional[str] = None
+    word_count: Optional[int] = None
 
     def to_dynamodb_item(self) -> Dict[str, Any]:
         """Convert to DynamoDB item format."""
@@ -203,6 +216,8 @@ class Evidence:
         }
         if self.artifact_url is not None:
             item["artifactUrl"] = self.artifact_url
+        if self.word_count is not None:
+            item["wordCount"] = self.word_count
         return item
 
     @classmethod
@@ -216,4 +231,5 @@ class Evidence:
             reflection=item["reflection"],
             created_at=item["createdAt"],
             artifact_url=item.get("artifactUrl"),
+            word_count=item.get("wordCount"),
         )

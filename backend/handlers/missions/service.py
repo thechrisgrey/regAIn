@@ -190,6 +190,9 @@ class MissionsService:
             title=result.primary.title,
             description=result.primary.description,
             status="pending",
+            category=result.primary.category,
+            difficulty=result.primary.difficulty,
+            skill_tags=result.primary.skill_tags,
         )
         self.db.put_item("mission_history", mission.to_dynamodb_item())
 
@@ -241,6 +244,7 @@ class MissionsService:
                 "error": "Mission not found or already completed",
             }
 
+        reflection = data.get("reflection", "")
         evidence = Evidence(
             user_id=user_id,
             evidence_id=evidence_id,
@@ -248,9 +252,10 @@ class MissionsService:
             skill_tag=self._normalize_tag(
                 data.get("skill_tags", ["general"])[0] if data.get("skill_tags") else "general"
             ),
-            reflection=data.get("reflection", ""),
+            reflection=reflection,
             created_at=now,
             artifact_url=data.get("artifact_url"),
+            word_count=len(reflection.split()) if reflection else 0,
         )
         self.db.put_item("evidence_vault", evidence.to_dynamodb_item())
 

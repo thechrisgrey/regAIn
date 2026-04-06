@@ -178,10 +178,21 @@ jobs:
             python:3.12-slim \
             bash -c "pip install requests --target /out --no-cache-dir && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
 
+      - name: Build WeasyPrint layer
+        run: |
+          mkdir -p infra/weasyprint_layer
+          docker run --rm \
+            --platform linux/amd64 \
+            --entrypoint bash \
+            -v "$PWD/infra/weasyprint_layer:/out" \
+            public.ecr.aws/lambda/python:3.12 \
+            -c "dnf install -y cairo pango gdk-pixbuf2 fontconfig freetype libffi-devel gcc python3-devel 2>/dev/null && pip install weasyprint jinja2 --target /out/python --no-cache-dir && mkdir -p /out/lib && for lib in libcairo.so* libpango*.so* libgobject*.so* libglib*.so* libfontconfig.so* libfreetype.so* libpixman*.so* libharfbuzz.so* libfribidi.so* libpng*.so* libgdk_pixbuf*.so* libgio*.so* libgmodule*.so*; do find /usr/lib64 -name \"\$lib\" -exec cp -P {} /out/lib/ \\; 2>/dev/null || true; done && find /out -type d -name __pycache__ -exec rm -rf {} + 2>/dev/null; true"
+
       - name: Report layer sizes
         run: |
           du -sh infra/layer_build/python
           du -sh _layer/python
+          du -sh infra/weasyprint_layer
 
       - name: Upload layer artifacts
         uses: actions/upload-artifact@v4
@@ -189,6 +200,7 @@ jobs:
           name: lambda-layers
           path: |
             infra/layer_build/
+            infra/weasyprint_layer/
             _layer/
           retention-days: 1
 

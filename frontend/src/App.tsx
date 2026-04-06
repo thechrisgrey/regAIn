@@ -18,7 +18,6 @@ import Evidence from './pages/Evidence';
 import Profile from './pages/Profile';
 import NotFound from './pages/NotFound';
 
-const CoachingPage = lazy(() => import('./pages/CoachingPage'));
 const VoicePracticePage = lazy(() => import('./pages/VoicePracticePage'));
 const VoiceSessionDetailPage = lazy(() => import('./pages/VoiceSessionDetailPage'));
 const ResumePage = lazy(() => import('./pages/ResumePage'));
@@ -53,7 +52,7 @@ const router = createBrowserRouter([
       { index: true, element: <Navigate to="/dashboard" /> },
       { path: 'onboarding', element: <Onboarding /> },
       { path: 'dashboard', element: <Dashboard /> },
-      { path: 'coaching', element: <CoachingPage /> },
+      { path: 'coaching', element: <Navigate to="/dashboard" /> },
       { path: 'voice-practice', element: <VoicePracticePage /> },
       { path: 'voice-practice/:sessionId', element: <VoiceSessionDetailPage /> },
       { path: 'missions', element: <Missions /> },

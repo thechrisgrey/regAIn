@@ -245,10 +245,22 @@ export default function CoachModal() {
     return () => clearTimeout(timer);
   }, [pageContext, streaming, sendMessage]);
 
-  // Filter out [no_suggestion] messages from display
-  const visibleMessages = messages.filter(
-    m => !m.content.includes('[no_suggestion]'),
-  );
+  // Filter and clean messages for display
+  const visibleMessages = messages
+    .filter(m => !m.content.includes('[no_suggestion]'))
+    .filter(m => !(m.role === 'assistant' && /^Action:\s/.test(m.content.trim())))
+    .map(m => {
+      if (m.role === 'user') {
+        // Strip [page_context: ...] and [proactive_check] tags from display
+        const cleaned = m.content
+          .replace(/\[page_context:\s*\w+\]\s*/g, '')
+          .replace(/\[proactive_check\]\s*/g, '')
+          .trim();
+        return { ...m, content: cleaned };
+      }
+      return m;
+    })
+    .filter(m => m.content.length > 0);
 
   // Send handler
   const handleSend = useCallback(

@@ -7,12 +7,9 @@ Verifies that all Lambda functions created by the API Stack receive
 DynamoDB table names via environment variables.
 """
 
-import aws_cdk as cdk
 from hypothesis import given, settings, strategies as st
 
-from infra.stacks.auth_stack import AuthStack
-from infra.stacks.data_stack import DataStack
-from infra.stacks.api_stack import ApiStack
+from tests.unit.stacks.conftest import _synth_all_templates
 
 
 # The five required DynamoDB table environment variables.
@@ -27,19 +24,7 @@ REQUIRED_TABLE_ENV_VARS = [
 EXPECTED_LAMBDA_COUNT = 8
 
 
-def _synth_api_template() -> dict:
-    """Synthesize the full CDK app in-process and return the ApiStack template."""
-    app = cdk.App()
-    auth_stack = AuthStack(app, "RegainAuthStack")
-    data_stack = DataStack(app, "RegainDataStack")
-    ApiStack(
-        app,
-        "RegainApiStack",
-        user_pool=auth_stack.user_pool,
-        tables=data_stack.tables,
-    )
-    assembly = app.synth()
-    return assembly.get_stack_by_name("RegainApiStack").template
+_CACHED_TEMPLATE = _synth_all_templates()["RegainApiStack"]
 
 
 def _get_lambda_functions(template: dict) -> list[tuple[str, dict]]:
@@ -56,7 +41,7 @@ def _get_lambda_functions(template: dict) -> list[tuple[str, dict]]:
     lambda_index=st.integers(min_value=0, max_value=EXPECTED_LAMBDA_COUNT - 1),
     env_var_index=st.integers(min_value=0, max_value=len(REQUIRED_TABLE_ENV_VARS) - 1),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_all_lambdas_have_table_env_vars(
     lambda_index: int, env_var_index: int
 ) -> None:
@@ -69,7 +54,7 @@ def test_all_lambdas_have_table_env_vars(
     selects which environment variable to verify, ensuring full coverage
     across many iterations.
     """
-    template = _synth_api_template()
+    template = _CACHED_TEMPLATE
     lambdas = _get_lambda_functions(template)
 
     assert len(lambdas) == EXPECTED_LAMBDA_COUNT, (

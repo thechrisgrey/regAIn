@@ -7,20 +7,13 @@ Verifies that all DynamoDB tables created by the Data Stack use on-demand
 (PAY_PER_REQUEST) billing mode and do not specify provisioned throughput.
 """
 
-import aws_cdk as cdk
 from hypothesis import given, settings, strategies as st
 
-from infra.stacks.data_stack import DataStack
+from tests.unit.stacks.conftest import _synth_all_templates
 
 EXPECTED_TABLE_COUNT = 8
 
-
-def _synth_data_stack_template() -> dict:
-    """Synthesize the DataStack and return the raw CloudFormation template."""
-    app = cdk.App()
-    DataStack(app, "RegainDataStack")
-    assembly = app.synth()
-    return assembly.get_stack_by_name("RegainDataStack").template
+_CACHED_TEMPLATE = _synth_all_templates()["RegainDataStack"]
 
 
 def _get_dynamodb_tables(template: dict) -> list[tuple[str, dict]]:
@@ -35,7 +28,7 @@ def _get_dynamodb_tables(template: dict) -> list[tuple[str, dict]]:
 @given(
     table_index=st.integers(min_value=0, max_value=EXPECTED_TABLE_COUNT - 1),
 )
-@settings(max_examples=100)
+@settings(deadline=None)
 def test_all_tables_use_on_demand_billing(table_index: int) -> None:
     """For all DynamoDB tables in the Data Stack, each table must use
     PAY_PER_REQUEST billing mode and must not specify provisioned throughput.
@@ -43,7 +36,7 @@ def test_all_tables_use_on_demand_billing(table_index: int) -> None:
     The table_index parameter selects which table to verify on each iteration,
     ensuring every table is checked across many runs.
     """
-    template = _synth_data_stack_template()
+    template = _CACHED_TEMPLATE
     tables = _get_dynamodb_tables(template)
 
     assert len(tables) == EXPECTED_TABLE_COUNT, (

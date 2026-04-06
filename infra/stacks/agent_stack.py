@@ -83,7 +83,7 @@ class AgentStack(cdk.Stack):
     def _bedrock_env(self) -> dict[str, str]:
         """Return Bedrock, AgentCore, and Gateway environment variables."""
         return {
-            "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
+            "BEDROCK_MODEL_ID": "amazon.nova-pro-v1:0",
             "NOVA_SONIC_MODEL_ID": "amazon.nova-2-sonic-v1:0",
             "AGENTCORE_MEMORY_ID": self.memory_id or "pending-memory-deploy",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
@@ -170,7 +170,7 @@ class AgentStack(cdk.Stack):
                 "bedrock:InvokeModelWithBidirectionalStream",
             ],
             resources=[
-                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-lite-v1:0",
+                f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-pro-v1:0",
                 f"arn:aws:bedrock:{cdk.Aws.REGION}::foundation-model/amazon.nova-2-sonic-v1:0",
             ],
         )

@@ -8,18 +8,36 @@ import ErrorBoundary from './ErrorBoundary';
 import RouteLoader from './RouteLoader';
 import ConnectionBanner from './ConnectionBanner';
 
-const navItems = [
-  { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
-  { to: '/coaching', label: 'Coaching', icon: 'coaching' },
-  { to: '/voice-practice', label: 'Voice Practice', icon: 'voice-practice' },
-  { to: '/missions', label: 'Missions', icon: 'missions' },
-  { to: '/evidence', label: 'Evidence', icon: 'evidence' },
-  { to: '/scorecard', label: 'Scorecard', icon: 'scorecard' },
-  { to: '/analytics', label: 'Analytics', icon: 'analytics' },
-  { to: '/resume', label: 'Resume', icon: 'resume' },
-  { to: '/onet', label: 'ONET', icon: 'onet' },
-  { to: '/onboarding', label: 'Onboarding', icon: 'onboarding' },
-  { to: '/profile', label: 'Profile', icon: 'profile' },
+const navGroups = [
+  {
+    label: 'Orient',
+    items: [
+      { to: '/dashboard', label: 'Dashboard', icon: 'dashboard' },
+    ],
+  },
+  {
+    label: 'Act',
+    items: [
+      { to: '/missions', label: 'Missions', icon: 'missions' },
+      { to: '/coaching', label: 'Coaching', icon: 'coaching' },
+      { to: '/voice-practice', label: 'Voice Practice', icon: 'voice-practice' },
+    ],
+  },
+  {
+    label: 'Prove',
+    items: [
+      { to: '/evidence', label: 'Evidence', icon: 'evidence' },
+      { to: '/scorecard', label: 'Scorecard', icon: 'scorecard' },
+    ],
+  },
+  {
+    label: 'Leverage',
+    items: [
+      { to: '/analytics', label: 'Analytics', icon: 'analytics' },
+      { to: '/resume', label: 'Resume', icon: 'resume' },
+      { to: '/onet', label: 'Careers', icon: 'onet' },
+    ],
+  },
 ];
 
 const prefetchRoutes: Record<string, string[]> = {
@@ -168,39 +186,62 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* Nav items */}
-        <ul className="flex-1 space-y-0.5 px-3">
-          {navItems.map(({ to, label, icon }) => (
-            <li key={to}>
-              <NavLink
-                to={to}
-                onClick={closeSidebar}
-                onMouseEnter={() => handlePrefetch(to)}
-                className={({ isActive }) =>
-                  `relative flex items-center gap-3 rounded-[var(--radius-button)] px-3 py-2 min-h-[44px] text-sm font-medium transition-colors duration-150 ${
-                    isActive
-                      ? 'bg-white/[0.08] text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-full before:bg-primary-400 before:animate-glow-pulse'
-                      : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
-                  }`
-                }
-              >
-                <NavIcon name={icon} />
-                {label}
-              </NavLink>
-            </li>
+        {/* Nav groups */}
+        <div className="flex-1 overflow-y-auto px-3 py-1">
+          {navGroups.map((group, gi) => (
+            <div key={group.label} className={gi > 0 ? 'mt-5' : ''}>
+              <span className="block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-500/60">
+                {group.label}
+              </span>
+              <ul className="space-y-0.5">
+                {group.items.map(({ to, label, icon }) => (
+                  <li key={to}>
+                    <NavLink
+                      to={to}
+                      onClick={closeSidebar}
+                      onMouseEnter={() => handlePrefetch(to)}
+                      className={({ isActive }) =>
+                        `relative flex items-center gap-3 rounded-[var(--radius-button)] pl-4 pr-3 py-2 min-h-[40px] text-[13px] font-medium transition-colors duration-150 ${
+                          isActive
+                            ? 'bg-white/[0.08] text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-full before:bg-primary-400 before:animate-glow-pulse'
+                            : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
+                        }`
+                      }
+                    >
+                      <NavIcon name={icon} />
+                      {label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
 
-        {/* Sign-out */}
-        <div className="border-t border-white/[0.06] px-5 py-4">
+        {/* Profile + Sign-out (pinned bottom) */}
+        <div className="border-t border-white/[0.06] px-3 pt-2 pb-4">
+          <NavLink
+            to="/profile"
+            onClick={closeSidebar}
+            className={({ isActive }) =>
+              `relative flex items-center gap-3 rounded-[var(--radius-button)] pl-4 pr-3 py-2 min-h-[40px] text-[13px] font-medium transition-colors duration-150 ${
+                isActive
+                  ? 'bg-white/[0.08] text-white before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:h-5 before:w-[3px] before:rounded-full before:bg-primary-400 before:animate-glow-pulse'
+                  : 'text-neutral-400 hover:text-white hover:bg-white/[0.04]'
+              }`
+            }
+          >
+            <NavIcon name="profile" />
+            Profile
+          </NavLink>
           {user?.username && (
-            <p className="mb-2 truncate text-xs text-neutral-500">
+            <p className="mt-1 truncate px-4 text-[11px] text-neutral-500">
               {user.username}
             </p>
           )}
           <button
             onClick={() => void signOut()}
-            className="w-full rounded-[var(--radius-button)] bg-white/[0.04] px-3 py-2 text-sm text-neutral-400 hover:bg-white/[0.08] hover:text-white transition-colors duration-150"
+            className="mt-2 w-full rounded-[var(--radius-button)] bg-white/[0.04] px-3 py-2 text-[13px] text-neutral-400 hover:bg-white/[0.08] hover:text-white transition-colors duration-150"
           >
             Sign out
           </button>

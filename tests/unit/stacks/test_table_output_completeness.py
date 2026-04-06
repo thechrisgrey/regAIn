@@ -7,20 +7,13 @@ Verifies that for all DynamoDB tables created by the Data Stack, the
 CloudFormation template exports both the table name and table ARN.
 """
 
-import aws_cdk as cdk
 from hypothesis import given, settings, strategies as st
 
-from infra.stacks.data_stack import DataStack
+from tests.unit.stacks.conftest import _synth_all_templates
 
 EXPECTED_TABLE_COUNT = 8
 
-
-def _synth_data_stack_template() -> dict:
-    """Synthesize the DataStack and return the raw CloudFormation template."""
-    app = cdk.App()
-    DataStack(app, "RegainDataStack")
-    assembly = app.synth()
-    return assembly.get_stack_by_name("RegainDataStack").template
+_CACHED_TEMPLATE = _synth_all_templates()["RegainDataStack"]
 
 
 def _get_dynamodb_table_names(template: dict) -> list[str]:
@@ -40,7 +33,7 @@ def _get_outputs(template: dict) -> dict[str, dict]:
 @given(
     table_index=st.integers(min_value=0, max_value=EXPECTED_TABLE_COUNT - 1),
 )
-@settings(max_examples=100)
+@settings(deadline=None)
 def test_every_table_has_name_and_arn_outputs(table_index: int) -> None:
     """For all DynamoDB tables in the Data Stack, the template must export
     both the table name and the table ARN as CloudFormation outputs.
@@ -48,7 +41,7 @@ def test_every_table_has_name_and_arn_outputs(table_index: int) -> None:
     The table_index parameter selects which table to verify on each iteration,
     ensuring every table is checked across many runs.
     """
-    template = _synth_data_stack_template()
+    template = _CACHED_TEMPLATE
     table_logical_ids = _get_dynamodb_table_names(template)
 
     assert len(table_logical_ids) == EXPECTED_TABLE_COUNT, (

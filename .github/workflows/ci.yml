@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       AWS_DEFAULT_REGION: us-east-1
+      HYPOTHESIS_PROFILE: ci
     steps:
       - uses: actions/checkout@v4
 

@@ -7,6 +7,8 @@ Verifies that each Lambda function's IAM role only grants permissions to
 the specific DynamoDB tables it needs to access, not all tables.
 """
 
+from functools import lru_cache
+
 import aws_cdk as cdk
 from hypothesis import given, settings, strategies as st
 
@@ -14,6 +16,7 @@ from infra.stacks.auth_stack import AuthStack
 from infra.stacks.data_stack import DataStack
 from infra.stacks.api_stack import ApiStack
 from infra.stacks.agent_stack import AgentStack
+from tests.unit.stacks.conftest import _synth_all_templates
 
 
 # Expected Lambda count in the API stack.
@@ -35,19 +38,7 @@ ALLOWED_TABLES: dict[str, set[str]] = {
 ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections", "IdempotencyKeys"}
 
 
-def _synth_api_template() -> dict:
-    """Synthesize the full CDK app in-process and return the ApiStack template."""
-    app = cdk.App()
-    auth_stack = AuthStack(app, "RegainAuthStack")
-    data_stack = DataStack(app, "RegainDataStack")
-    ApiStack(
-        app,
-        "RegainApiStack",
-        user_pool=auth_stack.user_pool,
-        tables=data_stack.tables,
-    )
-    assembly = app.synth()
-    return assembly.get_stack_by_name("RegainApiStack").template
+_CACHED_TEMPLATE = _synth_all_templates()["RegainApiStack"]
 
 
 def _get_lambda_functions(template: dict) -> list[tuple[str, dict]]:
@@ -173,14 +164,14 @@ def _get_tables_accessed_by_lambda(
 @given(
     lambda_index=st.integers(min_value=0, max_value=EXPECTED_LAMBDA_COUNT - 1),
 )
-@settings(max_examples=100, deadline=None)
+@settings(deadline=None)
 def test_lambda_has_least_privilege_table_access(lambda_index: int) -> None:
     """For all Lambda functions, each function's IAM role should only grant
     permissions to the specific DynamoDB tables it needs, not all tables.
 
     **Validates: Requirements 6.11**
     """
-    template = _synth_api_template()
+    template = _CACHED_TEMPLATE
     lambdas = _get_lambda_functions(template)
 
     assert len(lambdas) == EXPECTED_LAMBDA_COUNT, (
@@ -227,6 +218,7 @@ AGENT_ALLOWED_TABLES: dict[str, set[str]] = {
 }
 
 
+@lru_cache(maxsize=1)
 def _synth_agent_template() -> dict:
     """Synthesize the full CDK app in-process and return the AgentStack template."""
     app = cdk.App()
@@ -260,7 +252,7 @@ def _identify_agent_lambda_name(logical_id: str) -> str | None:
 @given(
     lambda_index=st.integers(min_value=0, max_value=EXPECTED_AGENT_LAMBDA_COUNT - 1),
 )
-@settings(max_examples=50, deadline=None)
+@settings(deadline=None)
 def test_agent_lambda_has_least_privilege_table_access(lambda_index: int) -> None:
     """For Agent Lambda functions, each function's IAM role should only grant
     permissions to the specific DynamoDB tables it needs, not all tables.

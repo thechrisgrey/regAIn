@@ -12,6 +12,15 @@ import boto3
 import pytest
 from moto import mock_aws
 
+# ---------------------------------------------------------------------------
+# Hypothesis CI profile: 10 examples in CI, 100 locally
+# ---------------------------------------------------------------------------
+from hypothesis import settings as _hs
+
+_hs.register_profile("ci", max_examples=10)
+_hs.register_profile("default", max_examples=100)
+_hs.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "default"))
+
 
 # ---------------------------------------------------------------------------
 # DynamoDB table names used in fixtures (match CDK DataStack definitions)

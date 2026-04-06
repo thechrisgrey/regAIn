@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboard } from '../hooks/useDashboard';
 import { useEvidence } from '../hooks/useEvidence';
@@ -380,7 +380,7 @@ function DeleteAccount({
   getToken: () => Promise<string>;
   signOut: () => Promise<void>;
 }) {
-  const navigate = useNavigate();
+  // navigate removed — account deletion uses hard reload (window.location.href)
   const [step, setStep] = useState<'idle' | 'confirm' | 'choose'>('idle');
   const [confirmText, setConfirmText] = useState('');
   const [deleting, setDeleting] = useState(false);
@@ -393,7 +393,10 @@ function DeleteAccount({
       const token = await getToken();
       await api.profile.delete(token, mode);
       await signOut();
-      navigate('/login');
+      // Hard reload clears all React state, WebSocket connections,
+      // coaching chat history, and in-memory caches — ensures the
+      // user never sees stale data from a deleted account.
+      window.location.href = '/login';
     } catch (err) {
       setDeleteError(
         err instanceof Error ? err.message : 'Failed to delete account',
@@ -401,7 +404,7 @@ function DeleteAccount({
     } finally {
       setDeleting(false);
     }
-  }, [getToken, signOut, navigate]);
+  }, [getToken, signOut]);
 
   const reset = useCallback(() => {
     setStep('idle');

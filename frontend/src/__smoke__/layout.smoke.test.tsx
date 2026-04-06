@@ -70,7 +70,7 @@ describe('Smoke: Layout', () => {
     expect(document.body.querySelector('main')).toBeTruthy();
   });
 
-  it('renders the sidebar navigation with all 10 nav items', () => {
+  it('renders the sidebar navigation with all nav items', () => {
     // Verifies every expected navigation link is present in the sidebar
     renderLayout();
 
@@ -80,14 +80,14 @@ describe('Smoke: Layout', () => {
 
     const expectedLabels = [
       'Dashboard',
+      'Missions',
       'Coaching',
       'Voice Practice',
-      'Missions',
       'Evidence',
+      'Scorecard',
       'Analytics',
       'Resume',
-      'ONET',
-      'Onboarding',
+      'Careers',
       'Profile',
     ];
 
@@ -139,14 +139,14 @@ describe('Smoke: Layout', () => {
     const nav = screen.getByRole('navigation', { name: /main navigation/i });
     const expectedRoutes: Record<string, string> = {
       Dashboard: '/dashboard',
+      Missions: '/missions',
       Coaching: '/coaching',
       'Voice Practice': '/voice-practice',
-      Missions: '/missions',
       Evidence: '/evidence',
+      Scorecard: '/scorecard',
       Analytics: '/analytics',
       Resume: '/resume',
-      ONET: '/onet',
-      Onboarding: '/onboarding',
+      Careers: '/onet',
       Profile: '/profile',
     };
 

@@ -7,6 +7,7 @@ import NavIcon from './ui/NavIcon';
 import ErrorBoundary from './ErrorBoundary';
 import RouteLoader from './RouteLoader';
 import ConnectionBanner from './ConnectionBanner';
+import CoachModal from './CoachModal';
 
 const navGroups = [
   {
@@ -259,6 +260,9 @@ export default function Layout() {
           </ErrorBoundary>
         </div>
       </main>
+
+      {/* Persistent coach modal — available on every page */}
+      <CoachModal />
     </div>
   );
 }

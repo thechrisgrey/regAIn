@@ -16,9 +16,13 @@ export interface MutationEvent {
   payload?: Record<string, unknown>;
 }
 
+export type PageSnapshot = Record<string, unknown>;
+
 export interface MutationBusContextType {
   emit: (event: MutationEvent) => void;
   subscribe: (type: MutationEventType, callback: () => void) => () => void;
+  setPageSnapshot: (snapshot: PageSnapshot) => void;
+  getPageSnapshot: () => PageSnapshot | null;
 }
 
 const MutationBusContext = createContext<MutationBusContextType | undefined>(undefined);
@@ -27,6 +31,7 @@ export { MutationBusContext };
 
 export function MutationBusProvider({ children }: { children: ReactNode }) {
   const listenersRef = useRef<Map<MutationEventType, Set<() => void>>>(new Map());
+  const pageSnapshotRef = useRef<PageSnapshot | null>(null);
 
   const subscribe = useCallback((type: MutationEventType, callback: () => void) => {
     if (!listenersRef.current.has(type)) {
@@ -42,8 +47,16 @@ export function MutationBusProvider({ children }: { children: ReactNode }) {
     listenersRef.current.get(event.type)?.forEach((cb) => cb());
   }, []);
 
+  const setPageSnapshot = useCallback((snapshot: PageSnapshot) => {
+    pageSnapshotRef.current = snapshot;
+  }, []);
+
+  const getPageSnapshot = useCallback((): PageSnapshot | null => {
+    return pageSnapshotRef.current;
+  }, []);
+
   return (
-    <MutationBusContext.Provider value={{ emit, subscribe }}>
+    <MutationBusContext.Provider value={{ emit, subscribe, setPageSnapshot, getPageSnapshot }}>
       {children}
     </MutationBusContext.Provider>
   );

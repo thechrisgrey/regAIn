@@ -12,6 +12,7 @@ import os
 import threading
 import time
 import uuid
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Optional
 
 import boto3
@@ -317,6 +318,127 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     user_id = conn_info["user_id"]
     trace_id = conn_info.get("trace_id", "")
 
+    # Helper that captures event/connection_id for WebSocket sends.
+    # Defined early so new message type handlers can use it.
+    def send_ws(data: Dict[str, Any]) -> None:
+        _post_to_connection(event, connection_id, data)
+
+    # --- New message type dispatch ---
+    msg_type = body.get("type", "")
+
+    if msg_type == "sync":
+        from backend.handlers.shared.thread import load_active_thread, flush_pending_messages
+        thread = load_active_thread(user_id)
+        pending = flush_pending_messages(user_id)
+        try:
+            send_ws({
+                "type": "thread_meta",
+                "tokenEstimate": thread["tokenEstimate"],
+                "tokenBudget": thread["maxTokenBudget"],
+                "attentionMode": thread["attentionMode"],
+                "pendingMessages": pending,
+            })
+        except ConnectionGoneError:
+            pass
+        return {"statusCode": 200}
+
+    if msg_type == "attention_mode":
+        mode = body.get("mode", "")
+        try:
+            from backend.handlers.shared.thread import update_attention_mode as set_attention_mode
+            set_attention_mode(user_id, mode)
+        except ValueError:
+            _post_to_connection(event, connection_id, {"type": "error", "message": f"Invalid mode: {mode}"})
+        return {"statusCode": 200}
+
+    if msg_type == "compact":
+        from backend.handlers.shared.thread import load_active_thread, compact_thread
+        thread = load_active_thread(user_id)
+        if not thread["turns"]:
+            return {"statusCode": 200}
+
+        try:
+            from backend.agents.coaching.agent import create_coaching_agent
+
+            agent = create_coaching_agent(
+                user_id=user_id,
+                jwt_token=body.get("token", ""),
+                conversation_history=thread["turns"],
+                attention_mode=thread["attentionMode"],
+            )
+            summary_result = agent(
+                "[system] Summarize the conversation so far into the most important context needed to continue coaching this user. "
+                "Preserve: active mission state, recent evidence logged, behavioral patterns observed, commitments made, and unresolved topics. "
+                "Target ~15% of current thread length. Output ONLY the summary, no preamble."
+            )
+
+            new_estimate = compact_thread(user_id, thread["turns"], str(summary_result))
+
+            send_ws({
+                "type": "thread_meta",
+                "tokenEstimate": new_estimate,
+                "tokenBudget": thread["maxTokenBudget"],
+                "attentionMode": thread["attentionMode"],
+            })
+        except Exception:
+            slog.exception("Compaction failed for user %s", user_id)
+            _post_to_connection(event, connection_id, {"type": "error", "message": "Compaction failed. Please try again."})
+
+        return {"statusCode": 200}
+
+    if msg_type == "action_event":
+        action = body.get("action", "")
+        payload = body.get("payload", {})
+        if not action:
+            return {"statusCode": 200}
+
+        from backend.handlers.shared.thread import load_active_thread, append_turns, add_pending_message
+        now = datetime.now(timezone.utc).isoformat()
+        event_content = f"User action: {action}"
+        if payload:
+            details = ", ".join(f"{k}={v}" for k, v in payload.items())
+            event_content += f" ({details})"
+
+        event_turn = {"role": "system", "content": event_content, "timestamp": now, "source": "action_event"}
+        append_turns(user_id, [event_turn])
+
+        thread = load_active_thread(user_id)
+        mode = thread["attentionMode"]
+
+        if mode == "dnd":
+            return {"statusCode": 200}
+
+        try:
+            from backend.agents.coaching.agent import create_coaching_agent
+
+            agent = create_coaching_agent(
+                user_id=user_id,
+                jwt_token=body.get("token", ""),
+                conversation_history=thread["turns"],
+                attention_mode=mode,
+            )
+            result = agent(f"[action_event] {event_content}")
+            response_text = str(result)
+
+            if "[no_response]" in response_text:
+                return {"statusCode": 200}
+
+            append_turns(user_id, [
+                {"role": "assistant", "content": response_text, "timestamp": datetime.now(timezone.utc).isoformat(), "source": "chat"},
+            ])
+
+            try:
+                send_ws({"type": "proactive", "text": response_text})
+            except ConnectionGoneError:
+                add_pending_message(user_id, {"type": "proactive", "text": response_text})
+
+        except Exception:
+            slog.exception("Action event agent invocation failed for user %s", user_id)
+
+        return {"statusCode": 200}
+
+    # --- End new message type dispatch ---
+
     message = body.get("message", "").strip()
     if not message:
         _post_to_connection(event, connection_id, {
@@ -335,10 +457,9 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     # Token from payload (used by create_coaching_agent for REST API calls).
     jwt_token = body.get("token", "")
 
-    # Helper that captures event/connection_id for WebSocket sends.
-    # Raises ConnectionGoneError if the client has disconnected.
-    def send_ws(data: Dict[str, Any]) -> None:
-        _post_to_connection(event, connection_id, data)
+    # Load the conversation thread for context.
+    from backend.handlers.shared.thread import load_active_thread, append_turns, compact_thread
+    thread = load_active_thread(user_id)
 
     # Build a streaming callback that pushes delta chunks to the client.
     # The connection_stale flag is set by the heartbeat thread if a send fails.
@@ -398,12 +519,31 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         tracer = SessionTracer(session_id=connection_id, user_id=user_id)
         tool_hooks = _StreamingToolHooks(send_fn=send_ws, tracer=tracer)
 
+        # Auto-compact if at token budget.
+        if thread["tokenEstimate"] >= thread["maxTokenBudget"] and thread["turns"]:
+            try:
+                compact_agent = create_coaching_agent(
+                    user_id=user_id,
+                    jwt_token=jwt_token,
+                    conversation_history=thread["turns"],
+                    attention_mode=thread["attentionMode"],
+                )
+                summary_result = compact_agent(
+                    "[system] Summarize the conversation so far. Preserve: active mission state, recent evidence, behavioral patterns, commitments, unresolved topics. Output ONLY the summary."
+                )
+                compact_thread(user_id, thread["turns"], str(summary_result))
+                thread = load_active_thread(user_id)
+            except Exception:
+                slog.warning("Auto-compaction failed for user %s, proceeding with full thread", user_id)
+
         with tracer.coaching_session():
             agent = create_coaching_agent(
                 user_id=user_id,
                 jwt_token=jwt_token,
                 callback_handler=stream_callback,
                 hooks=[tool_hooks],
+                conversation_history=thread["turns"],
+                attention_mode=thread["attentionMode"],
             )
             result = agent(
                 f"[session_type={session_type}] [user_id={user_id}] {message}"
@@ -413,6 +553,25 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         if not timed_out.is_set() and not connection_stale.is_set():
             try:
                 send_ws({"type": "done", "text": str(result)})
+            except ConnectionGoneError:
+                connection_stale.set()
+
+            # Persist the user/assistant turn pair and send thread metadata.
+            now_ts = datetime.now(timezone.utc).isoformat()
+            new_turns = [
+                {"role": "user", "content": message, "timestamp": now_ts, "source": "chat"},
+                {"role": "assistant", "content": str(result), "timestamp": now_ts, "source": "chat"},
+            ]
+            append_turns(user_id, new_turns)
+
+            updated_thread = load_active_thread(user_id)
+            try:
+                send_ws({
+                    "type": "thread_meta",
+                    "tokenEstimate": updated_thread["tokenEstimate"],
+                    "tokenBudget": updated_thread["maxTokenBudget"],
+                    "attentionMode": updated_thread["attentionMode"],
+                })
             except ConnectionGoneError:
                 connection_stale.set()
     except Exception:

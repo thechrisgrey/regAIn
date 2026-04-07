@@ -7,6 +7,7 @@ import {
   type ReactNode,
 } from 'react';
 import { useAuth } from './useAuth';
+import { useAgentEventBridge } from './useAgentEventBridge';
 
 export interface ChatMessage {
   role: 'user' | 'assistant';
@@ -20,10 +21,14 @@ export interface ToolStep {
 }
 
 interface StreamEvent {
-  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success';
+  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success' | 'proactive' | 'thread_meta';
   text?: string;
   message?: string;
   tool?: string;
+  tokenEstimate?: number;
+  tokenBudget?: number;
+  attentionMode?: 'explore' | 'focus' | 'dnd';
+  pendingMessages?: Array<{ type: string; text: string }>;
 }
 
 /** Human-readable labels for tool names sent by the backend. */
@@ -57,6 +62,12 @@ export interface CoachingContextType {
   sendMessage: (message: string, sessionType: string) => Promise<boolean>;
   clearConversation: () => void;
   setSessionType: (st: string) => void;
+  tokenEstimate: number;
+  tokenBudget: number;
+  attentionMode: 'explore' | 'focus' | 'dnd';
+  sendActionEvent: (action: string, payload: Record<string, unknown>) => void;
+  sendCompact: () => Promise<void>;
+  changeAttentionMode: (mode: 'explore' | 'focus' | 'dnd') => Promise<void>;
 }
 
 const WS_URL = import.meta.env.VITE_CHAT_WS_URL as string | undefined;
@@ -105,6 +116,9 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     WS_URL ? 'reconnecting' : 'disconnected',
   );
   const [streamHint, setStreamHint] = useState<string | null>(null);
+  const [tokenEstimate, setTokenEstimate] = useState(0);
+  const [tokenBudget, setTokenBudget] = useState(27_000);
+  const [attentionMode, setAttentionMode] = useState<'explore' | 'focus' | 'dnd'>('focus');
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
@@ -217,6 +231,9 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             setConnectionStatus('connected');
             setError(null);
 
+            // Sync thread state on reconnect.
+            ws.send(JSON.stringify({ type: 'sync' }));
+
             // Auto-resend the last failed message on reconnect.
             const failed = lastFailedMessageRef.current;
             if (failed) {
@@ -237,6 +254,26 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
           // Handle heartbeat — reset stream timeout to keep connection alive (Part D).
           if (data.type === 'heartbeat') {
             resetStreamTimeout();
+            return;
+          }
+
+          if (data.type === 'proactive') {
+            setMessages((prev) => [
+              ...prev,
+              { role: 'assistant', content: data.text || '' },
+            ]);
+            return;
+          }
+
+          if (data.type === 'thread_meta') {
+            if (data.tokenEstimate !== undefined) setTokenEstimate(data.tokenEstimate);
+            if (data.tokenBudget !== undefined) setTokenBudget(data.tokenBudget);
+            if (data.attentionMode) setAttentionMode(data.attentionMode);
+            if (data.pendingMessages?.length) {
+              for (const msg of data.pendingMessages) {
+                setMessages((prev) => [...prev, { role: 'assistant', content: msg.text }]);
+              }
+            }
             return;
           }
 
@@ -422,6 +459,40 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     sessionTypeRef.current = st;
   }, []);
 
+  const sendActionEvent = useCallback((action: string, payload: Record<string, unknown>) => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    getTokenRef.current().then(token => {
+      wsRef.current?.send(JSON.stringify({ type: 'action_event', action, payload, token }));
+    });
+  }, []);
+
+  const sendCompact = useCallback(async () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    const token = await getTokenRef.current();
+    wsRef.current.send(JSON.stringify({ type: 'compact', token }));
+  }, []);
+
+  const changeAttentionMode = useCallback(async (mode: 'explore' | 'focus' | 'dnd') => {
+    setAttentionMode(mode);
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+    wsRef.current.send(JSON.stringify({ type: 'attention_mode', mode }));
+  }, []);
+
+  const sendWsRaw = useCallback((data: Record<string, unknown>) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify(data));
+    }
+  }, []);
+
+  // Stable wrapper that defers ref access to call time (not render time),
+  // satisfying the react-hooks/refs lint rule.
+  const getTokenStable = useCallback(() => getTokenRef.current(), []);
+
+  useAgentEventBridge(
+    connectionStatus === 'connected' ? sendWsRaw : null,
+    getTokenStable,
+  );
+
   return (
     <CoachingContext.Provider
       value={{
@@ -436,6 +507,12 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         sendMessage,
         clearConversation,
         setSessionType,
+        tokenEstimate,
+        tokenBudget,
+        attentionMode,
+        sendActionEvent,
+        sendCompact,
+        changeAttentionMode,
       }}
     >
       {children}

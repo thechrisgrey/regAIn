@@ -9,6 +9,7 @@ import {
 import { useLocation } from 'react-router-dom';
 import { useCoaching, TOOL_LABELS } from '../hooks/useCoaching';
 import type { ChatMessage, ToolStep } from '../hooks/useCoaching';
+import { useMutationBus } from '../hooks/useMutationBus';
 import { MarkdownMessage, AgentActivityFeed } from './ui';
 
 // ---------------------------------------------------------------------------
@@ -191,7 +192,19 @@ export default function CoachModal() {
     sendCompact,
   } = useCoaching();
 
+  const { getPageSnapshot } = useMutationBus();
+
   const pageContext = getPageContext(location.pathname);
+
+  // Build message prefix with page context + snapshot data
+  const buildPrefix = useCallback(() => {
+    const snapshot = getPageSnapshot();
+    const parts = [`[page_context: ${pageContext}]`];
+    if (snapshot) {
+      parts.push(`[page_data: ${JSON.stringify(snapshot)}]`);
+    }
+    return parts.join(' ');
+  }, [pageContext, getPageSnapshot]);
 
   const tokenPct = tokenBudget > 0 ? Math.round((tokenEstimate / tokenBudget) * 100) : 0;
   const tokenColor = tokenPct >= 90 ? 'var(--color-error-500)' : tokenPct >= 75 ? 'var(--color-warning-500)' : 'var(--color-success-500)';
@@ -245,13 +258,13 @@ export default function CoachModal() {
 
       // Send proactive check via the existing WebSocket
       void sendMessage(
-        `[page_context: ${pageContext}] [proactive_check]`,
+        `${buildPrefix()} [proactive_check]`,
         'general',
       );
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [pageContext, streaming, sendMessage]);
+  }, [pageContext, streaming, sendMessage, buildPrefix]);
 
   // Filter and clean messages for display
   const visibleMessages = messages
@@ -259,9 +272,10 @@ export default function CoachModal() {
     .filter(m => !(m.role === 'assistant' && /^Action:\s/.test(m.content.trim())))
     .map(m => {
       if (m.role === 'user') {
-        // Strip [page_context: ...] and [proactive_check] tags from display
+        // Strip [page_context: ...], [page_data: {...}], and [proactive_check] tags from display
         const cleaned = m.content
           .replace(/\[page_context:\s*\w+\]\s*/g, '')
+          .replace(/\[page_data:\s*\{[^]*?\}\]\s*/g, '')
           .replace(/\[proactive_check\]\s*/g, '')
           .trim();
         return { ...m, content: cleaned };
@@ -290,11 +304,11 @@ export default function CoachModal() {
 
       setInput('');
       await sendMessage(
-        `[page_context: ${pageContext}] ${text}`,
+        `${buildPrefix()} ${text}`,
         sessionType,
       );
     },
-    [input, streaming, visibleMessages.length, sendMessage, pageContext],
+    [input, streaming, visibleMessages.length, sendMessage, buildPrefix],
   );
 
   // Enter to send, Shift+Enter for newline

@@ -1,9 +1,19 @@
 import { createContext, useRef, useCallback, type ReactNode } from 'react';
 
-export type MutationEventType = 'mission:completed' | 'evidence:logged';
+export type MutationEventType =
+  | 'mission:completed'
+  | 'mission:generated'
+  | 'evidence:logged'
+  | 'campaign:created'
+  | 'resume:generated'
+  | 'voice:session_completed'
+  | 'scorecard:viewed'
+  | 'profile:updated'
+  | 'page:navigated';
 
 export interface MutationEvent {
   type: MutationEventType;
+  payload?: Record<string, unknown>;
 }
 
 export interface MutationBusContextType {

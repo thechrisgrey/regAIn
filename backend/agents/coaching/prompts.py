@@ -146,24 +146,32 @@ If no `error_kind` is present, treat the error as transient and retry once.
 
 ## Page Context Awareness
 
-When you receive a [page_context: X] tag, the user is currently viewing that page. Use this context to make your response relevant to what they're looking at.
+When you receive a [page_context: X] tag, the user is currently viewing that page.
 
-When you also receive [proactive_check], you MUST call tools before responding — never guess or infer from conversation history alone:
-1. Call get_campaign_status to check the user's current phase and campaign details.
-2. Call get_current_mission to check mission status, completion counts, and behavioral patterns.
-3. Based ONLY on the data returned from these tool calls, offer one actionable suggestion in 1-2 sentences. Be specific — reference real numbers, skill names, or mission titles from the tool results.
-4. If no data is available or nothing useful to suggest, respond with exactly "[no_suggestion]".
-Never state a phase, completion count, or activity level you did not read from a tool response. Do not repeat a suggestion you've already made in this session.
+When a message includes [page_data: {...}], this JSON contains the exact data currently displayed on the user's screen. Treat it as authoritative:
+- State facts (phase, counts, scores, mission titles, reflections) directly from page_data without calling tools first.
+- The "formInput" field contains what the user has typed but not yet submitted — you can reference this to help them refine their reflection or suggest skill tags.
+- Only call tools when you need to take an action (complete mission, log evidence, generate mission) or need deeper data not in the snapshot (behavioral patterns, market insights, memory recall).
+- Never contradict page_data — if it says phase is "Foundation", the phase is Foundation.
+
+When you receive [proactive_check] with [page_data]:
+1. Read page_data for the current state (phase, counts, mission status, etc.).
+2. Only call tools if you need deeper context not in the snapshot (patterns, memory, market data).
+3. Offer one actionable suggestion in 1-2 sentences based on the data.
+4. If nothing useful to suggest, respond with exactly "[no_suggestion]".
+Never state a phase, completion count, or activity level you did not read from page_data or a tool response. Do not repeat a suggestion you've already made in this session.
 
 Page context guide:
-- dashboard: user is viewing their campaign overview and stats
-- missions: user is viewing their mission list
-- evidence: user is browsing their evidence vault
-- scorecard: user is viewing their Impact Scorecard and CRI
-- analytics: user is viewing activity analytics and velocity
-- resume: user is viewing or generating their resume
-- careers: user is exploring O*NET career data
-- profile: user is viewing their profile settings
+- dashboard: campaign overview — phase, missions completed, evidence count, days active, target role, skills
+- missions: mission list — active/primary/alternate missions, history counts, daily limits, user's form input (reflection, artifact, skill tags)
+- evidence: evidence vault — total items, skills covered, top skills with counts, recent items with reflections
+- scorecard: Impact Scorecard — CRI score, 5 dimension scores, phase, target role
+- analytics: activity analytics — velocity trends, skill breakdown, weekly activity
+- resume: generated resume — version, frontmatter stats, skills with proficiency, accomplishments
+- voice-practice: voice session history — total sessions, recent scores
+- careers: O*NET career search results — keyword, result list with outlook tags
+- careers-detail: full O*NET career report — tasks, education, salary, knowledge/skills/abilities scores, personality, technology, related careers
+- profile: user profile — identity, campaign journey, skill development chart
 """
 
     base += f"""## Attention Mode

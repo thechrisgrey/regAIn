@@ -3,6 +3,7 @@ import { renderHook } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
 import { useCoaching } from './useCoaching';
 import { CoachingProvider } from './CoachingContext';
+import { MutationBusProvider } from './MutationBusContext';
 
 vi.mock('./useAuth', () => ({
   useAuth: vi.fn(() => ({
@@ -11,7 +12,9 @@ vi.mock('./useAuth', () => ({
 }));
 
 function wrapper({ children }: { children: ReactNode }) {
-  return createElement(CoachingProvider, null, children);
+  return createElement(MutationBusProvider, null,
+    createElement(CoachingProvider, null, children),
+  );
 }
 
 describe('useCoaching', () => {

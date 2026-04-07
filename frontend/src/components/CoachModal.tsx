@@ -266,6 +266,13 @@ export default function CoachModal() {
           .trim();
         return { ...m, content: cleaned };
       }
+      if (m.role === 'assistant') {
+        // Strip tool call echoes like [read_user_profile] [get_campaign_status]
+        const cleaned = m.content
+          .replace(/\[\w+\]\s*/g, '')
+          .trim();
+        return { ...m, content: cleaned };
+      }
       return m;
     })
     .filter(m => m.content.length > 0);

@@ -123,7 +123,12 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Atomic rate limiting pattern**: Resume rate limit (`_enforce_rate_limit()`) uses conditional DynamoDB updates — same pattern as mission rate limiting in `tools.py:337-382`. Two-step: reset date counter, then atomically increment with `< limit` condition
 - **Resume Lambda wiring**: Coaching Lambda has `RESUME_LAMBDA_ARN` and `RESUME_BUCKET_NAME` env vars + IAM permissions, set by AgentStack using plain string ARNs (not construct references) to avoid cyclic CDK dependency
 - **Strands Lambda Layer**: Each stack that needs it (ApiStack, AgentStack) creates its own inline `LayerVersion` from `infra/layer_build/`. No cross-stack layer reference — avoids CloudFormation export update failures when layer code changes
-- **DynamoDB PITR**: Point-in-time recovery enabled on all 6 data tables (UserProfiles, Campaigns, MissionHistory, EvidenceVault, MarketData, VoiceSessions). NOT on WebSocketConnections (ephemeral, TTL-based)
+- **DynamoDB PITR**: Point-in-time recovery enabled on all 6 data tables (UserProfiles, Campaigns, MissionHistory, EvidenceVault, MarketData, VoiceSessions). NOT on WebSocketConnections or ConversationThreads (ephemeral, TTL-based)
+- **ConversationThreads table**: Stores full ordered conversation turns (including tool calls) per user. `threadId = "active"` for the current thread, ISO timestamp for archived compactions. Working memory — complements AgentCore Memory's long-term semantic recall
+- **Thread module**: `backend/handlers/shared/thread.py` — load, append, compact, attention mode, pending messages. Uses lazy-initialized module-level table (same pattern as `ws_connections.py`)
+- **Action events**: Frontend MutationBus events flow to backend via coaching WebSocket as `action_event` messages. Agent responds based on attention mode (dnd/focus/explore). `useAgentEventBridge` hook handles 5s deduplication and 2s batching
+- **Attention modes**: `dnd` (silent), `focus` (significant events only), `explore` (proactive insights). Stored on thread row, toggled via WebSocket `attention_mode` message
+- **Token budget compaction**: ~27k token budget. At 100% auto-compacts. Manual compact via UI button. Archives to S3, summary replaces thread, also stored in AgentCore Memory
 - **Lambda concurrency**: Account limit is only 10 (not the default 1000). Reserved concurrency is NOT set — all Lambdas share the unreserved pool. Request a quota increase via Service Quotas before adding `reserved_concurrent_executions`
 - **Bedrock IAM scoped to models**: `agent_stack.py` and `voice_practice_stack.py` scope `bedrock:InvokeModel*` to `amazon.nova-lite-v1:0` and `amazon.nova-2-sonic-v1:0` ARNs (not `arn:aws:bedrock:*:*:*`). `resume_stack.py` already scoped to `nova-lite-v1:0` only
 - **Agent Gateway fallback**: `backend/agents/coaching/agent.py` checks `AGENTCORE_GATEWAY_ENDPOINT` — if `"pending-agentcore-deploy"` or empty, uses direct `@tool` functions from `tools.py` instead of `GatewayToolClient`. All imports are lazy to avoid circular dependencies
@@ -160,6 +165,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 | MarketData | `sector` | `timestamp` | `role-title-index` (PK: roleTitle) |
 | VoiceSessions | `userId` | `sessionId` | `type-date-index` (PK: sessionType, SK: createdAt) |
 | WebSocketConnections | `connectionId` | — | — (TTL on `ttl` attribute) |
+| ConversationThreads | `userId` | `threadId` | — |
 
 ## Gotchas
 
@@ -172,6 +178,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **DynamoDB composite keys**: `get_item`/`update_item` on Campaigns requires `{userId, campaignId}`, on MissionHistory requires `{userId, missionId}` — moto mocks dispatch by table name only, so key bugs are invisible in tests
 - **Hosting**: AWS Amplify in **us-east-2** (app ID: `d2z52fw5cbbzo`, domain: regain.altivum.ai) — auto-deploys from git push to main
 - **Hardcoded counts in tests**: When adding Lambdas/routes to **ApiStack**, update `EXPECTED_LAMBDA_COUNT` in `test_iam_least_privilege.py`, `test_lambda_env_config.py`, `test_lambda_runtime_consistency.py`, and `EXPECTED_METHOD_COUNT` in `test_api_authorization.py`. When adding tables to **DataStack**, update `EXPECTED_TABLE_COUNT` in `test_on_demand_billing.py` and `test_table_output_completeness.py` (+ `known_tables` list). Update `ALLOWED_TABLES` in `test_iam_least_privilege.py` if permissions change
+- **Thread module `_threads_table` cache**: Must reset to `None` in tests to avoid stale DynamoDB table references between test cases (same pattern as `ws_connections._table`)
 - **Profile Lambda IAM**: Needs `cognito-idp:AdminDeleteUser` on user pool ARN + read/write on 5 DynamoDB tables + S3 delete on 3 buckets (voice practice, resume, code interpreter) + `bedrock:ListMemoryRecords`/`bedrock:DeleteMemoryRecord` for AgentCore Memory cleanup. `USER_POOL_ID` env var is set via `_table_env()`. Bucket env vars set by VoicePracticeStack, ResumeStack, and AgentCoreStack. `AGENTCORE_MEMORY_ID` set by AgentCoreStack
 - **Nova Lite model ID**: Use `amazon.nova-lite-v1:0` (NOT `us.amazon.nova-lite-v2:0` which doesn't exist). PyYAML is NOT available in Lambda Python 3.12 runtime — use inline string parsing instead
 - **L1 API Gateway CORS**: `default_cors_preflight_options` only covers L2 resources. L1 `CfnResource` routes (used in ResumeStack, VoicePracticeStack to avoid cyclic deps) need manual MOCK OPTIONS methods with CORS headers

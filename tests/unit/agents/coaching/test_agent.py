@@ -225,3 +225,71 @@ class TestGatewayDetection:
         from backend.agents.coaching.agent import _is_gateway_available
 
         assert _is_gateway_available() is False
+
+
+class TestSessionIdPassthrough:
+    """Tests for session_id parameter in _create_session_manager and create_coaching_agent."""
+
+    def test_session_id_passed_to_session_manager(self, monkeypatch):
+        """When session_id='ws-conn-abc' is passed, AgentCoreMemoryConfig should receive it."""
+        monkeypatch.setenv("AGENTCORE_MEMORY_ID", "mem-123")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        mock_config_cls = MagicMock(name="AgentCoreMemoryConfig")
+        mock_retrieval_cls = MagicMock(name="RetrievalConfig")
+        mock_session_mgr_cls = MagicMock(name="AgentCoreMemorySessionManager")
+
+        config_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.config")
+        config_mod.AgentCoreMemoryConfig = mock_config_cls  # type: ignore[attr-defined]
+        config_mod.RetrievalConfig = mock_retrieval_cls  # type: ignore[attr-defined]
+
+        mgr_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.session_manager")
+        mgr_mod.AgentCoreMemorySessionManager = mock_session_mgr_cls  # type: ignore[attr-defined]
+
+        with patch.dict(sys.modules, {
+            "bedrock_agentcore": types.ModuleType("bedrock_agentcore"),
+            "bedrock_agentcore.memory": types.ModuleType("bedrock_agentcore.memory"),
+            "bedrock_agentcore.memory.integrations": types.ModuleType("bedrock_agentcore.memory.integrations"),
+            "bedrock_agentcore.memory.integrations.strands": types.ModuleType("bedrock_agentcore.memory.integrations.strands"),
+            "bedrock_agentcore.memory.integrations.strands.config": config_mod,
+            "bedrock_agentcore.memory.integrations.strands.session_manager": mgr_mod,
+        }):
+            from backend.agents.coaching.agent import _create_session_manager
+
+            _create_session_manager("user-42", session_id="ws-conn-abc")
+
+        mock_config_cls.assert_called_once()
+        call_kwargs = mock_config_cls.call_args.kwargs
+        assert call_kwargs["session_id"] == "ws-conn-abc"
+
+    def test_session_id_defaults_to_uuid_when_none(self, monkeypatch):
+        """When no session_id is passed, AgentCoreMemoryConfig should get a 'session-' prefixed ID."""
+        monkeypatch.setenv("AGENTCORE_MEMORY_ID", "mem-123")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        mock_config_cls = MagicMock(name="AgentCoreMemoryConfig")
+        mock_retrieval_cls = MagicMock(name="RetrievalConfig")
+        mock_session_mgr_cls = MagicMock(name="AgentCoreMemorySessionManager")
+
+        config_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.config")
+        config_mod.AgentCoreMemoryConfig = mock_config_cls  # type: ignore[attr-defined]
+        config_mod.RetrievalConfig = mock_retrieval_cls  # type: ignore[attr-defined]
+
+        mgr_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.session_manager")
+        mgr_mod.AgentCoreMemorySessionManager = mock_session_mgr_cls  # type: ignore[attr-defined]
+
+        with patch.dict(sys.modules, {
+            "bedrock_agentcore": types.ModuleType("bedrock_agentcore"),
+            "bedrock_agentcore.memory": types.ModuleType("bedrock_agentcore.memory"),
+            "bedrock_agentcore.memory.integrations": types.ModuleType("bedrock_agentcore.memory.integrations"),
+            "bedrock_agentcore.memory.integrations.strands": types.ModuleType("bedrock_agentcore.memory.integrations.strands"),
+            "bedrock_agentcore.memory.integrations.strands.config": config_mod,
+            "bedrock_agentcore.memory.integrations.strands.session_manager": mgr_mod,
+        }):
+            from backend.agents.coaching.agent import _create_session_manager
+
+            _create_session_manager("user-42")
+
+        mock_config_cls.assert_called_once()
+        call_kwargs = mock_config_cls.call_args.kwargs
+        assert call_kwargs["session_id"].startswith("session-")

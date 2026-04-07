@@ -69,8 +69,13 @@ def _get_direct_tools() -> list:
     ]
 
 
-def _create_session_manager(user_id: str):
+def _create_session_manager(user_id: str, session_id: str | None = None):
     """Create an AgentCoreMemorySessionManager for automatic turn storage.
+
+    Args:
+        user_id: The authenticated user's ID.
+        session_id: Optional explicit session ID (e.g. WebSocket connection_id).
+            Falls back to a random ``session-<hex>`` value when not provided.
 
     Returns None if the memory ID is not configured or initialization fails.
     The agent will run without memory in that case (graceful degradation).
@@ -79,6 +84,8 @@ def _create_session_manager(user_id: str):
     if not memory_id or memory_id == _PENDING:
         logger.info("AGENTCORE_MEMORY_ID not set; running without memory")
         return None
+
+    resolved_session_id = session_id or f"session-{uuid.uuid4().hex[:12]}"
 
     try:
         from bedrock_agentcore.memory.integrations.strands.config import (
@@ -92,7 +99,7 @@ def _create_session_manager(user_id: str):
         config = AgentCoreMemoryConfig(
             memory_id=memory_id,
             actor_id=user_id,
-            session_id=f"session-{uuid.uuid4().hex[:12]}",
+            session_id=resolved_session_id,
             retrieval_config=RetrievalConfig(),
         )
         return AgentCoreMemorySessionManager(
@@ -111,6 +118,7 @@ def create_coaching_agent(
     hooks: list | None = None,
     conversation_history: list | None = None,
     attention_mode: str = "focus",
+    session_id: str | None = None,
 ) -> Agent:
     """Create a Coaching Agent with tools, memory session manager, and system prompt.
 
@@ -121,6 +129,8 @@ def create_coaching_agent(
         hooks: Optional list of HookProvider instances for lifecycle events.
         conversation_history: Optional list of prior conversation turns to load into agent context.
         attention_mode: The user's current attention mode ('dnd', 'focus', or 'explore'). Default 'focus'.
+        session_id: Optional explicit session ID for AgentCore Memory (e.g. WebSocket connection_id).
+            Falls back to a random UUID when not provided.
 
     Returns:
         A configured Strands Agent.
@@ -156,7 +166,7 @@ def create_coaching_agent(
         region_name=os.environ.get("AWS_REGION", "us-east-1"),
     )
 
-    session_manager = _create_session_manager(user_id)
+    session_manager = _create_session_manager(user_id, session_id=session_id)
 
     kwargs: dict = {
         "model": model,

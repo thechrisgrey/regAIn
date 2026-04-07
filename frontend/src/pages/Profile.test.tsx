@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { MutationBusProvider } from '../hooks/MutationBusContext';
 import Profile from './Profile';
 
 const mockFetchDashboard = vi.fn();
@@ -64,9 +65,11 @@ const MOCK_STATS = {
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <Profile />
-    </MemoryRouter>,
+    <MutationBusProvider>
+      <MemoryRouter>
+        <Profile />
+      </MemoryRouter>
+    </MutationBusProvider>,
   );
 }
 

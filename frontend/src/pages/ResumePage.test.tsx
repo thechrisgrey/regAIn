@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { MutationBusProvider } from '../hooks/MutationBusContext';
 import ResumePage from './ResumePage';
 
 // Mock useResume hook
@@ -52,9 +53,11 @@ const MOCK_RESUME = {
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <ResumePage />
-    </MemoryRouter>,
+    <MutationBusProvider>
+      <MemoryRouter>
+        <ResumePage />
+      </MemoryRouter>
+    </MutationBusProvider>,
   );
 }
 

@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useDashboard } from '../hooks/useDashboard';
+import { useMutationBus } from '../hooks/useMutationBus';
 import type { Campaign } from '../types';
 import { DISPLAY_PHASES, phaseIndex, phaseProgress, daysActive, formatDate, phaseLabel } from '../utils/campaign';
 import { Card, SectionLabel, ProgressBar, Button, SkeletonBlock } from '../components/ui';
@@ -337,10 +338,27 @@ function MarketPosition({ campaign }: { campaign: Campaign }) {
 
 export default function Dashboard() {
   const { data, loading, error, fetchDashboard } = useDashboard();
+  const { setPageSnapshot } = useMutationBus();
 
   useEffect(() => {
     void fetchDashboard();
   }, [fetchDashboard]);
+
+  useEffect(() => {
+    if (!data?.campaign) return;
+    const { campaign, stats } = data;
+    setPageSnapshot({
+      page: 'dashboard',
+      phase: phaseLabel(campaign.phase),
+      phaseProgress: phaseProgress(campaign.phase),
+      targetRole: campaign.targetRole,
+      missionsCompleted: stats.missionsCompleted,
+      evidenceCount: stats.evidenceCount,
+      daysActive: daysActive(campaign.startDate),
+      startDate: campaign.startDate,
+      skillsFocus: campaign.skillsFocus,
+    });
+  }, [data, setPageSnapshot]);
 
   if (loading || (!data && !error)) {
     return <Skeleton />;

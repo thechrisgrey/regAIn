@@ -45,7 +45,7 @@ vi.mock('../hooks/useDashboard', () => ({
 }));
 
 vi.mock('../hooks/useMutationBus', () => ({
-  useMutationBus: vi.fn(() => ({ emit: mockEmit })),
+  useMutationBus: vi.fn(() => ({ emit: mockEmit, setPageSnapshot: vi.fn() })),
 }));
 
 vi.mock('../hooks/useAuth', () => ({

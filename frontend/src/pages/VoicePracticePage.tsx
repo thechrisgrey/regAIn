@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useVoicePractice } from '../hooks/useVoicePractice';
 import { useVoiceSessions } from '../hooks/useVoiceSessions';
+import { useMutationBus } from '../hooks/useMutationBus';
 import { Button, Card, Badge, SkeletonBlock } from '../components/ui';
 
 const AudioVisualizer = lazy(() => import('../components/voice/AudioVisualizer'));
@@ -43,6 +44,8 @@ export default function VoicePracticePage() {
     fetchSessions,
   } = useVoiceSessions();
 
+  const { setPageSnapshot } = useMutationBus();
+
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined);
   const pollTimeoutRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -59,6 +62,20 @@ export default function VoicePracticePage() {
   useEffect(() => {
     transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcript]);
+
+  // Page snapshot for coaching agent
+  useEffect(() => {
+    setPageSnapshot({
+      page: 'voice-practice',
+      status,
+      totalSessions: sessions.length,
+      recentSessions: sessions.slice(0, 3).map(s => ({
+        type: s.sessionType,
+        date: s.createdAt,
+        overallScore: s.overallScore,
+      })),
+    });
+  }, [status, sessions, setPageSnapshot]);
 
   // Poll for completed session during assessing state (60s timeout)
   const startPolling = () => {

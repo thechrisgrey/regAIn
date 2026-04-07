@@ -223,12 +223,14 @@ function CompletionForm({
   onSkip,
   completing,
   completionError,
+  onFormChange,
 }: {
   missionId: string;
   onComplete: (missionId: string, data: CompleteData) => void;
   onSkip: (missionId: string) => void;
   completing: boolean;
   completionError: string | null;
+  onFormChange?: (data: { reflection: string; artifactUrl: string; skillTags: string[] }) => void;
 }) {
   const { getToken } = useAuth();
   const [reflection, setReflection] = useState('');
@@ -237,6 +239,10 @@ function CompletionForm({
   const [tagInput, setTagInput] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+
+  useEffect(() => {
+    onFormChange?.({ reflection, artifactUrl, skillTags });
+  }, [reflection, artifactUrl, skillTags, onFormChange]);
 
   const fetchSuggestions = useCallback(async (text: string) => {
     if (text.trim().length < 20) return;
@@ -414,12 +420,14 @@ function PrimaryMissionCard({
   onSkip,
   completing,
   completionError,
+  onFormChange,
 }: {
   mission: Mission;
   onComplete: (missionId: string, data: CompleteData) => void;
   onSkip: (missionId: string) => void;
   completing: boolean;
   completionError: string | null;
+  onFormChange?: (data: { reflection: string; artifactUrl: string; skillTags: string[] }) => void;
 }) {
   return (
     <Card variant="accent" className="p-8">
@@ -440,6 +448,7 @@ function PrimaryMissionCard({
         onSkip={onSkip}
         completing={completing}
         completionError={completionError}
+        onFormChange={onFormChange}
       />
     </Card>
   );
@@ -624,7 +633,7 @@ export default function Missions() {
   } = useMissions();
 
   const { data: dashboardData, loading: dashLoading, fetchDashboard } = useDashboard();
-  const { emit } = useMutationBus();
+  const { emit, setPageSnapshot } = useMutationBus();
 
   const [completing, setCompleting] = useState(false);
   const [completionError, setCompletionError] = useState<string | null>(null);
@@ -637,6 +646,11 @@ export default function Missions() {
   const [showAllHistory, setShowAllHistory] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [generateError, setGenerateError] = useState<string | null>(null);
+  const [formInput, setFormInput] = useState<{
+    reflection: string;
+    artifactUrl: string;
+    skillTags: string[];
+  } | null>(null);
 
   // Track the UTC date when the page was last fetched.
   const lastDateRef = useRef(getUtcDate());
@@ -780,6 +794,26 @@ export default function Missions() {
     }
   }, [generateMission, emit]);
 
+  // Snapshot emission for coaching agent context
+  useEffect(() => {
+    if (loading && missions.length === 0) return;
+    const hasInput = formInput && (formInput.reflection || formInput.artifactUrl || formInput.skillTags.length > 0);
+    setPageSnapshot({
+      page: 'missions',
+      activeMissions: activeMissions.length,
+      primaryMission: primaryMission
+        ? { title: primaryMission.title, description: primaryMission.description, status: primaryMission.status }
+        : null,
+      alternateMissions: alternateMissions.map(m => ({ title: m.title, description: m.description })),
+      historyCount: historyMissions.length,
+      completedCount: historyMissions.filter(m => m.status === 'completed').length,
+      skippedCount: historyMissions.filter(m => m.status === 'skipped').length,
+      dailyRemaining,
+      dailyLimit,
+      formInput: hasInput ? formInput : null,
+    });
+  }, [activeMissions, primaryMission, alternateMissions, historyMissions, dailyRemaining, dailyLimit, formInput, loading, missions.length, setPageSnapshot]);
+
   // Loading state (only when no missions loaded yet)
   if ((loading || dashLoading) && missions.length === 0) {
     return <Skeleton />;
@@ -843,6 +877,7 @@ export default function Missions() {
           onSkip={handleSkip}
           completing={completing}
           completionError={completionError}
+          onFormChange={setFormInput}
         />
       ) : (
         <AllCaughtUp

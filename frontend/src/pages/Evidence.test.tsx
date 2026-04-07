@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { MutationBusProvider } from '../hooks/MutationBusContext';
 import Evidence from './Evidence';
 
 const mockFetchEvidence = vi.fn();
@@ -58,9 +59,11 @@ const MANY_EVIDENCE = Array.from({ length: 15 }, (_, i) => ({
 
 function renderPage() {
   return render(
-    <MemoryRouter>
-      <Evidence />
-    </MemoryRouter>,
+    <MutationBusProvider>
+      <MemoryRouter>
+        <Evidence />
+      </MemoryRouter>
+    </MutationBusProvider>,
   );
 }
 

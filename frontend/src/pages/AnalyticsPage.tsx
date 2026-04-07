@@ -1,5 +1,6 @@
 import { useEffect, useMemo } from 'react';
 import { useAnalytics } from '../hooks/useAnalytics';
+import { useMutationBus } from '../hooks/useMutationBus';
 import type {
   SkillBreakdownItem,
   ActivityHeatmapDay,
@@ -454,10 +455,41 @@ function SkillGapsList({ gaps }: { gaps: string[] }) {
 
 export default function AnalyticsPage() {
   const { data, loading, error, fetchAnalytics } = useAnalytics();
+  const { setPageSnapshot } = useMutationBus();
 
   useEffect(() => {
     void fetchAnalytics();
   }, [fetchAnalytics]);
+
+  useEffect(() => {
+    if (!data) return;
+    const topSkills = data.skillBreakdown.slice(0, 5).map(s => ({
+      skill: s.skill,
+      count: s.count,
+    }));
+    const activeDaysThisWeek = data.activityHeatmap
+      .slice(-7)
+      .filter(d => d.count > 0).length;
+    const totalCompleted = data.velocityTrend.weeks.reduce(
+      (sum, w) => sum + w.completed,
+      0,
+    );
+    setPageSnapshot({
+      page: 'analytics',
+      totalCompletedInTrend: totalCompleted,
+      weekCount: data.velocityTrend.weeks.length,
+      campaignEta: data.campaignEta
+        ? {
+            daysRemaining: data.campaignEta.estimatedDaysRemaining,
+            completionRate: data.campaignEta.completionRate,
+            confidence: data.campaignEta.confidence,
+          }
+        : null,
+      topSkills,
+      skillGaps: data.skillSuggestions,
+      activeDaysThisWeek,
+    });
+  }, [data, setPageSnapshot]);
 
   if (loading || (!data && !error)) {
     return (

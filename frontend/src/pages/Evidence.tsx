@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useEvidence } from '../hooks/useEvidence';
+import { useMutationBus } from '../hooks/useMutationBus';
 import type { Evidence as EvidenceType } from '../types';
 import { Card, SectionLabel, Button, Badge, ProgressBar, SkeletonBlock } from '../components/ui';
 import { computeSkillStats, type SkillStat } from '../utils/evidence';
@@ -307,6 +308,7 @@ function EvidenceCard({
 
 export default function Evidence() {
   const { evidence, loading, error, fetchEvidence } = useEvidence();
+  const { setPageSnapshot } = useMutationBus();
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [visibleCount, setVisibleCount] = useState(10);
   const [showAllSkills, setShowAllSkills] = useState(false);
@@ -320,6 +322,21 @@ export default function Evidence() {
     () => computeSkillStats(evidence),
     [evidence],
   );
+
+  // Publish page snapshot for coaching agent context
+  useEffect(() => {
+    if (loading && evidence.length === 0) return;
+    setPageSnapshot({
+      page: 'evidence',
+      totalItems: evidence.length,
+      skillsCovered: skillStats.length,
+      topSkills: skillStats.slice(0, 8).map(s => ({ skill: s.skill, count: s.count })),
+      recentItems: [...evidence]
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 5)
+        .map(e => ({ skillTag: e.skillTag, reflection: e.reflection, createdAt: e.createdAt })),
+    });
+  }, [evidence, skillStats, loading, setPageSnapshot]);
 
   // Map skill -> intensity for card tag styling
   const skillIntensityMap = useMemo(() => {

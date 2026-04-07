@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { useImpactScore } from '../hooks/useImpactScore';
+import { useMutationBus } from '../hooks/useMutationBus';
 import { useAuth } from '../hooks/useAuth';
 import { api } from '../services/api';
 import { Card, Button, SkeletonBlock, SectionLabel } from '../components/ui';
@@ -98,6 +99,7 @@ function ScorecardError({ message, onRetry }: { message: string; onRetry: () => 
 
 export default function ImpactScorecardPage() {
   const { data, loading, error, fetchScore } = useImpactScore();
+  const { setPageSnapshot } = useMutationBus();
   const { getToken } = useAuth();
   const [breakdownOpen, setBreakdownOpen] = useState(false);
   const [showExport, setShowExport] = useState(false);
@@ -105,6 +107,36 @@ export default function ImpactScorecardPage() {
   useEffect(() => {
     void fetchScore();
   }, [fetchScore]);
+
+  useEffect(() => {
+    if (loading || !data) return;
+    if (data.missionsCompleted < 3) {
+      setPageSnapshot({
+        page: 'scorecard',
+        unlocked: false,
+        missionsCompleted: data.missionsCompleted,
+        missionsNeeded: 3,
+      });
+      return;
+    }
+    setPageSnapshot({
+      page: 'scorecard',
+      unlocked: true,
+      cri: data.cri,
+      missionsCompleted: data.missionsCompleted,
+      evidenceCount: data.evidenceCount,
+      targetRole: data.targetRole,
+      phase: data.dimensionDetail.phaseProgression.phase,
+      computedAt: data.computedAt,
+      dimensions: {
+        velocity: data.missionVelocityScore,
+        evidence: data.evidenceDensityScore,
+        marketFit: data.marketAlignmentScore,
+        phase: data.phaseProgressionScore,
+        difficulty: data.adaptiveDifficultyScore,
+      },
+    });
+  }, [data, loading, setPageSnapshot]);
 
   // Show export bar after scrolling past the gauge
   useEffect(() => {

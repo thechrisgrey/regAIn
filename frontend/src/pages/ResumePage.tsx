@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useResume } from '../hooks/useResume';
+import { useMutationBus } from '../hooks/useMutationBus';
 import type { ResumeFrontmatter } from '../types/resume';
 import { Card, SectionLabel, Button, Badge, ProgressBar, SkeletonBlock, MarkdownMessage } from '../components/ui';
 
@@ -225,10 +226,38 @@ function ResumeBody({ content }: { content: string }) {
 
 export default function ResumePage() {
   const { resume, loading, regenerating, error, fetchResume, regenerateResume } = useResume();
+  const { setPageSnapshot } = useMutationBus();
 
   useEffect(() => {
     void fetchResume();
   }, [fetchResume]);
+
+  useEffect(() => {
+    if (loading && !resume) return;
+    if (!resume) {
+      setPageSnapshot({ page: 'resume', hasResume: false });
+      return;
+    }
+    const fm = resume.frontmatter;
+    setPageSnapshot({
+      page: 'resume',
+      hasResume: true,
+      version: resume.version,
+      generatedAt: resume.generatedAt,
+      missionsCompleted: fm.missions_completed,
+      evidenceItems: fm.evidence_items,
+      marketAlignment: fm.market_alignment_score,
+      targetRole: fm.target_role,
+      phase: fm.campaign_phase,
+      skills: fm.skills.map(s => ({
+        name: s.skill_name,
+        proficiency: s.proficiency_indicator,
+        evidenceCount: s.evidence_count,
+        strongestEvidence: s.strongest_evidence_summary,
+      })),
+      topAccomplishments: fm.top_accomplishments,
+    });
+  }, [resume, loading, setPageSnapshot]);
 
   // Loading
   if (loading && !resume) {

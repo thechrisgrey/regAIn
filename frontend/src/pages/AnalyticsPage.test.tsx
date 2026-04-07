@@ -4,6 +4,11 @@ import AnalyticsPage from './AnalyticsPage';
 
 const mockFetchAnalytics = vi.fn();
 
+vi.mock('../hooks/useMutationBus', () => ({
+  useMutationBus: vi.fn(() => ({ emit: vi.fn(), setPageSnapshot: vi.fn() })),
+  useOnMutation: vi.fn(),
+}));
+
 vi.mock('../hooks/useAnalytics', () => ({
   useAnalytics: vi.fn(() => ({
     data: null,

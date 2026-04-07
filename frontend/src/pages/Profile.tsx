@@ -3,9 +3,10 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useDashboard } from '../hooks/useDashboard';
 import { useEvidence } from '../hooks/useEvidence';
+import { useMutationBus } from '../hooks/useMutationBus';
 import { api } from '../services/api';
 import type { Campaign } from '../types';
-import { DISPLAY_PHASES, phaseIndex, phaseProgress, daysActive, formatDate } from '../utils/campaign';
+import { DISPLAY_PHASES, phaseIndex, phaseLabel, phaseProgress, daysActive, formatDate } from '../utils/campaign';
 import { computeSkillStats } from '../utils/evidence';
 import { Card, SectionLabel, Badge, ProgressBar, Button, Input, SkeletonBlock } from '../components/ui';
 
@@ -515,10 +516,27 @@ function DeleteAccount({
 export default function Profile() {
   const { user, getToken, signOut } = useAuth();
   const { data, loading, error, fetchDashboard } = useDashboard();
+  const { setPageSnapshot } = useMutationBus();
 
   useEffect(() => {
     void fetchDashboard();
   }, [fetchDashboard]);
+
+  // Publish page snapshot for coaching agent context
+  useEffect(() => {
+    if (!data?.campaign) return;
+    const { campaign, stats } = data;
+    setPageSnapshot({
+      page: 'profile',
+      username: user?.username ?? '',
+      targetRole: campaign.targetRole,
+      phase: phaseLabel(campaign.phase),
+      daysActive: daysActive(campaign.startDate),
+      missionsCompleted: stats.missionsCompleted,
+      evidenceCount: stats.evidenceCount,
+      skillsFocus: campaign.skillsFocus,
+    });
+  }, [data, user, setPageSnapshot]);
 
   if (loading || (!data && !error)) {
     return <Skeleton />;

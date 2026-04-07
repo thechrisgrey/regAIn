@@ -225,3 +225,175 @@ class TestGatewayDetection:
         from backend.agents.coaching.agent import _is_gateway_available
 
         assert _is_gateway_available() is False
+
+
+class TestSessionIdPassthrough:
+    """Tests for session_id parameter in _create_session_manager and create_coaching_agent."""
+
+    def test_session_id_passed_to_session_manager(self, monkeypatch):
+        """When session_id='ws-conn-abc' is passed, AgentCoreMemoryConfig should receive it."""
+        monkeypatch.setenv("AGENTCORE_MEMORY_ID", "mem-123")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        mock_config_cls = MagicMock(name="AgentCoreMemoryConfig")
+        mock_retrieval_cls = MagicMock(name="RetrievalConfig")
+        mock_session_mgr_cls = MagicMock(name="AgentCoreMemorySessionManager")
+
+        config_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.config")
+        config_mod.AgentCoreMemoryConfig = mock_config_cls  # type: ignore[attr-defined]
+        config_mod.RetrievalConfig = mock_retrieval_cls  # type: ignore[attr-defined]
+
+        mgr_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.session_manager")
+        mgr_mod.AgentCoreMemorySessionManager = mock_session_mgr_cls  # type: ignore[attr-defined]
+
+        with patch.dict(sys.modules, {
+            "bedrock_agentcore": types.ModuleType("bedrock_agentcore"),
+            "bedrock_agentcore.memory": types.ModuleType("bedrock_agentcore.memory"),
+            "bedrock_agentcore.memory.integrations": types.ModuleType("bedrock_agentcore.memory.integrations"),
+            "bedrock_agentcore.memory.integrations.strands": types.ModuleType("bedrock_agentcore.memory.integrations.strands"),
+            "bedrock_agentcore.memory.integrations.strands.config": config_mod,
+            "bedrock_agentcore.memory.integrations.strands.session_manager": mgr_mod,
+        }):
+            from backend.agents.coaching.agent import _create_session_manager
+
+            _create_session_manager("user-42", session_id="ws-conn-abc")
+
+        mock_config_cls.assert_called_once()
+        call_kwargs = mock_config_cls.call_args.kwargs
+        assert call_kwargs["session_id"] == "ws-conn-abc"
+
+    def test_session_id_defaults_to_uuid_when_none(self, monkeypatch):
+        """When no session_id is passed, AgentCoreMemoryConfig should get a 'session-' prefixed ID."""
+        monkeypatch.setenv("AGENTCORE_MEMORY_ID", "mem-123")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        mock_config_cls = MagicMock(name="AgentCoreMemoryConfig")
+        mock_retrieval_cls = MagicMock(name="RetrievalConfig")
+        mock_session_mgr_cls = MagicMock(name="AgentCoreMemorySessionManager")
+
+        config_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.config")
+        config_mod.AgentCoreMemoryConfig = mock_config_cls  # type: ignore[attr-defined]
+        config_mod.RetrievalConfig = mock_retrieval_cls  # type: ignore[attr-defined]
+
+        mgr_mod = types.ModuleType("bedrock_agentcore.memory.integrations.strands.session_manager")
+        mgr_mod.AgentCoreMemorySessionManager = mock_session_mgr_cls  # type: ignore[attr-defined]
+
+        with patch.dict(sys.modules, {
+            "bedrock_agentcore": types.ModuleType("bedrock_agentcore"),
+            "bedrock_agentcore.memory": types.ModuleType("bedrock_agentcore.memory"),
+            "bedrock_agentcore.memory.integrations": types.ModuleType("bedrock_agentcore.memory.integrations"),
+            "bedrock_agentcore.memory.integrations.strands": types.ModuleType("bedrock_agentcore.memory.integrations.strands"),
+            "bedrock_agentcore.memory.integrations.strands.config": config_mod,
+            "bedrock_agentcore.memory.integrations.strands.session_manager": mgr_mod,
+        }):
+            from backend.agents.coaching.agent import _create_session_manager
+
+            _create_session_manager("user-42")
+
+        mock_config_cls.assert_called_once()
+        call_kwargs = mock_config_cls.call_args.kwargs
+        assert call_kwargs["session_id"].startswith("session-")
+
+
+class TestComponentCaching:
+    """Tests for the component caching layer in create_coaching_agent."""
+
+    def setup_method(self):
+        from backend.agents.coaching.agent import _component_cache
+
+        _component_cache.clear()
+
+    def teardown_method(self):
+        from backend.agents.coaching.agent import _component_cache
+
+        _component_cache.clear()
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_cache_miss_stores_components(
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
+    ):
+        """First call with cache_key should store entry in _component_cache."""
+        from backend.agents.coaching.agent import (
+            _component_cache,
+            create_coaching_agent,
+        )
+
+        create_coaching_agent(
+            user_id="user-123", jwt_token="my-jwt", cache_key="conn-1"
+        )
+
+        assert "conn-1" in _component_cache
+        cached = _component_cache["conn-1"]
+        assert "tools" in cached
+        assert "model" in cached
+        assert "session_manager" in cached
+        assert "system_prompt" in cached
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_cache_hit_skips_tool_loading(
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
+    ):
+        """Second call with same cache_key should NOT re-call _get_direct_tools."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        mock_fn, _ = mock_direct_tools
+
+        create_coaching_agent(
+            user_id="user-123", jwt_token="my-jwt", cache_key="conn-1"
+        )
+        mock_fn.reset_mock()
+
+        create_coaching_agent(
+            user_id="user-123", jwt_token="my-jwt", cache_key="conn-1"
+        )
+        mock_fn.assert_not_called()
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_cache_hit_skips_model_creation(
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
+    ):
+        """Second call with same cache_key should NOT re-call BedrockModel."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        create_coaching_agent(
+            user_id="user-123", jwt_token="my-jwt", cache_key="conn-1"
+        )
+        mock_bedrock_model.reset_mock()
+
+        create_coaching_agent(
+            user_id="user-123", jwt_token="my-jwt", cache_key="conn-1"
+        )
+        mock_bedrock_model.assert_not_called()
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_no_cache_key_skips_caching(
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
+    ):
+        """Calls without cache_key should not populate cache."""
+        from backend.agents.coaching.agent import (
+            _component_cache,
+            create_coaching_agent,
+        )
+
+        create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
+
+        assert len(_component_cache) == 0
+
+    def test_evict_removes_cached_components(self):
+        """evict_cached_components('conn-1') should remove the entry."""
+        from backend.agents.coaching.agent import (
+            _component_cache,
+            evict_cached_components,
+        )
+
+        _component_cache["conn-1"] = {"tools": [], "model": None}
+
+        evict_cached_components("conn-1")
+
+        assert "conn-1" not in _component_cache
+
+    def test_evict_nonexistent_key_is_noop(self):
+        """Evicting a missing key should not raise."""
+        from backend.agents.coaching.agent import evict_cached_components
+
+        evict_cached_components("does-not-exist")

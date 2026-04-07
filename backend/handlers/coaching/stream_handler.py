@@ -208,6 +208,10 @@ def _handle_disconnect(event: Dict[str, Any]) -> Dict[str, Any]:
     if not conn_info:
         conn_info = load_connection(connection_id)
 
+    # Evict cached agent components for this connection.
+    from backend.agents.coaching.agent import evict_cached_components
+    evict_cached_components(connection_id)
+
     delete_connection(connection_id)
 
     trace_id = conn_info.get("trace_id", "") if conn_info else ""
@@ -347,6 +351,9 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         try:
             from backend.handlers.shared.thread import update_attention_mode as set_attention_mode
             set_attention_mode(user_id, mode)
+            # Evict cached agent — system prompt depends on attention_mode.
+            from backend.agents.coaching.agent import evict_cached_components
+            evict_cached_components(connection_id)
         except ValueError:
             _post_to_connection(event, connection_id, {"type": "error", "message": f"Invalid mode: {mode}"})
         return {"statusCode": 200}
@@ -365,6 +372,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 jwt_token=body.get("token", ""),
                 conversation_history=thread["turns"],
                 attention_mode=thread["attentionMode"],
+                session_id=connection_id,
             )
             summary_result = agent(
                 "[system] Summarize the conversation so far into the most important context needed to continue coaching this user. "
@@ -416,6 +424,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 jwt_token=body.get("token", ""),
                 conversation_history=thread["turns"],
                 attention_mode=mode,
+                session_id=connection_id,
             )
             result = agent(f"[action_event] {event_content}")
             response_text = str(result)
@@ -527,11 +536,15 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                     jwt_token=jwt_token,
                     conversation_history=thread["turns"],
                     attention_mode=thread["attentionMode"],
+                    session_id=connection_id,
                 )
                 summary_result = compact_agent(
                     "[system] Summarize the conversation so far. Preserve: active mission state, recent evidence, behavioral patterns, commitments, unresolved topics. Output ONLY the summary."
                 )
                 compact_thread(user_id, thread["turns"], str(summary_result))
+                # Evict cache — conversation history changed after compaction.
+                from backend.agents.coaching.agent import evict_cached_components
+                evict_cached_components(connection_id)
                 thread = load_active_thread(user_id)
             except Exception:
                 slog.warning("Auto-compaction failed for user %s, proceeding with full thread", user_id)
@@ -544,6 +557,8 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 hooks=[tool_hooks],
                 conversation_history=thread["turns"],
                 attention_mode=thread["attentionMode"],
+                session_id=connection_id,
+                cache_key=connection_id,
             )
             result = agent(
                 f"[session_type={session_type}] [user_id={user_id}] {message}"

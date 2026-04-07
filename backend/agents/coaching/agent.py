@@ -10,6 +10,7 @@ persona definition lives in prompts.py.
 import logging
 import os
 import uuid
+from typing import Any, Dict
 
 from strands import Agent
 from strands.models.bedrock import BedrockModel
@@ -19,6 +20,13 @@ from backend.agents.coaching.prompts import get_system_prompt
 logger = logging.getLogger(__name__)
 
 _PENDING = "pending-agentcore-deploy"
+
+_component_cache: Dict[str, Dict[str, Any]] = {}
+
+
+def evict_cached_components(cache_key: str) -> None:
+    """Remove a cached component set, e.g. on WebSocket disconnect."""
+    _component_cache.pop(cache_key, None)
 
 
 def _is_gateway_available() -> bool:
@@ -69,8 +77,13 @@ def _get_direct_tools() -> list:
     ]
 
 
-def _create_session_manager(user_id: str):
+def _create_session_manager(user_id: str, session_id: str | None = None):
     """Create an AgentCoreMemorySessionManager for automatic turn storage.
+
+    Args:
+        user_id: The authenticated user's ID.
+        session_id: Optional explicit session ID (e.g. WebSocket connection_id).
+            Falls back to a random ``session-<hex>`` value when not provided.
 
     Returns None if the memory ID is not configured or initialization fails.
     The agent will run without memory in that case (graceful degradation).
@@ -79,6 +92,8 @@ def _create_session_manager(user_id: str):
     if not memory_id or memory_id == _PENDING:
         logger.info("AGENTCORE_MEMORY_ID not set; running without memory")
         return None
+
+    resolved_session_id = session_id or f"session-{uuid.uuid4().hex[:12]}"
 
     try:
         from bedrock_agentcore.memory.integrations.strands.config import (
@@ -92,7 +107,7 @@ def _create_session_manager(user_id: str):
         config = AgentCoreMemoryConfig(
             memory_id=memory_id,
             actor_id=user_id,
-            session_id=f"session-{uuid.uuid4().hex[:12]}",
+            session_id=resolved_session_id,
             retrieval_config=RetrievalConfig(),
         )
         return AgentCoreMemorySessionManager(
@@ -111,6 +126,8 @@ def create_coaching_agent(
     hooks: list | None = None,
     conversation_history: list | None = None,
     attention_mode: str = "focus",
+    session_id: str | None = None,
+    cache_key: str | None = None,
 ) -> Agent:
     """Create a Coaching Agent with tools, memory session manager, and system prompt.
 
@@ -121,42 +138,62 @@ def create_coaching_agent(
         hooks: Optional list of HookProvider instances for lifecycle events.
         conversation_history: Optional list of prior conversation turns to load into agent context.
         attention_mode: The user's current attention mode ('dnd', 'focus', or 'explore'). Default 'focus'.
+        session_id: Optional explicit session ID for AgentCore Memory (e.g. WebSocket connection_id).
+            Falls back to a random UUID when not provided.
+        cache_key: Optional key (e.g. WebSocket connection_id) for reusing expensive
+            components (tools, model, session_manager, system_prompt) across calls.
+            When set, the first call computes and stores; subsequent calls reuse.
 
     Returns:
         A configured Strands Agent.
     """
-    from backend.agents.coaching.circuit_breaker import gateway_circuit
-
-    if _is_gateway_available() and not gateway_circuit.is_open:
-        try:
-            logger.info("Using AgentCore Gateway tools")
-            tools = _get_gateway_tools(jwt_token)
-            gateway_circuit.record_success()
-        except Exception:
-            logger.warning("Gateway tool discovery failed, falling back to direct tools")
-            gateway_circuit.record_failure()
-            tools = _get_direct_tools()
+    if cache_key and cache_key in _component_cache:
+        cached = _component_cache[cache_key]
+        tools = cached["tools"]
+        model = cached["model"]
+        session_manager = cached["session_manager"]
+        system_prompt = cached["system_prompt"]
     else:
-        if gateway_circuit.is_open:
-            logger.info("Gateway circuit open, using direct tool invocation")
+        from backend.agents.coaching.circuit_breaker import gateway_circuit
+
+        if _is_gateway_available() and not gateway_circuit.is_open:
+            try:
+                logger.info("Using AgentCore Gateway tools")
+                tools = _get_gateway_tools(jwt_token)
+                gateway_circuit.record_success()
+            except Exception:
+                logger.warning("Gateway tool discovery failed, falling back to direct tools")
+                gateway_circuit.record_failure()
+                tools = _get_direct_tools()
         else:
-            logger.info("Gateway not provisioned, using direct tool invocation")
-        tools = _get_direct_tools()
+            if gateway_circuit.is_open:
+                logger.info("Gateway circuit open, using direct tool invocation")
+            else:
+                logger.info("Gateway not provisioned, using direct tool invocation")
+            tools = _get_direct_tools()
 
-    from backend.agents.coaching.tools import get_valid_skill_tags
+        from backend.agents.coaching.tools import get_valid_skill_tags
 
-    valid_tags = get_valid_skill_tags(user_id)
-    system_prompt = get_system_prompt(
-        valid_skill_tags=valid_tags,
-        attention_mode=attention_mode,
-    )
+        valid_tags = get_valid_skill_tags(user_id)
+        system_prompt = get_system_prompt(
+            valid_skill_tags=valid_tags,
+            attention_mode=attention_mode,
+        )
 
-    model = BedrockModel(
-        model_id=os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"),
-        region_name=os.environ.get("AWS_REGION", "us-east-1"),
-    )
+        model = BedrockModel(
+            model_id=os.environ.get("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0"),
+            region_name=os.environ.get("AWS_REGION", "us-east-1"),
+        )
 
-    session_manager = _create_session_manager(user_id)
+        session_manager = _create_session_manager(user_id, session_id=session_id)
+
+        if cache_key:
+            _component_cache[cache_key] = {
+                "tools": tools,
+                "model": model,
+                "session_manager": session_manager,
+                "system_prompt": system_prompt,
+            }
 
     kwargs: dict = {
         "model": model,

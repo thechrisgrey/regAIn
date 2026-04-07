@@ -767,10 +767,18 @@ export default function Missions() {
     setGenerateError(null);
     const result = await generateMission();
     setGenerating(false);
-    if (!result) {
+    if (result && result.mission) {
+      emit({
+        type: 'mission:generated',
+        payload: {
+          missionId: result.mission.missionId,
+          title: result.mission.title,
+        },
+      });
+    } else {
       setGenerateError('Could not generate a mission. Try again.');
     }
-  }, [generateMission]);
+  }, [generateMission, emit]);
 
   // Loading state (only when no missions loaded yet)
   if ((loading || dashLoading) && missions.length === 0) {

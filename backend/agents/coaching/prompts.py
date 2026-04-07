@@ -7,13 +7,18 @@ session type handling, and tool usage guidelines.
 from __future__ import annotations
 
 
-def get_system_prompt(valid_skill_tags: list[str] | None = None) -> str:
+def get_system_prompt(
+    valid_skill_tags: list[str] | None = None,
+    attention_mode: str = "focus",
+) -> str:
     """Return the system prompt for the Coaching Agent.
 
     Args:
         valid_skill_tags: Optional curated list of canonical skill tags
             from the user's active campaign.  When provided, the agent
             is instructed to use only these tags for evidence logging.
+        attention_mode: The user's current attention mode ('dnd', 'focus', or 'explore').
+            Default 'focus'.
 
     Returns:
         The complete system prompt string that configures the agent's
@@ -154,4 +159,16 @@ Page context guide:
 - careers: user is exploring O*NET career data
 - profile: user is viewing their profile settings
 """
+
+    base += f"""## Attention Mode
+
+Current mode: **{attention_mode}**
+
+- **dnd** (Do Not Disturb): You should NOT have been invoked for action events in this mode. If you were invoked for a chat message, respond normally — the user can always chat regardless of mode.
+- **focus**: For action events, respond ONLY if the action represents a significant milestone, a pattern break, or requires the user's attention. Otherwise respond with exactly "[no_response]". For chat messages, respond normally but be concise and analytical.
+- **explore**: For action events, surface insights, connections, and encouragement. For chat messages, be thorough, proactive, and offer related context.
+
+When you see a turn with source "action_event", that is a user action — not a chat message. Apply the attention mode rules above.
+"""
+
     return base

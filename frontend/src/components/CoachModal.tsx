@@ -184,9 +184,17 @@ export default function CoachModal() {
     streamHint,
     sendMessage,
     clearConversation,
+    tokenEstimate,
+    tokenBudget,
+    attentionMode,
+    changeAttentionMode,
+    sendCompact,
   } = useCoaching();
 
   const pageContext = getPageContext(location.pathname);
+
+  const tokenPct = tokenBudget > 0 ? Math.round((tokenEstimate / tokenBudget) * 100) : 0;
+  const tokenColor = tokenPct >= 90 ? 'var(--color-error-500)' : tokenPct >= 75 ? 'var(--color-warning-500)' : 'var(--color-success-500)';
 
   // Lazy connect: mark as opened on first toggle
   const handleOpen = useCallback(() => {
@@ -345,35 +353,64 @@ export default function CoachModal() {
                       : 'var(--color-neutral-300)',
               }}
             />
+            {/* Token budget indicator */}
+            <button
+              type="button"
+              onClick={() => { if (tokenPct > 0) sendCompact(); }}
+              className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] hover:bg-neutral-100 transition-colors"
+              title={`${tokenPct}% context used. Click to compact.`}
+              disabled={tokenPct === 0}
+            >
+              <span style={{ color: tokenColor }} className="font-mono tabular-nums">{tokenPct}%</span>
+            </button>
             <span className="text-sm font-semibold text-neutral-900">
               Coach
             </span>
             <span className="text-[10px] text-neutral-400">Nova Pro</span>
           </div>
-          <div className="flex items-center gap-1">
-            {/* Clear conversation (subtle) */}
-            <button
-              type="button"
-              onClick={clearConversation}
-              className="rounded p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
-              aria-label="Clear conversation"
-              title="Clear conversation"
-            >
-              <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6.5 1h3a.5.5 0 01.5.5v1H6v-1a.5.5 0 01.5-.5zM11 2.5v-1A1.5 1.5 0 009.5 0h-3A1.5 1.5 0 005 1.5v1H1.5a.5.5 0 000 1h.538l.853 10.66A2 2 0 004.885 16h6.23a2 2 0 001.994-1.84l.853-10.66h.538a.5.5 0 000-1H11zm1.958 1l-.846 10.58a1 1 0 01-.997.92h-6.23a1 1 0 01-.997-.92L3.042 3.5h9.916z" />
-              </svg>
-            </button>
-            {/* Close */}
-            <button
-              type="button"
-              onClick={handleClose}
-              className="rounded p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
-              aria-label="Close coach"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
-              </svg>
-            </button>
+          <div className="flex items-center gap-2">
+            {/* Attention mode toggle */}
+            <div className="flex rounded-[var(--radius-button)] border border-neutral-200 text-[10px]">
+              {(['dnd', 'focus', 'explore'] as const).map((mode) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => changeAttentionMode(mode)}
+                  className={`px-2 py-0.5 transition-colors first:rounded-l-[var(--radius-button)] last:rounded-r-[var(--radius-button)] ${
+                    attentionMode === mode
+                      ? 'bg-primary-500 text-white'
+                      : 'text-neutral-500 hover:bg-neutral-100'
+                  }`}
+                >
+                  {mode === 'dnd' ? 'DnD' : mode === 'focus' ? 'Focus' : 'Explore'}
+                </button>
+              ))}
+            </div>
+            <div className="flex items-center gap-1">
+              {/* Clear conversation (subtle) */}
+              <button
+                type="button"
+                onClick={clearConversation}
+                className="rounded p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
+                aria-label="Clear conversation"
+                title="Clear conversation"
+              >
+                <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M6.5 1h3a.5.5 0 01.5.5v1H6v-1a.5.5 0 01.5-.5zM11 2.5v-1A1.5 1.5 0 009.5 0h-3A1.5 1.5 0 005 1.5v1H1.5a.5.5 0 000 1h.538l.853 10.66A2 2 0 004.885 16h6.23a2 2 0 001.994-1.84l.853-10.66h.538a.5.5 0 000-1H11zm1.958 1l-.846 10.58a1 1 0 01-.997.92h-6.23a1 1 0 01-.997-.92L3.042 3.5h9.916z" />
+                </svg>
+              </button>
+              {/* Close */}
+              <button
+                type="button"
+                onClick={handleClose}
+                className="rounded p-1 text-neutral-400 hover:text-neutral-600 hover:bg-neutral-100 transition-colors"
+                aria-label="Close coach"
+              >
+                <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" />
+                </svg>
+              </button>
+            </div>
           </div>
         </div>
 

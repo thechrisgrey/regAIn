@@ -311,7 +311,15 @@ class AgentStack(cdk.Stack):
         """Create the Chat Streaming Lambda for WebSocket text coaching."""
         env = {**self._table_env(), **self._bedrock_env()}
 
-        return _lambda.Function(
+        # Thread persistence env vars.
+        if "ConversationThreads" in self.tables:
+            env["CONVERSATION_THREADS_TABLE"] = self.tables["ConversationThreads"].table_name
+        else:
+            env["CONVERSATION_THREADS_TABLE"] = ""
+        thread_archive_bucket_name = f"regain-thread-archives-{self.account}-{self.region}"
+        env["THREAD_ARCHIVE_BUCKET"] = thread_archive_bucket_name
+
+        chat_stream_lambda = _lambda.Function(
             self,
             "RegainChatStreamFunction",
             function_name="RegainChatStream",
@@ -328,6 +336,16 @@ class AgentStack(cdk.Stack):
             tracing=_lambda.Tracing.ACTIVE,
             log_retention=logs.RetentionDays.ONE_MONTH,
         )
+
+        # S3 write for thread archives.
+        chat_stream_lambda.add_to_role_policy(
+            iam.PolicyStatement(
+                actions=["s3:PutObject"],
+                resources=[f"arn:aws:s3:::{thread_archive_bucket_name}/*"],
+            )
+        )
+
+        return chat_stream_lambda
 
     def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:
         """Create WebSocket API Gateway for chat streaming sessions."""
@@ -388,6 +406,10 @@ class AgentStack(cdk.Stack):
         self.tables["EvidenceVault"].grant_read_write_data(chat_stream_lambda)
         self.tables["MarketData"].grant_read_data(chat_stream_lambda)
         self.tables["WebSocketConnections"].grant_read_write_data(chat_stream_lambda)
+
+        # ConversationThreads for thread persistence.
+        if "ConversationThreads" in self.tables:
+            self.tables["ConversationThreads"].grant_read_write_data(chat_stream_lambda)
 
         # CloudWatch PutMetricData for business metrics
         chat_stream_lambda.add_to_role_policy(

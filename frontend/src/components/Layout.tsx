@@ -1,7 +1,8 @@
 import { Suspense, useState, useEffect, useCallback } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useSharedData } from '../hooks/useSharedData';
+import { useMutationBus } from '../hooks/useMutationBus';
 import { api, cachedGet } from '../services/api';
 import NavIcon from './ui/NavIcon';
 import ErrorBoundary from './ErrorBoundary';
@@ -95,7 +96,14 @@ function RecoveryBanner() {
 
 export default function Layout() {
   const { user, signOut, getToken } = useAuth();
+  const location = useLocation();
+  const { emit } = useMutationBus();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Emit page navigation event
+  useEffect(() => {
+    emit({ type: 'page:navigated', payload: { route: location.pathname } });
+  }, [location.pathname, emit]);
 
   // Escape key closes sidebar
   useEffect(() => {

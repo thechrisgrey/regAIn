@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { MutationBusProvider } from '../hooks/MutationBusContext';
 import Layout from './Layout';
 
 const mockGetToken = vi.fn().mockResolvedValue('mock-token');
@@ -45,7 +46,9 @@ const mockedUseSharedData = vi.mocked(useSharedData);
 function renderLayout() {
   return render(
     <MemoryRouter>
-      <Layout />
+      <MutationBusProvider>
+        <Layout />
+      </MutationBusProvider>
     </MemoryRouter>,
   );
 }

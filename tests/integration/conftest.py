@@ -25,6 +25,7 @@ from tests.unit.conftest import aws_credentials, lambda_context, api_gateway_eve
 INTEGRATION_TABLE_NAMES = {
     **MOCK_TABLE_NAMES,
     "VOICE_SESSIONS_TABLE": "RegainVoiceSessions",
+    "CONVERSATION_THREADS_TABLE": "RegainConversationThreads",
 }
 
 
@@ -239,6 +240,20 @@ def integration_tables(aws_credentials: None) -> Generator[Dict[str, Any], None,
             BillingMode="PAY_PER_REQUEST",
         )
 
+        # ConversationThreads (PK: userId, SK: threadId)
+        tables["conversation_threads"] = dynamodb.create_table(
+            TableName="RegainConversationThreads",
+            KeySchema=[
+                {"AttributeName": "userId", "KeyType": "HASH"},
+                {"AttributeName": "threadId", "KeyType": "RANGE"},
+            ],
+            AttributeDefinitions=[
+                {"AttributeName": "userId", "AttributeType": "S"},
+                {"AttributeName": "threadId", "AttributeType": "S"},
+            ],
+            BillingMode="PAY_PER_REQUEST",
+        )
+
         yield tables
 
         # Clean up env vars.
@@ -255,6 +270,7 @@ def mock_s3(aws_credentials: None) -> Generator[Dict[str, str], None, None]:  # 
             "VOICE_PRACTICE_BUCKET_NAME": "regain-voice-practice-test",
             "RESUME_BUCKET_NAME": "regain-resume-test",
             "CODE_INTERPRETER_BUCKET_NAME": "regain-code-interpreter-test",
+            "THREAD_ARCHIVE_BUCKET": "regain-thread-archive-test",
         }
         for env_var, bucket_name in buckets.items():
             s3.create_bucket(Bucket=bucket_name)

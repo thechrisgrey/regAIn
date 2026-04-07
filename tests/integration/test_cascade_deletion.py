@@ -130,7 +130,8 @@ def _make_profile_service(db: DynamoDBClient) -> ProfileService:
     import os
     for var in [
         "VOICE_PRACTICE_BUCKET_NAME", "RESUME_BUCKET_NAME",
-        "CODE_INTERPRETER_BUCKET_NAME", "USER_POOL_ID", "AGENTCORE_MEMORY_ID",
+        "CODE_INTERPRETER_BUCKET_NAME", "THREAD_ARCHIVE_BUCKET",
+        "USER_POOL_ID", "AGENTCORE_MEMORY_ID",
     ]:
         os.environ.pop(var, None)
     return ProfileService(db_client=db, cognito_client=None, s3_client=None)
@@ -240,10 +241,12 @@ class TestDynamoDBCascadeDeletion:
         assert result["deleted"]["mission_history"] == 5
         assert result["deleted"]["evidence_vault"] == 3
         assert result["deleted"]["voice_sessions"] == 2
+        assert result["deleted"]["conversation_threads"] == 0
         # S3 and Cognito not configured -> 0
         assert result["deleted"]["voice_practice_s3"] == 0
         assert result["deleted"]["resume_s3"] == 0
         assert result["deleted"]["code_interpreter_s3"] == 0
+        assert result["deleted"]["thread_archives_s3"] == 0
         assert result["deleted"]["cognito"] == 0
 
 
@@ -251,7 +254,7 @@ class TestS3CascadeDeletion:
     """Tests for S3 object cleanup during cascade deletion."""
 
     def test_deletes_s3_objects_in_all_buckets(self, aws_credentials):
-        """S3 objects are deleted from all 3 buckets."""
+        """S3 objects are deleted from all 4 buckets."""
         import os
 
         with mock_aws():
@@ -325,12 +328,25 @@ class TestS3CascadeDeletion:
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )
+            dynamodb.create_table(
+                TableName="RegainConversationThreads",
+                KeySchema=[
+                    {"AttributeName": "userId", "KeyType": "HASH"},
+                    {"AttributeName": "threadId", "KeyType": "RANGE"},
+                ],
+                AttributeDefinitions=[
+                    {"AttributeName": "userId", "AttributeType": "S"},
+                    {"AttributeName": "threadId", "AttributeType": "S"},
+                ],
+                BillingMode="PAY_PER_REQUEST",
+            )
 
             s3_client = boto3.client("s3", region_name="us-east-1")
             buckets = {
                 "VOICE_PRACTICE_BUCKET_NAME": "regain-voice-test",
                 "RESUME_BUCKET_NAME": "regain-resume-test",
                 "CODE_INTERPRETER_BUCKET_NAME": "regain-code-test",
+                "THREAD_ARCHIVE_BUCKET": "regain-thread-test",
             }
             for env_var, name in buckets.items():
                 s3_client.create_bucket(Bucket=name)
@@ -350,6 +366,7 @@ class TestS3CascadeDeletion:
             assert result["deleted"]["voice_practice_s3"] == 2
             assert result["deleted"]["resume_s3"] == 2
             assert result["deleted"]["code_interpreter_s3"] == 2
+            assert result["deleted"]["thread_archives_s3"] == 2
 
             # Verify S3 is empty for this user.
             for bucket_name in buckets.values():
@@ -372,6 +389,7 @@ class TestS3CascadeDeletion:
         assert result["deleted"]["voice_practice_s3"] == 0
         assert result["deleted"]["resume_s3"] == 0
         assert result["deleted"]["code_interpreter_s3"] == 0
+        assert result["deleted"]["thread_archives_s3"] == 0
 
 
 class TestCognitoCascadeDeletion:
@@ -460,6 +478,18 @@ class TestCognitoCascadeDeletion:
                 AttributeDefinitions=[
                     {"AttributeName": "userId", "AttributeType": "S"},
                     {"AttributeName": "sessionId", "AttributeType": "S"},
+                ],
+                BillingMode="PAY_PER_REQUEST",
+            )
+            dynamodb.create_table(
+                TableName="RegainConversationThreads",
+                KeySchema=[
+                    {"AttributeName": "userId", "KeyType": "HASH"},
+                    {"AttributeName": "threadId", "KeyType": "RANGE"},
+                ],
+                AttributeDefinitions=[
+                    {"AttributeName": "userId", "AttributeType": "S"},
+                    {"AttributeName": "threadId", "AttributeType": "S"},
                 ],
                 BillingMode="PAY_PER_REQUEST",
             )

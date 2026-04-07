@@ -165,7 +165,15 @@ class ProfileService:
             sort_key_name="sessionId",
         )
 
-        # 6. Voice practice S3 cleanup
+        # 6. ConversationThreads — PK=userId, SK=threadId
+        deleted["conversation_threads"] = self.db.delete_all_by_partition_key(
+            "conversation_threads",
+            partition_key_name="userId",
+            partition_key_value=user_id,
+            sort_key_name="threadId",
+        )
+
+        # 7. Voice practice S3 cleanup
         voice_bucket = os.environ.get("VOICE_PRACTICE_BUCKET_NAME", "")
         if voice_bucket:
             deleted["voice_practice_s3"] = self._delete_s3_prefix(
@@ -174,7 +182,7 @@ class ProfileService:
         else:
             deleted["voice_practice_s3"] = 0
 
-        # 7. Resume S3 cleanup
+        # 8. Resume S3 cleanup
         resume_bucket = os.environ.get("RESUME_BUCKET_NAME", "")
         if resume_bucket:
             deleted["resume_s3"] = self._delete_s3_prefix(
@@ -183,7 +191,7 @@ class ProfileService:
         else:
             deleted["resume_s3"] = 0
 
-        # 8. Code interpreter S3 cleanup
+        # 9. Code interpreter S3 cleanup
         code_interp_bucket = os.environ.get("CODE_INTERPRETER_BUCKET_NAME", "")
         if code_interp_bucket:
             deleted["code_interpreter_s3"] = self._delete_s3_prefix(
@@ -192,10 +200,19 @@ class ProfileService:
         else:
             deleted["code_interpreter_s3"] = 0
 
-        # 9. AgentCore Memory
+        # 10. Thread archives S3 cleanup
+        thread_archive_bucket = os.environ.get("THREAD_ARCHIVE_BUCKET", "")
+        if thread_archive_bucket:
+            deleted["thread_archives_s3"] = self._delete_s3_prefix(
+                thread_archive_bucket, f"{user_id}/"
+            )
+        else:
+            deleted["thread_archives_s3"] = 0
+
+        # 11. AgentCore Memory
         deleted["agentcore_memory"] = self._delete_agentcore_memory(user_id)
 
-        # 10. Cognito — delete user so the email can be re-registered
+        # 12. Cognito — delete user so the email can be re-registered
         if self.user_pool_id:
             try:
                 self.cognito.admin_delete_user(

@@ -8,6 +8,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
+import { MutationBusProvider } from '../hooks/MutationBusContext';
 import Layout from '../components/Layout';
 
 // Mock useAuth -- Layout calls useAuth() for user, signOut, getToken
@@ -62,7 +63,9 @@ vi.mock('../hooks/useNetworkStatusHook', () => ({
 function renderLayout() {
   return render(
     <MemoryRouter initialEntries={['/dashboard']}>
-      <Layout />
+      <MutationBusProvider>
+        <Layout />
+      </MutationBusProvider>
     </MemoryRouter>,
   );
 }

@@ -187,6 +187,10 @@ class ApiStack(cdk.Stack):
         # Coaching: read UserProfiles
         self.tables["UserProfiles"].grant_read_data(lambdas["Coaching"])
 
+        # Coaching: read/write ConversationThreads for thread persistence
+        if "ConversationThreads" in self.tables:
+            self.tables["ConversationThreads"].grant_read_write_data(lambdas["Coaching"])
+
         # Dashboard: read UserProfiles, Campaigns, MissionHistory, EvidenceVault
         self.tables["UserProfiles"].grant_read_data(lambdas["Dashboard"])
         self.tables["Campaigns"].grant_read_data(lambdas["Dashboard"])

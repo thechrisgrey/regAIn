@@ -246,8 +246,9 @@ export default function CoachModal() {
     messageCountRef.current = messages.length;
   }, [messages, open]);
 
-  // Proactive check on page navigation
+  // Proactive check on page navigation (skipped entirely in DnD)
   useEffect(() => {
+    if (attentionMode === 'dnd') return;
     if (proactiveCheckedRef.current.has(pageContext)) return;
     if (streaming) return; // don't interrupt active streaming
 
@@ -264,7 +265,7 @@ export default function CoachModal() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [pageContext, streaming, sendMessage, buildPrefix]);
+  }, [pageContext, streaming, sendMessage, buildPrefix, attentionMode]);
 
   // Filter and clean messages for display
   const visibleMessages = messages

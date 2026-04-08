@@ -275,7 +275,7 @@ export default function CoachModal() {
         // Strip [page_context: ...], [page_data: {...}], and [proactive_check] tags from display
         const cleaned = m.content
           .replace(/\[page_context:\s*\w+\]\s*/g, '')
-          .replace(/\[page_data:\s*\{[^]*?\}\]\s*/g, '')
+          .replace(/\[page_data:\s*\{[^]*\}\]\s*/g, '')
           .replace(/\[proactive_check\]\s*/g, '')
           .trim();
         return { ...m, content: cleaned };

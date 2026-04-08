@@ -291,6 +291,9 @@ class VoicePracticeStack(cdk.Stack):
                 ],
             )
 
+        # Force API Gateway redeployment when L1 routes change.
+        api.latest_deployment.add_to_logical_id("voice-practice-routes-v1")
+
     def _grant_permissions(self) -> None:
         """Grant least-privilege IAM permissions to the WS and REST Lambdas."""
         # WS Lambda: Bedrock

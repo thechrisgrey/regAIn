@@ -462,6 +462,9 @@ class ScoreStack(cdk.Stack):
         )
         _add_options(shortcode_resource.ref, "ScorePublicOptionsMethod")
 
+        # Force API Gateway redeployment when L1 routes change.
+        api.latest_deployment.add_to_logical_id("score-routes-v1")
+
     # ------------------------------------------------------------------
     # Monitoring
     # ------------------------------------------------------------------

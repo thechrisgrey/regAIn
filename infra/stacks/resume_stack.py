@@ -259,6 +259,11 @@ class ResumeStack(cdk.Stack):
                 ],
             )
 
+        # Force API Gateway redeployment when L1 routes change.
+        # L1 (Cfn) resources aren't tracked by the L2 RestApi deployment,
+        # so without this the prod stage would stay pinned to a stale deployment.
+        api.latest_deployment.add_to_logical_id("resume-routes-v1")
+
     def _create_monitoring(self) -> None:
         """Add CloudWatch alarms for the Resume Lambda."""
         alert_topic = sns.Topic.from_topic_arn(

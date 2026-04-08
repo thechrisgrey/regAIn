@@ -27,7 +27,7 @@ interface StreamEvent {
   tool?: string;
   tokenEstimate?: number;
   tokenBudget?: number;
-  attentionMode?: 'explore' | 'focus' | 'dnd';
+  attentionMode?: 'explore' | 'dnd';
   pendingMessages?: Array<{ type: string; text: string }>;
 }
 
@@ -64,10 +64,10 @@ export interface CoachingContextType {
   setSessionType: (st: string) => void;
   tokenEstimate: number;
   tokenBudget: number;
-  attentionMode: 'explore' | 'focus' | 'dnd';
+  attentionMode: 'explore' | 'dnd';
   sendActionEvent: (action: string, payload: Record<string, unknown>) => void;
   sendCompact: () => Promise<void>;
-  changeAttentionMode: (mode: 'explore' | 'focus' | 'dnd') => Promise<void>;
+  changeAttentionMode: (mode: 'explore' | 'dnd') => Promise<void>;
 }
 
 const WS_URL = import.meta.env.VITE_CHAT_WS_URL as string | undefined;
@@ -118,7 +118,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const [streamHint, setStreamHint] = useState<string | null>(null);
   const [tokenEstimate, setTokenEstimate] = useState(0);
   const [tokenBudget, setTokenBudget] = useState(27_000);
-  const [attentionMode, setAttentionMode] = useState<'explore' | 'focus' | 'dnd'>('focus');
+  const [attentionMode, setAttentionMode] = useState<'explore' | 'dnd'>('explore');
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectAttempt = useRef(0);
@@ -472,7 +472,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     wsRef.current.send(JSON.stringify({ type: 'compact', token }));
   }, []);
 
-  const changeAttentionMode = useCallback(async (mode: 'explore' | 'focus' | 'dnd') => {
+  const changeAttentionMode = useCallback(async (mode: 'explore' | 'dnd') => {
     setAttentionMode(mode);
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
     wsRef.current.send(JSON.stringify({ type: 'attention_mode', mode }));

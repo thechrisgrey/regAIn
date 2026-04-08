@@ -48,7 +48,7 @@ def test_empty_thread_on_first_load(thread_env):
     result = mod.load_active_thread("user-new")
     assert result["turns"] == []
     assert result["tokenEstimate"] == 0
-    assert result["attentionMode"] == "focus"
+    assert result["attentionMode"] == "explore"
 
 
 def test_append_and_reload(thread_env):
@@ -61,7 +61,7 @@ def test_append_and_reload(thread_env):
     result = mod.load_active_thread("user-1")
     assert len(result["turns"]) == 2
     assert result["tokenEstimate"] > 0
-    assert result["attentionMode"] == "focus"
+    assert result["attentionMode"] == "explore"
 
 
 def test_attention_mode_persists(thread_env):

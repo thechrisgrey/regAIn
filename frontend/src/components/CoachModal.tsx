@@ -393,7 +393,7 @@ export default function CoachModal() {
           <div className="flex items-center gap-2">
             {/* Attention mode toggle */}
             <div className="flex rounded-[var(--radius-button)] border border-neutral-200 text-[10px]">
-              {(['dnd', 'focus', 'explore'] as const).map((mode) => (
+              {(['dnd', 'explore'] as const).map((mode) => (
                 <button
                   key={mode}
                   type="button"
@@ -404,7 +404,7 @@ export default function CoachModal() {
                       : 'text-neutral-500 hover:bg-neutral-100'
                   }`}
                 >
-                  {mode === 'dnd' ? 'DnD' : mode === 'focus' ? 'Focus' : 'Explore'}
+                  {mode === 'dnd' ? 'DnD' : 'Explore'}
                 </button>
               ))}
             </div>

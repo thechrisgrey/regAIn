@@ -16,7 +16,7 @@ import boto3
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TOKEN_BUDGET = 27_000
-_VALID_ATTENTION_MODES = {"explore", "focus", "dnd"}
+_VALID_ATTENTION_MODES = {"explore", "dnd"}
 
 _threads_table = None
 
@@ -51,7 +51,7 @@ def load_active_thread(user_id: str) -> Dict[str, Any]:
             "turns": [],
             "tokenEstimate": 0,
             "maxTokenBudget": _DEFAULT_TOKEN_BUDGET,
-            "attentionMode": "focus",
+            "attentionMode": "explore",
             "lastActivityAt": "",
             "pendingMessages": [],
         }
@@ -60,7 +60,7 @@ def load_active_thread(user_id: str) -> Dict[str, Any]:
         "turns": item.get("turns", []),
         "tokenEstimate": int(item.get("tokenEstimate", 0)),
         "maxTokenBudget": int(item.get("maxTokenBudget", _DEFAULT_TOKEN_BUDGET)),
-        "attentionMode": item.get("attentionMode", "focus"),
+        "attentionMode": item.get("attentionMode", "explore"),
         "lastActivityAt": item.get("lastActivityAt", ""),
         "pendingMessages": item.get("pendingMessages", []),
     }
@@ -93,7 +93,7 @@ def append_turns(user_id: str, turns: List[Dict[str, Any]]) -> int:
             ":tokens": added_tokens,
             ":new_turns": turns,
             ":budget": _DEFAULT_TOKEN_BUDGET,
-            ":default_mode": "focus",
+            ":default_mode": "explore",
             ":empty_list": [],
         },
     )
@@ -172,7 +172,7 @@ def compact_thread(
 
     # Preserve the current attention mode.
     current_thread = load_active_thread(user_id)
-    current_mode = current_thread.get("attentionMode", "focus")
+    current_mode = current_thread.get("attentionMode", "explore")
 
     # Build the compacted thread.
     summary_turn = {

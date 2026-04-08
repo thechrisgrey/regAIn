@@ -125,7 +125,7 @@ def create_coaching_agent(
     callback_handler=None,
     hooks: list | None = None,
     conversation_history: list | None = None,
-    attention_mode: str = "focus",
+    attention_mode: str = "explore",
     session_id: str | None = None,
     cache_key: str | None = None,
 ) -> Agent:
@@ -137,7 +137,7 @@ def create_coaching_agent(
         callback_handler: Optional callback for streaming text chunks.
         hooks: Optional list of HookProvider instances for lifecycle events.
         conversation_history: Optional list of prior conversation turns to load into agent context.
-        attention_mode: The user's current attention mode ('dnd', 'focus', or 'explore'). Default 'focus'.
+        attention_mode: The user's current attention mode ('dnd' or 'explore'). Default 'explore'.
         session_id: Optional explicit session ID for AgentCore Memory (e.g. WebSocket connection_id).
             Falls back to a random UUID when not provided.
         cache_key: Optional key (e.g. WebSocket connection_id) for reusing expensive

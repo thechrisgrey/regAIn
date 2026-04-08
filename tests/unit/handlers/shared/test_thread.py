@@ -66,7 +66,7 @@ def test_load_active_thread_not_exists(mock_get_table):
         "turns": [],
         "tokenEstimate": 0,
         "maxTokenBudget": 27_000,
-        "attentionMode": "focus",
+        "attentionMode": "explore",
         "lastActivityAt": "",
         "pendingMessages": [],
     }
@@ -199,7 +199,7 @@ def test_flush_pending_messages_with_pending(mock_get_table):
             "turns": [],
             "tokenEstimate": 0,
             "maxTokenBudget": 27_000,
-            "attentionMode": "focus",
+            "attentionMode": "explore",
             "lastActivityAt": "",
             "pendingMessages": [{"type": "reminder", "text": "check this"}],
         }
@@ -225,7 +225,7 @@ def test_flush_pending_messages_empty(mock_get_table):
             "turns": [],
             "tokenEstimate": 0,
             "maxTokenBudget": 27_000,
-            "attentionMode": "focus",
+            "attentionMode": "explore",
             "lastActivityAt": "",
             "pendingMessages": [],
         }
@@ -329,7 +329,7 @@ def test_compact_thread_no_bucket_env_var(mock_get_table, mock_boto3, monkeypatc
             "turns": [],
             "tokenEstimate": 0,
             "maxTokenBudget": 27_000,
-            "attentionMode": "focus",
+            "attentionMode": "explore",
             "lastActivityAt": "",
             "pendingMessages": [],
         }
@@ -366,7 +366,7 @@ def test_compact_thread_s3_failure_logs_and_continues(mock_get_table, mock_boto3
             "turns": [],
             "tokenEstimate": 0,
             "maxTokenBudget": 27_000,
-            "attentionMode": "focus",
+            "attentionMode": "explore",
             "lastActivityAt": "",
             "pendingMessages": [],
         }

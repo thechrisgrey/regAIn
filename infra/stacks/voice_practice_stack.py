@@ -104,7 +104,7 @@ class VoicePracticeStack(cdk.Stack):
             "VOICE_PRACTICE_BUCKET_NAME": self.bucket.bucket_name,
             "BEDROCK_MODEL_ID": "amazon.nova-lite-v1:0",
             "NOVA_SONIC_MODEL_ID": "amazon.nova-2-sonic-v1:0",
-            "AGENTCORE_MEMORY_ID": "regain-coaching-memory",
+            "AGENTCORE_MEMORY_ID": "pending-memory-deploy",
             "AGENTCORE_MEMORY_NAMESPACE_PREFIX": "regain-coaching",
             "AWS_REGION_NAME": "us-east-1",
             "USER_POOL_ID": self.user_pool.user_pool_id,

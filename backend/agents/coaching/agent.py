@@ -59,6 +59,8 @@ def _get_direct_tools() -> list:
         get_market_insights,
         get_alignment,
         recall_memory,
+        generate_resume,
+        get_resume,
     )
 
     return [
@@ -74,6 +76,8 @@ def _get_direct_tools() -> list:
         get_market_insights,
         get_alignment,
         recall_memory,
+        generate_resume,
+        get_resume,
     ]
 
 
@@ -209,7 +213,16 @@ def create_coaching_agent(
 
     agent = Agent(**kwargs)
 
-    if conversation_history:
+    # Dual-storage contract:
+    #   DynamoDB ConversationThreads = source of truth for ordered thread history.
+    #   AgentCore Memory (SessionManager) = long-term semantic recall across sessions.
+    #
+    # Only replay DynamoDB thread turns when the SessionManager did NOT already
+    # restore messages (i.e. new session or no session_manager). If the
+    # SessionManager restored an existing session, agent.messages is already
+    # populated and appending thread turns would duplicate context.
+    session_restored = session_manager is not None and agent.messages
+    if conversation_history and not session_restored:
         for turn in conversation_history:
             role = turn.get("role", "")
             content = turn.get("content", "")

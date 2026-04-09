@@ -190,52 +190,40 @@ def test_add_pending_message(mock_get_table):
 
 @patch("backend.handlers.shared.thread._get_threads_table")
 def test_flush_pending_messages_with_pending(mock_get_table):
-    """Retrieves and clears pending messages."""
+    """Atomically retrieves and clears pending messages in one update_item call."""
+    pending = [{"type": "reminder", "text": "check this"}]
     mock_table = MagicMock()
-    mock_table.get_item.return_value = {
-        "Item": {
-            "userId": "user123",
-            "threadId": "active",
-            "turns": [],
-            "tokenEstimate": 0,
-            "maxTokenBudget": 27_000,
-            "attentionMode": "explore",
-            "lastActivityAt": "",
-            "pendingMessages": [{"type": "reminder", "text": "check this"}],
-        }
+    mock_table.update_item.return_value = {
+        "Attributes": {"pendingMessages": pending},
     }
     mock_get_table.return_value = mock_table
 
     result = thread_mod.flush_pending_messages("user123")
 
-    assert result == [{"type": "reminder", "text": "check this"}]
+    assert result == pending
     mock_table.update_item.assert_called_once()
     call_kwargs = mock_table.update_item.call_args.kwargs
+    assert call_kwargs["ReturnValues"] == "ALL_OLD"
     assert call_kwargs["ExpressionAttributeValues"][":empty"] == []
+    assert "ConditionExpression" in call_kwargs
 
 
 @patch("backend.handlers.shared.thread._get_threads_table")
 def test_flush_pending_messages_empty(mock_get_table):
-    """Returns empty list when no pending messages."""
+    """Returns empty list when ConditionalCheckFailedException is raised."""
     mock_table = MagicMock()
-    mock_table.get_item.return_value = {
-        "Item": {
-            "userId": "user123",
-            "threadId": "active",
-            "turns": [],
-            "tokenEstimate": 0,
-            "maxTokenBudget": 27_000,
-            "attentionMode": "explore",
-            "lastActivityAt": "",
-            "pendingMessages": [],
-        }
-    }
+    mock_table.meta.client.exceptions.ConditionalCheckFailedException = type(
+        "ConditionalCheckFailedException", (Exception,), {}
+    )
+    mock_table.update_item.side_effect = (
+        mock_table.meta.client.exceptions.ConditionalCheckFailedException()
+    )
     mock_get_table.return_value = mock_table
 
     result = thread_mod.flush_pending_messages("user123")
 
     assert result == []
-    mock_table.update_item.assert_not_called()
+    mock_table.update_item.assert_called_once()
 
 
 # --- compact_thread tests ---

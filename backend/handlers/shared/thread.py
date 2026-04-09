@@ -131,19 +131,23 @@ def add_pending_message(user_id: str, message: Dict[str, Any]) -> None:
 
 
 def flush_pending_messages(user_id: str) -> List[Dict[str, Any]]:
-    """Retrieve and clear pending messages."""
-    thread = load_active_thread(user_id)
-    pending = thread.get("pendingMessages", [])
-    if not pending:
-        return []
+    """Atomically retrieve and clear pending messages.
 
+    Uses a conditional update with ReturnValues to guarantee that
+    concurrent callers cannot duplicate or lose messages.
+    """
     table = _get_threads_table()
-    table.update_item(
-        Key={"userId": user_id, "threadId": "active"},
-        UpdateExpression="SET pendingMessages = :empty",
-        ExpressionAttributeValues={":empty": []},
-    )
-    return pending
+    try:
+        response = table.update_item(
+            Key={"userId": user_id, "threadId": "active"},
+            UpdateExpression="SET pendingMessages = :empty",
+            ConditionExpression="size(pendingMessages) > :zero",
+            ExpressionAttributeValues={":empty": [], ":zero": 0},
+            ReturnValues="ALL_OLD",
+        )
+        return response.get("Attributes", {}).get("pendingMessages", [])
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        return []
 
 
 def compact_thread(

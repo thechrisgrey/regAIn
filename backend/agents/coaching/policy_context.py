@@ -6,38 +6,10 @@ evaluation, translating complex field-level checks into simple booleans
 that Cedar can evaluate efficiently.
 """
 
-
-ALLOWED_PROFILE_FIELDS: frozenset[str] = frozenset({
-    "skills",
-    "experience",
-    "targetRoles",
-    "preferences",
-    "transferable_skills",
-    "technical_skills",
-    "domain_knowledge",
-    "experience_years",
-    "industry",
-    "role_history",
-    "persona",
-    "onboarding_completed",
-    "target_role",
-    "first_name",
-    "last_name",
-    "current_role",
-    "company",
-    "years_in_role",
-    "highest_position",
-    "story",
-    "coach_notes",
-})
-
-RESTRICTED_PROFILE_FIELDS: frozenset[str] = frozenset({
-    "email",
-    "cognitoId",
-    "role",
-    "tier",
-    "userId",
-})
+from backend.agents.coaching.profile_fields import (
+    ALLOWED_PROFILE_FIELDS,
+    RESTRICTED_PROFILE_FIELDS,
+)
 
 
 def check_profile_fields_allowed(update_fields: set[str]) -> bool:

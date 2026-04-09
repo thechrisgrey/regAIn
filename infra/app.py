@@ -93,6 +93,10 @@ if not _skip_bootstrap:
         "AGENTCORE_MEMORY_ID",
         cdk.Fn.import_value("RegainAgentCoreMemoryId"),
     )
+    voice_practice_stack.ws_lambda.add_environment(
+        "AGENTCORE_MEMORY_ID",
+        cdk.Fn.import_value("RegainAgentCoreMemoryId"),
+    )
 else:
     api_stack.profile_lambda.add_environment(
         "AGENTCORE_MEMORY_ID", "pending-memory-deploy",

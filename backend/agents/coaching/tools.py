@@ -551,11 +551,11 @@ def log_evidence(
         from backend.handlers.shared.metrics import emit_metric
         emit_metric("evidence_logged")
 
-        # Count evidence for this skill via the skill-index GSI (avoids
-        # scanning the entire user partition).
+        # Count evidence for this user+skill using Select=COUNT to avoid
+        # transferring item data (only the count is returned).
         skill_count_resp = db._get_table("evidence_vault").query(
-            IndexName="skill-index",
-            KeyConditionExpression=Key("skillTag").eq(skill_tag),
+            KeyConditionExpression=Key("userId").eq(user_id),
+            FilterExpression=boto3_attr("skillTag").eq(skill_tag),
             Select="COUNT",
         )
         skill_evidence_count = skill_count_resp.get("Count", 0)

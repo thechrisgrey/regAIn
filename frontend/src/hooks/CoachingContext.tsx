@@ -211,7 +211,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const connect = useCallback((): Promise<void> => {
-    if (!WS_URL) return Promise.reject(new Error('No WebSocket URL'));
+    if (!WS_URL) return Promise.resolve();
     if (wsRef.current?.readyState === WebSocket.OPEN) return Promise.resolve();
 
     return new Promise<void>((resolve, reject) => {

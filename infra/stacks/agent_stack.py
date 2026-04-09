@@ -9,8 +9,10 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_lambda_destinations as destinations,
     aws_logs as logs,
     aws_sns as sns,
+    aws_sqs as sqs,
 )
 from constructs import Construct
 
@@ -98,7 +100,7 @@ class AgentStack(cdk.Stack):
         """Create the Voice Session Lambda for WebSocket audio streaming."""
         env = {**self._table_env(), **self._bedrock_env()}
 
-        return _lambda.Function(
+        voice_lambda = _lambda.Function(
             self,
             "RegainVoiceSessionFunction",
             function_name="RegainVoiceSession",
@@ -115,6 +117,15 @@ class AgentStack(cdk.Stack):
             tracing=_lambda.Tracing.ACTIVE,
             log_retention=logs.RetentionDays.ONE_MONTH,
         )
+
+        voice_dlq = sqs.Queue(self, "VoiceSessionDLQ", retention_period=cdk.Duration.days(14))
+        voice_lambda.configure_async_invoke(
+            on_failure=destinations.SqsDestination(voice_dlq),
+            max_event_age=cdk.Duration.hours(1),
+            retry_attempts=2,
+        )
+
+        return voice_lambda
 
     def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
         """Create WebSocket API Gateway for voice sessions."""
@@ -177,20 +188,30 @@ class AgentStack(cdk.Stack):
 
     def _agentcore_memory_policy(self) -> iam.PolicyStatement:
         """Create IAM policy statement for AgentCore Memory operations."""
+        memory_resource = (
+            f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:memory/{self.memory_id}"
+            if self.memory_id
+            else "*"
+        )
         return iam.PolicyStatement(
             actions=[
                 "bedrock:CreateEvent",
                 "bedrock:RetrieveMemoryRecords",
                 "bedrock:ListMemoryRecords",
             ],
-            resources=["*"],
+            resources=[memory_resource],
         )
 
     def _agentcore_gateway_policy(self) -> iam.PolicyStatement:
         """Create IAM policy statement for AgentCore Gateway access."""
+        gateway_resource = (
+            f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/{self.gateway_id}"
+            if self.gateway_id
+            else f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"
+        )
         return iam.PolicyStatement(
             actions=["bedrock:InvokeAgent", "bedrock:InvokeAgentCore"],
-            resources=[f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"],
+            resources=[gateway_resource],
         )
 
     def _grant_voice_lambda_permissions(self, voice_lambda: _lambda.Function) -> None:
@@ -343,6 +364,13 @@ class AgentStack(cdk.Stack):
                 actions=["s3:PutObject"],
                 resources=[f"arn:aws:s3:::{thread_archive_bucket_name}/*"],
             )
+        )
+
+        chat_dlq = sqs.Queue(self, "ChatStreamDLQ", retention_period=cdk.Duration.days(14))
+        chat_stream_lambda.configure_async_invoke(
+            on_failure=destinations.SqsDestination(chat_dlq),
+            max_event_age=cdk.Duration.hours(1),
+            retry_attempts=2,
         )
 
         return chat_stream_lambda

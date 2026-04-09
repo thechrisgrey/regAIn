@@ -23,6 +23,7 @@ from aws_cdk import (
     aws_logs as logs,
     aws_s3 as s3,
     aws_sns as sns,
+    aws_sns_subscriptions as sns_subscriptions,
 )
 from constructs import Construct
 from typing import Any
@@ -809,6 +810,9 @@ def handler(event, context):
             "RegainCoachingAlerts",
             topic_name="RegainCoachingAlerts",
             display_name="REGAIN Coaching Operational Alerts",
+        )
+        self._alert_topic.add_subscription(
+            sns_subscriptions.EmailSubscription("team@altivum.ai"),
         )
         sns_action = cw_actions.SnsAction(self._alert_topic)
 

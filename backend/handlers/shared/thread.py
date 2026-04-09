@@ -8,7 +8,7 @@ attention mode management.
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 import boto3
@@ -202,7 +202,8 @@ def compact_thread(
         }
     )
 
-    # Also archive as a separate DynamoDB row for history.
+    # Also archive as a separate DynamoDB row for history (TTL: 90 days).
+    expires_at = int((now + timedelta(days=90)).timestamp())
     table.put_item(
         Item={
             "userId": user_id,
@@ -211,6 +212,7 @@ def compact_thread(
             "tokenEstimate": new_token_estimate,
             "compactedFrom": archive_id,
             "lastActivityAt": now.isoformat(),
+            "expiresAt": expires_at,
         }
     )
 

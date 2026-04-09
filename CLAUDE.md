@@ -1,5 +1,23 @@
 # REGAIN — Project Guide
 
+## AWS AIdeas Competition Context
+
+REGAIN is a **top-50 finalist** (out of 10,000 submissions) in the AWS 10,000 AIdeas competition.
+
+### Semi-Finalist Rules
+- **Kiro requirement**: Must use Kiro for at least part of development
+- **AWS Free Tier**: App must stay within AWS Free Tier limits
+- **Originality**: App must be completely original and not yet published
+- **Builder Center article**: Semi-finalists publish an article showcasing the app, AWS services used, team name, and a demo
+
+### Judge Feedback
+> "The idea is great with forward-thinking AI integration and sophisticated technical execution but would sit in a crowded market space that offers free alternatives."
+
+### Implications for Development
+- **Differentiation is critical**: Every feature and architectural decision should widen the gap from free alternatives (LinkedIn coaching, generic ChatGPT wrappers). Lean into what free tools can't do: persistent memory across sessions, personalized mission-based skill development, voice practice with real-time assessment, market-aligned career intelligence
+- **Free Tier awareness**: When adding AWS resources, verify they fit within Free Tier limits (DynamoDB 25 RCU/WCU, Lambda 1M requests/mo, S3 5GB, Cognito 50K MAU, API Gateway 1M calls/mo). Flag anything that risks exceeding limits
+- **Kiro integration**: Track which parts of development use Kiro for the article writeup
+
 ## Architecture
 
 - **Backend**: Python CDK stacks (`infra/`), Lambda handlers, DynamoDB

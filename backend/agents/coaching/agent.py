@@ -223,12 +223,18 @@ def create_coaching_agent(
     # populated and appending thread turns would duplicate context.
     session_restored = session_manager is not None and agent.messages
     if conversation_history and not session_restored:
+        # Bedrock requires the first message to be role=user.  Skip any
+        # assistant turns that appear before the first user turn (can happen
+        # when action_event proactive responses are saved without a
+        # corresponding user turn).
+        first_user_seen = False
         for turn in conversation_history:
             role = turn.get("role", "")
             content = turn.get("content", "")
             if role == "user":
+                first_user_seen = True
                 agent.messages.append({"role": "user", "content": [{"text": content}]})
-            elif role == "assistant":
+            elif role == "assistant" and first_user_seen:
                 agent.messages.append({"role": "assistant", "content": [{"text": content}]})
 
     return agent

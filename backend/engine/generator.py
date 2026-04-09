@@ -266,12 +266,12 @@ def generate_daily_mission(
     if not campaign:
         return {"error": f"Campaign not found for campaign_id={campaign_id}"}
 
-    mission_history = db.query(
+    mission_history = db.query_all(
         "mission_history",
         Key("userId").eq(user_id),
     )
 
-    evidence_records = db.query(
+    evidence_records = db.query_all(
         "evidence_vault",
         Key("userId").eq(user_id),
     )

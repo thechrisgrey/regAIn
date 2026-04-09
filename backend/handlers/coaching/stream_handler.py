@@ -433,6 +433,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 return {"statusCode": 200}
 
             append_turns(user_id, [
+                {"role": "user", "content": f"[action_event] {event_content}", "timestamp": now, "source": "action_event"},
                 {"role": "assistant", "content": response_text, "timestamp": datetime.now(timezone.utc).isoformat(), "source": "chat"},
             ])
 
@@ -531,6 +532,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         # Auto-compact if at token budget.
         if thread["tokenEstimate"] >= thread["maxTokenBudget"] and thread["turns"]:
             try:
+                send_ws({"type": "thinking", "tool": "compact_thread"})
                 compact_agent = create_coaching_agent(
                     user_id=user_id,
                     jwt_token=jwt_token,
@@ -546,6 +548,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 from backend.agents.coaching.agent import evict_cached_components
                 evict_cached_components(connection_id)
                 thread = load_active_thread(user_id)
+                send_ws({"type": "thinking_complete", "tool": "compact_thread"})
             except Exception:
                 slog.warning("Auto-compaction failed for user %s, proceeding with full thread", user_id)
 

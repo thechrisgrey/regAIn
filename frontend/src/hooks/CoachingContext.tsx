@@ -46,6 +46,7 @@ const TOOL_LABELS: Record<string, string> = {
   get_alignment: 'Evaluating alignment',
   recall_memory: 'Recalling conversation',
   store_memory: 'Saving notes',
+  compact_thread: 'Compacting conversation',
 };
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';
@@ -141,6 +142,9 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const activeMessageRef = useRef<{ message: string; sessionType: string } | null>(null);
   const sendMessageRef = useRef<((message: string, sessionType: string) => Promise<boolean>) | undefined>(undefined);
 
+  // Resolve/reject for the connect() promise — settled by auth_success / onclose.
+  const connectResolveRef = useRef<{ resolve: () => void; reject: (e: Error) => void } | null>(null);
+
   // Proactive greeting: prevent double-sends on reconnect and track session type.
   const greetingSentRef = useRef(false);
   const sessionTypeRef = useRef('checkin');
@@ -206,10 +210,29 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
     setStreamHint(null);
   }, []);
 
-  const connect = useCallback(async () => {
-    if (!WS_URL) return;
-    if (wsRef.current?.readyState === WebSocket.OPEN) return;
+  const connect = useCallback((): Promise<void> => {
+    if (!WS_URL) return Promise.reject(new Error('No WebSocket URL'));
+    if (wsRef.current?.readyState === WebSocket.OPEN) return Promise.resolve();
 
+    return new Promise<void>((resolve, reject) => {
+      connectResolveRef.current = { resolve, reject };
+
+      // Timeout fallback — reject if auth_success never arrives.
+      const authTimeout = setTimeout(() => {
+        connectResolveRef.current = null;
+        reject(new Error('Auth timeout'));
+      }, 10_000);
+
+      const settleConnect = (settler: 'resolve' | 'reject', err?: Error) => {
+        clearTimeout(authTimeout);
+        const ref = connectResolveRef.current;
+        connectResolveRef.current = null;
+        if (!ref) return;
+        if (settler === 'resolve') ref.resolve();
+        else ref.reject(err || new Error('Connection failed'));
+      };
+
+      void (async () => {
     try {
       // Use getTokenRef to avoid stale closure over getToken (Part C).
       const token = await getTokenRef.current();
@@ -230,6 +253,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             reconnectAttempt.current = 0;
             setConnectionStatus('connected');
             setError(null);
+            settleConnect('resolve');
 
             // Sync thread state on reconnect.
             ws.send(JSON.stringify({ type: 'sync' }));
@@ -342,6 +366,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
       ws.onclose = () => {
         wsRef.current = null;
+        settleConnect('reject', new Error('Connection closed'));
         // If we were streaming when the connection dropped, save the
         // active message for auto-resend on reconnect.
         if (activeMessageRef.current) {
@@ -373,9 +398,12 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       };
 
       wsRef.current = ws;
-    } catch {
+    } catch (err) {
+      settleConnect('reject', err instanceof Error ? err : new Error('Connection failed'));
       setError('Failed to connect to coaching session');
     }
+      })();
+    });
   }, [resetStreamTimeout, clearStreamTimeout, clearToolSteps, flushDeltaBuffer, cancelAndFlushBuffer]);
 
   // Keep connectRef in sync so the onclose handler always calls the latest version.
@@ -386,7 +414,6 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   // Connect on mount — subscribes to the external WebSocket system.
   // setState calls within connect() execute in async event handlers, not synchronously.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     void connect();
     return () => {
       clearTimeout(reconnectTimer.current);
@@ -404,8 +431,12 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
       setError(null);
 
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-        await connect();
-        await new Promise((r) => setTimeout(r, 500));
+        try {
+          await connect();
+        } catch {
+          setError('Connection not available. Retrying...');
+          return false;
+        }
       }
 
       if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {

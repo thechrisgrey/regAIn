@@ -12,6 +12,7 @@ import json
 import logging
 import os
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from typing import Any
 
@@ -550,13 +551,14 @@ def log_evidence(
         from backend.handlers.shared.metrics import emit_metric
         emit_metric("evidence_logged")
 
-        # Count all evidence for this user + skill_tag
-        all_evidence = db.query_all(
-            "evidence_vault",
-            key_condition=Key("userId").eq(user_id),
-            filter_expression=boto3_attr("skillTag").eq(skill_tag),
+        # Count evidence for this user+skill using Select=COUNT to avoid
+        # transferring item data (only the count is returned).
+        skill_count_resp = db._get_table("evidence_vault").query(
+            KeyConditionExpression=Key("userId").eq(user_id),
+            FilterExpression=boto3_attr("skillTag").eq(skill_tag),
+            Select="COUNT",
         )
-        skill_evidence_count = len(all_evidence)
+        skill_evidence_count = skill_count_resp.get("Count", 0)
 
         return {
             "evidence_id": evidence_id,
@@ -865,15 +867,23 @@ def recall_memory(user_id: str, query: str) -> dict[str, Any]:
             "bedrock-agentcore",
             region_name=os.environ.get("AWS_REGION", "us-east-1"),
         )
-        all_records = []
-        for ns_template in _MEMORY_NAMESPACES:
+        def _search_namespace(ns_template):
             ns = ns_template.format(user_id=user_id)
-            response = client.retrieve_memory_records(
+            resp = client.retrieve_memory_records(
                 memoryId=memory_id,
                 namespace=ns,
                 searchCriteria={"query": {"text": query}},
             )
-            all_records.extend(response.get("memoryRecordSummaries", []))
+            return resp.get("memoryRecordSummaries", [])
+
+        all_records = []
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            futures = {
+                pool.submit(_search_namespace, ns): ns
+                for ns in _MEMORY_NAMESPACES
+            }
+            for future in as_completed(futures):
+                all_records.extend(future.result())
 
         return {
             "entries": [

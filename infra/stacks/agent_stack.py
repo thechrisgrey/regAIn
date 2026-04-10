@@ -187,12 +187,23 @@ class AgentStack(cdk.Stack):
         )
 
     def _agentcore_memory_policy(self) -> iam.PolicyStatement:
-        """Create IAM policy statement for AgentCore Memory operations."""
-        memory_resource = (
-            f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:memory/{self.memory_id}"
-            if self.memory_id
-            else "*"
-        )
+        """Create IAM policy statement for AgentCore Memory operations.
+
+        Uses Fn.import_value() (not self.memory_id) for the ARN so that
+        attaching this policy to coaching_lambda (owned by ApiStack) does
+        NOT create an ApiStack → AgentCoreStack construct dependency.
+        AgentCoreStack already depends on ApiStack via coaching_lambda.function_arn
+        in its gateway targets, so a token-based cross-stack ref from
+        ApiStack's IAM policy would cycle.
+        """
+        skip_bootstrap = self.node.try_get_context("skip_alert_import")
+        if self.memory_id and not skip_bootstrap:
+            memory_id_ref = cdk.Fn.import_value("RegainAgentCoreMemoryId")
+            memory_resource = (
+                f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:memory/{memory_id_ref}"
+            )
+        else:
+            memory_resource = "*"
         return iam.PolicyStatement(
             actions=[
                 "bedrock:CreateEvent",
@@ -203,12 +214,18 @@ class AgentStack(cdk.Stack):
         )
 
     def _agentcore_gateway_policy(self) -> iam.PolicyStatement:
-        """Create IAM policy statement for AgentCore Gateway access."""
-        gateway_resource = (
-            f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/{self.gateway_id}"
-            if self.gateway_id
-            else f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"
-        )
+        """Create IAM policy statement for AgentCore Gateway access.
+
+        Uses Fn.import_value() for the same reason as _agentcore_memory_policy.
+        """
+        skip_bootstrap = self.node.try_get_context("skip_alert_import")
+        if self.gateway_id and not skip_bootstrap:
+            gateway_id_ref = cdk.Fn.import_value("RegainAgentCoreGatewayId")
+            gateway_resource = (
+                f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/{gateway_id_ref}"
+            )
+        else:
+            gateway_resource = f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"
         return iam.PolicyStatement(
             actions=["bedrock:InvokeAgent", "bedrock:InvokeAgentCore"],
             resources=[gateway_resource],

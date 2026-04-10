@@ -9,8 +9,10 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_iam as iam,
     aws_lambda as _lambda,
+    aws_lambda_destinations as destinations,
     aws_logs as logs,
     aws_sns as sns,
+    aws_sqs as sqs,
 )
 from constructs import Construct
 
@@ -47,13 +49,13 @@ class AgentStack(cdk.Stack):
         self.memory_id = memory_id
         self.strands_layer = self._create_strands_layer()
 
-        voice_lambda = self._create_voice_lambda()
-        self._create_websocket_api(voice_lambda)
+        voice_lambda, voice_alias = self._create_voice_lambda()
+        self._create_websocket_api(voice_alias)
         self._grant_voice_lambda_permissions(voice_lambda)
         self._upgrade_coaching_lambda_permissions()
 
-        chat_stream_lambda = self._create_chat_stream_lambda()
-        self._create_chat_websocket_api(chat_stream_lambda)
+        chat_stream_lambda, chat_stream_alias = self._create_chat_stream_lambda()
+        self._create_chat_websocket_api(chat_stream_alias)
         self._grant_chat_stream_lambda_permissions(chat_stream_lambda)
 
         self._create_monitoring(voice_lambda, chat_stream_lambda)
@@ -94,11 +96,16 @@ class AgentStack(cdk.Stack):
             "USER_POOL_ID": self.user_pool.user_pool_id,
         }
 
-    def _create_voice_lambda(self) -> _lambda.Function:
-        """Create the Voice Session Lambda for WebSocket audio streaming."""
+    def _create_voice_lambda(self) -> tuple[_lambda.Function, _lambda.Alias]:
+        """Create the Voice Session Lambda for WebSocket audio streaming.
+
+        Returns the function and a "live" alias with provisioned concurrency
+        to eliminate cold starts (the 212MB Strands layer causes 2-5s cold
+        starts which cause visibly delayed first messages).
+        """
         env = {**self._table_env(), **self._bedrock_env()}
 
-        return _lambda.Function(
+        voice_lambda = _lambda.Function(
             self,
             "RegainVoiceSessionFunction",
             function_name="RegainVoiceSession",
@@ -116,18 +123,40 @@ class AgentStack(cdk.Stack):
             log_retention=logs.RetentionDays.ONE_MONTH,
         )
 
-    def _create_websocket_api(self, voice_lambda: _lambda.Function) -> None:
-        """Create WebSocket API Gateway for voice sessions."""
+        voice_dlq = sqs.Queue(self, "VoiceSessionDLQ", retention_period=cdk.Duration.days(14))
+        voice_lambda.configure_async_invoke(
+            on_failure=destinations.SqsDestination(voice_dlq),
+            max_event_age=cdk.Duration.hours(1),
+            retry_attempts=2,
+        )
+
+        # Provisioned concurrency alias: keeps 1 warm container always alive
+        # so the first voice session after idle doesn't eat a 2-5s cold start.
+        # ~$5.40/month (512MB × 30 days × $0.0000041667/GB-s).
+        voice_alias = voice_lambda.add_alias(
+            "live",
+            provisioned_concurrent_executions=1,
+            description="Provisioned concurrency for cold start mitigation",
+        )
+
+        return voice_lambda, voice_alias
+
+    def _create_websocket_api(self, voice_handler: _lambda.IFunction) -> None:
+        """Create WebSocket API Gateway for voice sessions.
+
+        The handler is the "live" alias (not the raw function) so API Gateway
+        routes to the provisioned-concurrency version.
+        """
         # Each route needs its own integration instance so CDK grants
         # API Gateway lambda:InvokeFunction permission for every route.
         connect_int = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainVoiceConnectInt", handler=voice_lambda,
+            "RegainVoiceConnectInt", handler=voice_handler,
         )
         default_int = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainVoiceDefaultInt", handler=voice_lambda,
+            "RegainVoiceDefaultInt", handler=voice_handler,
         )
         disconnect_int = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainVoiceDisconnectInt", handler=voice_lambda,
+            "RegainVoiceDisconnectInt", handler=voice_handler,
         )
 
         self.websocket_api = apigwv2.WebSocketApi(
@@ -157,7 +186,7 @@ class AgentStack(cdk.Stack):
         cdk.CfnOutput(
             self,
             "VoiceLambdaFunctionName",
-            value=voice_lambda.function_name,
+            value=voice_handler.function_name,
             export_name="RegainVoiceLambdaFunctionName",
         )
 
@@ -176,21 +205,48 @@ class AgentStack(cdk.Stack):
         )
 
     def _agentcore_memory_policy(self) -> iam.PolicyStatement:
-        """Create IAM policy statement for AgentCore Memory operations."""
+        """Create IAM policy statement for AgentCore Memory operations.
+
+        Uses Fn.import_value() (not self.memory_id) for the ARN so that
+        attaching this policy to coaching_lambda (owned by ApiStack) does
+        NOT create an ApiStack → AgentCoreStack construct dependency.
+        AgentCoreStack already depends on ApiStack via coaching_lambda.function_arn
+        in its gateway targets, so a token-based cross-stack ref from
+        ApiStack's IAM policy would cycle.
+        """
+        skip_bootstrap = self.node.try_get_context("skip_alert_import")
+        if self.memory_id and not skip_bootstrap:
+            memory_id_ref = cdk.Fn.import_value("RegainAgentCoreMemoryId")
+            memory_resource = (
+                f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:memory/{memory_id_ref}"
+            )
+        else:
+            memory_resource = "*"
         return iam.PolicyStatement(
             actions=[
                 "bedrock:CreateEvent",
                 "bedrock:RetrieveMemoryRecords",
                 "bedrock:ListMemoryRecords",
             ],
-            resources=["*"],
+            resources=[memory_resource],
         )
 
     def _agentcore_gateway_policy(self) -> iam.PolicyStatement:
-        """Create IAM policy statement for AgentCore Gateway access."""
+        """Create IAM policy statement for AgentCore Gateway access.
+
+        Uses Fn.import_value() for the same reason as _agentcore_memory_policy.
+        """
+        skip_bootstrap = self.node.try_get_context("skip_alert_import")
+        if self.gateway_id and not skip_bootstrap:
+            gateway_id_ref = cdk.Fn.import_value("RegainAgentCoreGatewayId")
+            gateway_resource = (
+                f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/{gateway_id_ref}"
+            )
+        else:
+            gateway_resource = f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"
         return iam.PolicyStatement(
             actions=["bedrock:InvokeAgent", "bedrock:InvokeAgentCore"],
-            resources=[f"arn:aws:bedrock:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:gateway/*"],
+            resources=[gateway_resource],
         )
 
     def _grant_voice_lambda_permissions(self, voice_lambda: _lambda.Function) -> None:
@@ -307,8 +363,13 @@ class AgentStack(cdk.Stack):
     # Chat Streaming (WebSocket text-based coaching)
     # ------------------------------------------------------------------
 
-    def _create_chat_stream_lambda(self) -> _lambda.Function:
-        """Create the Chat Streaming Lambda for WebSocket text coaching."""
+    def _create_chat_stream_lambda(self) -> tuple[_lambda.Function, _lambda.Alias]:
+        """Create the Chat Streaming Lambda for WebSocket text coaching.
+
+        Returns the function and a "live" alias with provisioned concurrency
+        to eliminate cold starts (the 212MB Strands layer causes 2-5s cold
+        starts which cause visibly delayed first chat messages).
+        """
         env = {**self._table_env(), **self._bedrock_env()}
 
         # Thread persistence env vars.
@@ -345,18 +406,38 @@ class AgentStack(cdk.Stack):
             )
         )
 
-        return chat_stream_lambda
+        chat_dlq = sqs.Queue(self, "ChatStreamDLQ", retention_period=cdk.Duration.days(14))
+        chat_stream_lambda.configure_async_invoke(
+            on_failure=destinations.SqsDestination(chat_dlq),
+            max_event_age=cdk.Duration.hours(1),
+            retry_attempts=2,
+        )
 
-    def _create_chat_websocket_api(self, chat_stream_lambda: _lambda.Function) -> None:
-        """Create WebSocket API Gateway for chat streaming sessions."""
+        # Provisioned concurrency alias: keeps 1 warm container always alive
+        # so the first chat message after idle doesn't eat a 2-5s cold start.
+        # ~$5.40/month (512MB × 30 days × $0.0000041667/GB-s).
+        chat_stream_alias = chat_stream_lambda.add_alias(
+            "live",
+            provisioned_concurrent_executions=1,
+            description="Provisioned concurrency for cold start mitigation",
+        )
+
+        return chat_stream_lambda, chat_stream_alias
+
+    def _create_chat_websocket_api(self, chat_handler: _lambda.IFunction) -> None:
+        """Create WebSocket API Gateway for chat streaming sessions.
+
+        The handler is the "live" alias (not the raw function) so API Gateway
+        routes to the provisioned-concurrency version.
+        """
         chat_connect_int = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainChatConnectInt", handler=chat_stream_lambda,
+            "RegainChatConnectInt", handler=chat_handler,
         )
         chat_default_int = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainChatDefaultInt", handler=chat_stream_lambda,
+            "RegainChatDefaultInt", handler=chat_handler,
         )
         chat_disconnect_int = apigwv2_integrations.WebSocketLambdaIntegration(
-            "RegainChatDisconnectInt", handler=chat_stream_lambda,
+            "RegainChatDisconnectInt", handler=chat_handler,
         )
 
         self.chat_websocket_api = apigwv2.WebSocketApi(

@@ -8,7 +8,7 @@ attention mode management.
 import json
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List
 
 import boto3
@@ -32,9 +32,14 @@ def _get_threads_table():
     return _threads_table
 
 
-def estimate_tokens(content: str) -> int:
-    """Approximate token count from string length."""
-    return len(content) // 4
+def estimate_tokens(content: str, source: str = "text") -> int:
+    """Approximate token count from string length.
+
+    JSON-heavy content (tool results, action events) averages ~3 chars/token
+    vs ~4 for prose, so we use a lower divisor to avoid undercounting.
+    """
+    divisor = 3 if source in ("tool_result", "action_event") else 4
+    return len(content) // divisor
 
 
 def load_active_thread(user_id: str) -> Dict[str, Any]:
@@ -74,7 +79,10 @@ def append_turns(user_id: str, turns: List[Dict[str, Any]]) -> int:
     Returns:
         The added token count.
     """
-    added_tokens = sum(estimate_tokens(t.get("content", "")) for t in turns)
+    added_tokens = sum(
+        estimate_tokens(t.get("content", ""), source=t.get("source", "text"))
+        for t in turns
+    )
     now = datetime.now(timezone.utc).isoformat()
 
     table = _get_threads_table()
@@ -202,7 +210,8 @@ def compact_thread(
         }
     )
 
-    # Also archive as a separate DynamoDB row for history.
+    # Also archive as a separate DynamoDB row for history (TTL: 90 days).
+    expires_at = int((now + timedelta(days=90)).timestamp())
     table.put_item(
         Item={
             "userId": user_id,
@@ -211,6 +220,7 @@ def compact_thread(
             "tokenEstimate": new_token_estimate,
             "compactedFrom": archive_id,
             "lastActivityAt": now.isoformat(),
+            "expiresAt": expires_at,
         }
     )
 

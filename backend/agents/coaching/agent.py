@@ -10,6 +10,7 @@ persona definition lives in prompts.py.
 import logging
 import os
 import uuid
+from collections import OrderedDict
 from typing import Any, Dict
 
 from strands import Agent
@@ -21,7 +22,8 @@ logger = logging.getLogger(__name__)
 
 _PENDING = "pending-agentcore-deploy"
 
-_component_cache: Dict[str, Dict[str, Any]] = {}
+_MAX_CACHE_SIZE = 50
+_component_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
 
 def evict_cached_components(cache_key: str) -> None:
@@ -152,6 +154,7 @@ def create_coaching_agent(
         A configured Strands Agent.
     """
     if cache_key and cache_key in _component_cache:
+        _component_cache.move_to_end(cache_key)
         cached = _component_cache[cache_key]
         tools = cached["tools"]
         model = cached["model"]
@@ -198,6 +201,8 @@ def create_coaching_agent(
                 "session_manager": session_manager,
                 "system_prompt": system_prompt,
             }
+            if len(_component_cache) > _MAX_CACHE_SIZE:
+                _component_cache.popitem(last=False)
 
     kwargs: dict = {
         "model": model,

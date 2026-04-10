@@ -6,6 +6,7 @@ from aws_cdk import (
     aws_dynamodb as dynamodb,
     aws_s3 as s3,
     aws_sns as sns,
+    aws_sns_subscriptions as sns_subscriptions,
 )
 from constructs import Construct
 
@@ -242,6 +243,7 @@ class DataStack(cdk.Stack):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=self._removal_policy,
             point_in_time_recovery=True,
+            time_to_live_attribute="expiresAt",
         )
 
     def _create_thread_archives_bucket(self) -> None:
@@ -279,6 +281,9 @@ class DataStack(cdk.Stack):
             self,
             "RegainDynamoDBAlerts",
             topic_name="RegainDynamoDBAlerts",
+        )
+        alert_topic.add_subscription(
+            sns_subscriptions.EmailSubscription("team@altivum.ai"),
         )
         cdk.CfnOutput(
             self,

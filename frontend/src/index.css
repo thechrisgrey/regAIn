@@ -118,6 +118,11 @@
   --radius-button: 8px;
   --radius-badge: 9999px;
 
+  /* Layout — three-panel grid */
+  --nav-w: clamp(64px, 10vw, 88px);
+  --chat-w-open: 40vw;
+  --chat-w-closed: 0px;
+
   /* Animations */
   --animate-fade-in: fade-in 0.4s ease-out;
   --animate-fade-in-up: fade-in-up 0.45s ease-out backwards;

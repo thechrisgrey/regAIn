@@ -89,12 +89,14 @@ class GatewayToolClient:
             return self._handle_client_error(exc, tool_name)
         except BotoCoreError as exc:
             logger.exception("Gateway connection error invoking %s", tool_name)
+            self._record_gateway_failure()
             return {
                 "error": "gateway_unavailable",
                 "message": "AgentCore Gateway is temporarily unavailable",
             }
         except Exception as exc:
             logger.exception("Unexpected error invoking %s via Gateway", tool_name)
+            self._record_gateway_failure()
             return {
                 "error": "gateway_unavailable",
                 "message": "AgentCore Gateway is temporarily unavailable",
@@ -155,6 +157,15 @@ class GatewayToolClient:
         }
 
     # -- Private helpers -----------------------------------------------------
+
+    @staticmethod
+    def _record_gateway_failure() -> None:
+        """Record a failure on the gateway circuit breaker.
+
+        Lazy-imports circuit_breaker to avoid circular dependencies.
+        """
+        from backend.agents.coaching.circuit_breaker import gateway_circuit
+        gateway_circuit.record_failure()
 
     @staticmethod
     def _is_agent_generated_code(code: str) -> bool:
@@ -360,6 +371,8 @@ class GatewayToolClient:
         mapped = error_map.get(error_code)
         if mapped:
             logger.warning("Gateway error for %s: %s", tool_name, error_code)
+            if mapped["error"] == "gateway_unavailable":
+                self._record_gateway_failure()
             return mapped
 
         logger.exception("Unhandled Gateway ClientError for %s", tool_name)

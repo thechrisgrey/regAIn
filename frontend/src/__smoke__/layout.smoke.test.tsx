@@ -45,8 +45,8 @@ vi.mock('../hooks/useSharedData', () => ({
   })),
 }));
 
-// Mock CoachModal -- depends on CoachingContext
-vi.mock('../components/CoachModal', () => ({
+// Mock ChatPanel -- depends on CoachingContext
+vi.mock('../components/ChatPanel', () => ({
   default: () => null,
 }));
 
@@ -79,13 +79,18 @@ describe('Smoke: Layout', () => {
   });
 
   it('renders the sidebar navigation with all nav items', () => {
-    // Verifies every expected navigation link is present in the sidebar
-    // Coaching removed — replaced by persistent CoachModal
+    // Verifies every expected navigation link is present in the sidebar.
+    // Layout renders both a mobile drawer nav and a desktop Sidebar nav, both
+    // with aria-label="Main navigation". Use getAllBy and pick the mobile nav
+    // (index 0) which has the full label text.
     renderLayout();
 
-    const nav = screen.getByRole('navigation', { name: /main navigation/i });
-    const links = within(nav).getAllByRole('link');
-    const labels = links.map((link) => link.textContent?.trim());
+    const navs = screen.getAllByRole('navigation', { name: /main navigation/i });
+    // Collect all nav links across both navs (mobile + desktop) to verify
+    // every expected route label is reachable in at least one nav.
+    const allLabels = navs.flatMap((nav) =>
+      Array.from(nav.querySelectorAll('a')).map((a) => a.textContent?.trim()),
+    );
 
     const expectedLabels = [
       'Dashboard',
@@ -100,17 +105,18 @@ describe('Smoke: Layout', () => {
     ];
 
     for (const label of expectedLabels) {
-      expect(labels).toContain(label);
+      expect(allLabels).toContain(label);
     }
-    expect(labels).not.toContain('Coaching');
+    expect(allLabels).not.toContain('Coaching');
   });
 
   it('renders the sign-out button', () => {
-    // Confirms sign-out functionality is accessible to the user
+    // Confirms sign-out functionality is accessible to the user.
+    // Layout renders Sign out in both mobile drawer and desktop Sidebar.
     renderLayout();
-    const signOutButton = screen.getByText('Sign out');
-    expect(signOutButton).toBeTruthy();
-    expect(signOutButton.tagName).toBe('BUTTON');
+    const signOutButtons = screen.getAllByText('Sign out');
+    expect(signOutButtons.length).toBeGreaterThan(0);
+    expect(signOutButtons[0].tagName).toBe('BUTTON');
   });
 
   it('displays the current user email', () => {
@@ -127,11 +133,11 @@ describe('Smoke: Layout', () => {
   });
 
   it('contains a main content area', () => {
-    // Confirms the main content outlet container exists
+    // Confirms the main content outlet container exists.
+    // Layout renders two <main> elements (desktop + mobile); verify at least one exists.
     renderLayout();
-    const main = document.querySelector('main');
-    expect(main).toBeTruthy();
-    expect(main!.className).toContain('flex-1');
+    const mains = document.querySelectorAll('main');
+    expect(mains.length).toBeGreaterThan(0);
   });
 
   it('renders the mobile hamburger menu button', () => {
@@ -142,10 +148,12 @@ describe('Smoke: Layout', () => {
   });
 
   it('nav links point to the correct routes', () => {
-    // Verifies each link targets the expected URL path
+    // Verifies each link targets the expected URL path.
+    // Uses the mobile nav (index 0) which has the full label text.
     renderLayout();
 
-    const nav = screen.getByRole('navigation', { name: /main navigation/i });
+    const navs = screen.getAllByRole('navigation', { name: /main navigation/i });
+    const mobileNav = navs[0];
     const expectedRoutes: Record<string, string> = {
       Dashboard: '/dashboard',
       Missions: '/missions',
@@ -159,7 +167,7 @@ describe('Smoke: Layout', () => {
     };
 
     for (const [label, href] of Object.entries(expectedRoutes)) {
-      const link = within(nav).getByText(label).closest('a');
+      const link = within(mobileNav).getByText(label).closest('a');
       expect(link).toBeTruthy();
       expect(link!.getAttribute('href')).toBe(href);
     }

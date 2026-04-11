@@ -25,7 +25,7 @@ vi.mock('../services/api', () => ({
   },
 }));
 
-vi.mock('./CoachModal', () => ({
+vi.mock('./ChatPanel', () => ({
   default: () => null,
 }));
 
@@ -65,7 +65,10 @@ describe('Layout navigation', () => {
   it('includes Resume nav item between Evidence and Profile (Req 9.1)', () => {
     renderLayout();
 
-    const nav = screen.getByRole('navigation');
+    // Layout renders both a mobile drawer nav and a desktop Sidebar nav.
+    // Use the first nav with "Main navigation" label (mobile drawer).
+    const navs = screen.getAllByRole('navigation', { name: /main navigation/i });
+    const nav = navs[0];
     const links = Array.from(nav.querySelectorAll('a'));
     const labels = links.map(link => link.textContent?.trim());
 
@@ -113,8 +116,10 @@ describe('Recovery banner', () => {
       refreshDashboard: mockRefreshDashboard,
     } as unknown as ReturnType<typeof useSharedData>);
     renderLayout();
-    expect(screen.getByText('Recover account')).toBeInTheDocument();
-    expect(screen.getByText(/scheduled for deletion/)).toBeInTheDocument();
+    // Layout renders RecoveryBanner in both desktop and mobile sections;
+    // jsdom renders both regardless of CSS visibility, so use getAllBy*.
+    expect(screen.getAllByText('Recover account').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/scheduled for deletion/).length).toBeGreaterThan(0);
   });
 
   it('calls api.profile.recover when recover link is clicked', async () => {
@@ -133,7 +138,8 @@ describe('Recovery banner', () => {
       refreshDashboard: mockRefreshDashboard,
     } as unknown as ReturnType<typeof useSharedData>);
     renderLayout();
-    fireEvent.click(screen.getByText('Recover account'));
+    // Click the first recovery button (desktop or mobile — both call the same handler).
+    fireEvent.click(screen.getAllByText('Recover account')[0]);
     await waitFor(() => {
       expect(mockApi.profile.recover).toHaveBeenCalledWith('mock-token');
     });

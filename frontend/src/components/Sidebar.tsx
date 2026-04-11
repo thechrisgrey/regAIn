@@ -23,7 +23,7 @@ const prefetchRoutes: Record<string, string[]> = {
 };
 
 export default function Sidebar() {
-  const { user, signOut, getToken } = useAuth();
+  const { signOut, getToken } = useAuth();
 
   const handlePrefetch = useCallback(
     (to: string) => {

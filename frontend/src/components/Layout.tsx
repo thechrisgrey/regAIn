@@ -3,14 +3,22 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { useSharedData } from '../hooks/useSharedData';
 import { useMutationBus } from '../hooks/useMutationBus';
-import { api, cachedGet } from '../services/api';
+import { api } from '../services/api';
 import NavIcon from './ui/NavIcon';
 import ErrorBoundary from './ErrorBoundary';
 import RouteLoader from './RouteLoader';
 import ConnectionBanner from './ConnectionBanner';
-import CoachModal from './CoachModal';
+import Sidebar from './Sidebar';
+import ChatPanel from './ChatPanel';
+import DrawerHandle from './DrawerHandle';
 
-const navGroups = [
+const VOICE_ROUTES = ['/voice-practice'];
+
+function isVoiceRoute(pathname: string): boolean {
+  return VOICE_ROUTES.some(r => pathname === r || pathname.startsWith(r + '/'));
+}
+
+const MOBILE_NAV_GROUPS = [
   {
     label: 'Orient',
     items: [
@@ -40,13 +48,6 @@ const navGroups = [
     ],
   },
 ];
-
-const prefetchRoutes: Record<string, string[]> = {
-  '/dashboard': ['/dashboard'],
-  '/missions': ['/missions'],
-  '/evidence': ['/evidence'],
-  '/analytics': ['/analytics'],
-};
 
 function RecoveryBanner() {
   const { getToken } = useAuth();
@@ -95,17 +96,31 @@ function RecoveryBanner() {
 }
 
 export default function Layout() {
-  const { user, signOut, getToken } = useAuth();
+  const { user, signOut } = useAuth();
   const location = useLocation();
   const { emit } = useMutationBus();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Chat panel toggle — persisted in localStorage, defaults to open
+  const [chatOpen, setChatOpen] = useState(() => {
+    const stored = localStorage.getItem('regain-chat-open');
+    return stored === null ? true : stored === 'true';
+  });
+
+  const toggleChat = useCallback(() => {
+    setChatOpen(prev => {
+      const next = !prev;
+      localStorage.setItem('regain-chat-open', String(next));
+      return next;
+    });
+  }, []);
 
   // Emit page navigation event
   useEffect(() => {
     emit({ type: 'page:navigated', payload: { route: location.pathname } });
   }, [location.pathname, emit]);
 
-  // Escape key closes sidebar
+  // Mobile sidebar: Escape key closes
   useEffect(() => {
     if (!sidebarOpen) return;
     const handleKey = (e: KeyboardEvent) => {
@@ -115,7 +130,7 @@ export default function Layout() {
     return () => document.removeEventListener('keydown', handleKey);
   }, [sidebarOpen]);
 
-  // Lock body scroll when sidebar is open
+  // Lock body scroll when mobile sidebar is open
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
@@ -123,21 +138,43 @@ export default function Layout() {
 
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
-  const handlePrefetch = useCallback(
-    (to: string) => {
-      const endpoints = prefetchRoutes[to];
-      if (!endpoints) return;
-      void getToken().then((token) => {
-        for (const endpoint of endpoints) {
-          void cachedGet(endpoint, token);
-        }
-      });
-    },
-    [getToken],
-  );
+  const voice = isVoiceRoute(location.pathname);
 
+  // Voice routes: full-screen layout, no three-panel grid
+  if (voice) {
+    return (
+      <div className="flex min-h-screen">
+        {/* Mobile header */}
+        <div className="fixed inset-x-0 top-0 z-30 flex h-[60px] items-center justify-between border-b border-neutral-200/60 bg-surface-1 px-4 md:hidden">
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation"
+            className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-button)] text-neutral-600 hover:bg-neutral-100 transition-colors"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+            </svg>
+          </button>
+          <img src="/regain-type.png" alt="Regain" className="h-6 w-auto" />
+          <div className="h-10 w-10" aria-hidden="true" />
+        </div>
+
+        <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:pt-0">
+          <ErrorBoundary>
+            <Suspense fallback={<RouteLoader />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        </main>
+      </div>
+    );
+  }
+
+  // Desktop: three-panel CSS grid
+  // Mobile: standard hamburger sidebar + full-width content (no chat panel)
   return (
-    <div className="flex min-h-screen">
+    <>
       {/* Mobile header bar */}
       <div className="fixed inset-x-0 top-0 z-30 flex h-[60px] items-center justify-between border-b border-neutral-200/60 bg-surface-1 px-4 md:hidden">
         <button
@@ -150,15 +187,11 @@ export default function Layout() {
             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
           </svg>
         </button>
-        <img
-          src="/regain-type.png"
-          alt="Regain"
-          className="h-6 w-auto"
-        />
+        <img src="/regain-type.png" alt="Regain" className="h-6 w-auto" />
         <div className="h-10 w-10" aria-hidden="true" />
       </div>
 
-      {/* Backdrop overlay */}
+      {/* Mobile backdrop overlay */}
       {sidebarOpen && (
         <div
           className="fixed inset-0 z-40 bg-neutral-900/40 md:hidden animate-fade-in"
@@ -167,26 +200,21 @@ export default function Layout() {
         />
       )}
 
-      {/* Sidebar */}
+      {/* Mobile sidebar drawer (full labels, same as before) */}
       <nav
-        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-white/[0.06] transition-transform duration-300 ease-out md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-60 flex-col border-r border-white/[0.06] transition-transform duration-300 ease-out md:hidden ${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         }`}
         style={{ background: 'linear-gradient(180deg, #4A3A50 0%, #2E1F33 100%)' }}
         aria-label="Main navigation"
       >
-        {/* Logo + close button */}
         <div className="flex items-center justify-between px-5 py-6">
-          <img
-            src="/regain-type.png"
-            alt="Regain"
-            className="h-7 w-auto brightness-0 invert"
-          />
+          <img src="/regain-type.png" alt="Regain" className="h-7 w-auto brightness-0 invert" />
           <button
             type="button"
             onClick={closeSidebar}
             aria-label="Close navigation"
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-button)] text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors md:hidden"
+            className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-button)] text-neutral-400 hover:text-white hover:bg-white/[0.08] transition-colors"
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -194,9 +222,8 @@ export default function Layout() {
           </button>
         </div>
 
-        {/* Nav groups */}
         <div className="flex-1 overflow-y-auto px-3 py-1">
-          {navGroups.map((group, gi) => (
+          {MOBILE_NAV_GROUPS.map((group, gi) => (
             <div key={group.label} className={gi > 0 ? 'mt-5' : ''}>
               <span className="block px-3 pb-1 text-[10px] font-semibold uppercase tracking-[0.15em] text-neutral-500/60">
                 {group.label}
@@ -207,7 +234,6 @@ export default function Layout() {
                     <NavLink
                       to={to}
                       onClick={closeSidebar}
-                      onMouseEnter={() => handlePrefetch(to)}
                       className={({ isActive }) =>
                         `relative flex items-center gap-3 rounded-[var(--radius-button)] pl-4 pr-3 py-2 min-h-[40px] text-[13px] font-medium transition-colors duration-150 ${
                           isActive
@@ -226,7 +252,6 @@ export default function Layout() {
           ))}
         </div>
 
-        {/* Profile + Sign-out (pinned bottom) */}
         <div className="border-t border-white/[0.06] px-3 pt-2 pb-4">
           <NavLink
             to="/profile"
@@ -256,7 +281,37 @@ export default function Layout() {
         </div>
       </nav>
 
-      <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:pt-0">
+      {/* Desktop three-panel grid */}
+      <div
+        className="hidden md:grid min-h-screen"
+        style={{
+          gridTemplateColumns: `var(--nav-w) 1fr 3px ${chatOpen ? 'var(--chat-w-open)' : 'var(--chat-w-closed)'}`,
+          transition: 'grid-template-columns 300ms ease',
+        }}
+      >
+        <Sidebar />
+
+        <main className="overflow-y-auto bg-surface-2">
+          <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+            <ConnectionBanner />
+            <RecoveryBanner />
+            <ErrorBoundary>
+              <Suspense fallback={<RouteLoader />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
+          </div>
+        </main>
+
+        <DrawerHandle open={chatOpen} onToggle={toggleChat} />
+
+        <div className={`overflow-hidden ${chatOpen ? '' : 'w-0'}`}>
+          <ChatPanel visible={chatOpen} />
+        </div>
+      </div>
+
+      {/* Mobile content (no chat panel, below the fixed header) */}
+      <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:hidden">
         <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
           <ConnectionBanner />
           <RecoveryBanner />
@@ -267,9 +322,6 @@ export default function Layout() {
           </ErrorBoundary>
         </div>
       </main>
-
-      {/* Persistent coach modal — available on every page */}
-      <CoachModal />
-    </div>
+    </>
   );
 }

@@ -140,39 +140,8 @@ export default function Layout() {
 
   const voice = isVoiceRoute(location.pathname);
 
-  // Voice routes: full-screen layout, no three-panel grid
-  if (voice) {
-    return (
-      <div className="flex min-h-screen">
-        {/* Mobile header */}
-        <div className="fixed inset-x-0 top-0 z-30 flex h-[60px] items-center justify-between border-b border-neutral-200/60 bg-surface-1 px-4 md:hidden">
-          <button
-            type="button"
-            onClick={() => setSidebarOpen(true)}
-            aria-label="Open navigation"
-            className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-button)] text-neutral-600 hover:bg-neutral-100 transition-colors"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
-            </svg>
-          </button>
-          <img src="/regain-type.png" alt="Regain" className="h-6 w-auto" />
-          <div className="h-10 w-10" aria-hidden="true" />
-        </div>
-
-        <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:pt-0">
-          <ErrorBoundary>
-            <Suspense fallback={<RouteLoader />}>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
-        </main>
-      </div>
-    );
-  }
-
-  // Desktop: three-panel CSS grid
-  // Mobile: standard hamburger sidebar + full-width content (no chat panel)
+  // Desktop: CSS grid — voice routes use sidebar + full content; others add chat panel
+  // Mobile: hamburger sidebar + full-width content
   return (
     <>
       {/* Mobile header bar */}
@@ -285,13 +254,52 @@ export default function Layout() {
       <div
         className="hidden md:grid min-h-screen"
         style={{
-          gridTemplateColumns: `var(--nav-w) 1fr 1rem ${chatOpen ? 'var(--chat-w-open)' : 'var(--chat-w-closed)'}`,
+          gridTemplateColumns: voice
+            ? 'var(--nav-w) 1fr'
+            : `var(--nav-w) 1fr 1rem ${chatOpen ? 'var(--chat-w-open)' : 'var(--chat-w-closed)'}`,
           transition: 'grid-template-columns 300ms ease',
         }}
       >
         <Sidebar />
 
         <main className="overflow-y-auto bg-surface-2">
+          {voice ? (
+            <ErrorBoundary>
+              <Suspense fallback={<RouteLoader />}>
+                <Outlet />
+              </Suspense>
+            </ErrorBoundary>
+          ) : (
+            <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+              <ConnectionBanner />
+              <RecoveryBanner />
+              <ErrorBoundary>
+                <Suspense fallback={<RouteLoader />}>
+                  <Outlet />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+          )}
+        </main>
+
+        {!voice && <DrawerHandle open={chatOpen} onToggle={toggleChat} />}
+
+        {!voice && (
+          <div className={`overflow-hidden ${chatOpen ? '' : 'w-0'}`}>
+            <ChatPanel visible={chatOpen} />
+          </div>
+        )}
+      </div>
+
+      {/* Mobile content (no chat panel, below the fixed header) */}
+      <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:hidden">
+        {voice ? (
+          <ErrorBoundary>
+            <Suspense fallback={<RouteLoader />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
+        ) : (
           <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
             <ConnectionBanner />
             <RecoveryBanner />
@@ -301,26 +309,7 @@ export default function Layout() {
               </Suspense>
             </ErrorBoundary>
           </div>
-        </main>
-
-        <DrawerHandle open={chatOpen} onToggle={toggleChat} />
-
-        <div className={`overflow-hidden ${chatOpen ? '' : 'w-0'}`}>
-          <ChatPanel visible={chatOpen} />
-        </div>
-      </div>
-
-      {/* Mobile content (no chat panel, below the fixed header) */}
-      <main className="flex-1 overflow-y-auto bg-surface-2 pt-[60px] md:hidden">
-        <div className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
-          <ConnectionBanner />
-          <RecoveryBanner />
-          <ErrorBoundary>
-            <Suspense fallback={<RouteLoader />}>
-              <Outlet />
-            </Suspense>
-          </ErrorBoundary>
-        </div>
+        )}
       </main>
     </>
   );

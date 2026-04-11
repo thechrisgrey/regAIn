@@ -155,14 +155,6 @@ export default function ChatPanel({ visible }: ChatPanelProps) {
   const tokenPct = tokenBudget > 0 ? Math.round((tokenEstimate / tokenBudget) * 100) : 0;
   const tokenColor = tokenPct >= 90 ? 'var(--color-error-500)' : tokenPct >= 75 ? 'var(--color-warning-500)' : 'var(--color-success-500)';
 
-  // Connection status border color
-  const statusBorderColor =
-    connectionStatus === 'connected'
-      ? 'var(--color-primary-500)'
-      : connectionStatus === 'reconnecting'
-        ? 'var(--color-warning-400)'
-        : 'var(--color-neutral-300)';
-
   // Focus input when panel becomes visible
   useEffect(() => {
     if (visible) {

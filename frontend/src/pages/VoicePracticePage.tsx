@@ -128,7 +128,7 @@ export default function VoicePracticePage() {
   // -----------------------------------------------------------------------
   if (status === 'assessing') {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] animate-fade-in">
+      <div className="mx-auto flex max-w-4xl flex-col items-center justify-center min-h-[60vh] px-6 py-8 animate-fade-in">
         {assessmentTimedOut ? (
           <>
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-warning-100 mb-6">
@@ -179,15 +179,17 @@ export default function VoicePracticePage() {
           : 'Listening...';
 
     return (
-      <div className="flex flex-col h-[calc(100dvh-60px)] md:h-[calc(100vh-3rem)] animate-fade-in">
-        {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-neutral-200">
-          <h1 className="text-2xl font-bold text-neutral-900">Voice Practice</h1>
-          <p className="text-sm text-neutral-600">{statusText}</p>
+      <div className="flex flex-col h-[calc(100dvh-60px)] md:h-screen px-6 animate-fade-in">
+        {/* Status indicator */}
+        <div className="flex items-center justify-center gap-2 py-3">
+          <span className={`h-2 w-2 rounded-full ${
+            status === 'connecting' ? 'bg-warning-500 animate-pulse' : 'bg-success-500 animate-voice-pulse'
+          }`} />
+          <p className="text-sm font-medium text-neutral-600">{statusText}</p>
         </div>
 
         {/* Voice orb visualizer */}
-        <Suspense fallback={<div className="h-40 w-40 mx-auto my-2 rounded-full bg-neutral-200 animate-pulse" />}>
+        <Suspense fallback={<div className="h-48 w-48 md:h-64 md:w-64 mx-auto my-4 rounded-full bg-neutral-200 animate-pulse" />}>
           <AudioVisualizer
             state={
               status === 'connecting'
@@ -198,7 +200,7 @@ export default function VoicePracticePage() {
                     ? 'speaking'
                     : 'listening'
             }
-            className="h-40 w-40 mx-auto my-2"
+            className="h-48 w-48 md:h-64 md:w-64 mx-auto my-4"
           />
         </Suspense>
 
@@ -234,14 +236,14 @@ export default function VoicePracticePage() {
         )}
 
         {/* Controls bar */}
-        <div className="flex items-center justify-center gap-3 pt-3 border-t border-neutral-200">
+        <div className="flex items-center justify-center gap-6 py-4">
           <button
             type="button"
             onClick={toggleMute}
             aria-label={isMuted ? 'Unmute microphone' : 'Mute microphone'}
-            className={`rounded-[var(--radius-card)] px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+            className={`flex h-12 w-12 items-center justify-center rounded-full transition-colors duration-150 ${
               isMuted
-                ? 'bg-warning-100 text-warning-700 hover:bg-warning-200'
+                ? 'bg-warning-100 text-warning-700 hover:bg-warning-200 ring-1 ring-warning-200'
                 : 'bg-neutral-100 text-neutral-700 hover:bg-neutral-200'
             }`}
           >
@@ -253,9 +255,16 @@ export default function VoicePracticePage() {
               )}
             </svg>
           </button>
-          <Button variant="destructive" onClick={stopSession}>
-            End Session
-          </Button>
+          <button
+            type="button"
+            onClick={stopSession}
+            className="flex h-14 w-14 items-center justify-center rounded-full bg-error-500 text-white hover:bg-error-600 transition-colors duration-150 shadow-lg"
+            aria-label="End session"
+          >
+            <svg className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+              <rect x="4" y="4" width="12" height="12" rx="2" />
+            </svg>
+          </button>
         </div>
       </div>
     );
@@ -265,7 +274,7 @@ export default function VoicePracticePage() {
   // View 1: Mode Selection + History (idle / ending / error)
   // -----------------------------------------------------------------------
   return (
-    <div className="animate-fade-in">
+    <div className="mx-auto max-w-4xl px-6 py-8 animate-fade-in">
       <div className="mb-6">
         <h1 className="text-2xl font-semibold tracking-tight text-neutral-900">Voice Practice</h1>
         <p className="mt-1 text-sm text-neutral-500">Sharpen your interview skills with AI-powered practice sessions</p>

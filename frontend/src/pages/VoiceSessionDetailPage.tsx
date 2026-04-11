@@ -46,7 +46,7 @@ export default function VoiceSessionDetailPage() {
 
   if (loading && !sessionDetail) {
     return (
-      <div className="animate-fade-in">
+      <div className="mx-auto max-w-4xl px-6 py-8 animate-fade-in">
         <SkeletonBlock className="h-5 w-40 mb-6" />
         <SkeletonBlock className="h-8 w-64 mb-4" />
         <SkeletonBlock className="h-24 w-full mb-4" />
@@ -58,7 +58,7 @@ export default function VoiceSessionDetailPage() {
 
   if (error) {
     return (
-      <div className="animate-fade-in">
+      <div className="mx-auto max-w-4xl px-6 py-8 animate-fade-in">
         <Link to="/voice-practice" className="text-sm text-primary-500 hover:text-primary-600 transition-colors">
           Back to Voice Practice
         </Link>
@@ -77,13 +77,16 @@ export default function VoiceSessionDetailPage() {
     : sessionDetail.transcript?.turns ?? [];
 
   return (
-    <div className="animate-fade-in">
+    <div className="mx-auto max-w-4xl px-6 py-8 animate-fade-in">
       {/* Back link */}
       <Link
         to="/voice-practice"
-        className="inline-block text-sm text-primary-500 hover:text-primary-600 transition-colors mb-4"
+        className="inline-flex items-center gap-1 text-sm text-primary-500 hover:text-primary-600 transition-colors mb-4"
       >
-        Back to Voice Practice
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        </svg>
+        Voice Practice
       </Link>
 
       {/* Session metadata bar */}

@@ -49,7 +49,7 @@ export default function Sidebar() {
         <img
           src="/regain-type.png"
           alt="Regain"
-          className="h-5 w-auto brightness-0 invert"
+          className="h-10 w-auto brightness-0 invert"
         />
       </div>
 

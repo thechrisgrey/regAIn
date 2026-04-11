@@ -242,7 +242,6 @@ export default function ChatPanel({ visible }: ChatPanelProps) {
   return (
     <div
       className="flex h-screen flex-col overflow-hidden bg-surface-1"
-      style={{ borderTop: `2px solid ${statusBorderColor}` }}
     >
       {/* Toolbar — compact row with token budget, attention mode, clear */}
       <div className="flex items-center justify-between border-b border-neutral-100 px-3 py-1.5">

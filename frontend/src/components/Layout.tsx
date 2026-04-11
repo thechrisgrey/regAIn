@@ -285,7 +285,7 @@ export default function Layout() {
       <div
         className="hidden md:grid min-h-screen"
         style={{
-          gridTemplateColumns: `var(--nav-w) 1fr 3px ${chatOpen ? 'var(--chat-w-open)' : 'var(--chat-w-closed)'}`,
+          gridTemplateColumns: `var(--nav-w) 1fr 1rem ${chatOpen ? 'var(--chat-w-open)' : 'var(--chat-w-closed)'}`,
           transition: 'grid-template-columns 300ms ease',
         }}
       >

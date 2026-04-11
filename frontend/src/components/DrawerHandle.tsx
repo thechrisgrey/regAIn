@@ -9,9 +9,29 @@ export default function DrawerHandle({ open, onToggle }: DrawerHandleProps) {
       type="button"
       onClick={onToggle}
       aria-label={open ? 'Close chat panel' : 'Open chat panel'}
-      className="flex w-[3px] cursor-pointer items-center justify-center bg-neutral-200 transition-colors hover:bg-neutral-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400"
+      className={`group flex w-4 cursor-pointer items-center justify-center border-x transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 ${
+        open
+          ? 'border-neutral-200 bg-surface-2 hover:bg-neutral-100'
+          : 'border-primary-500 bg-primary-500 hover:bg-primary-600'
+      }`}
     >
-      <span className="h-[30px] w-[3px] rounded-full bg-accent-400 opacity-60 transition-opacity hover:opacity-100" />
+      <svg
+        className={`h-5 w-5 transition-colors ${
+          open
+            ? 'text-neutral-400 group-hover:text-primary-500'
+            : 'text-white'
+        }`}
+        fill="none"
+        viewBox="0 0 24 24"
+        stroke="currentColor"
+        strokeWidth={2}
+      >
+        {open ? (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
+        ) : (
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
+        )}
+      </svg>
     </button>
   );
 }

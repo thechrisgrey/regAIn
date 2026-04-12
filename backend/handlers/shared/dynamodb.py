@@ -31,6 +31,7 @@ class DynamoDBClient:
         "market_data": "MARKET_DATA_TABLE",
         "voice_sessions": "VOICE_SESSIONS_TABLE",
         "conversation_threads": "CONVERSATION_THREADS_TABLE",
+        "calendar_entries": "CALENDAR_TABLE",
     }
 
     def __init__(self) -> None:

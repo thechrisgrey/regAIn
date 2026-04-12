@@ -20,7 +20,7 @@ from tests.unit.stacks.conftest import _synth_all_templates
 
 
 # Expected Lambda count in the API stack.
-EXPECTED_LAMBDA_COUNT = 8
+EXPECTED_LAMBDA_COUNT = 9
 
 # Map each Lambda logical-name fragment to the tables it MAY access.
 # Derived from ApiStack._grant_permissions.
@@ -30,12 +30,13 @@ ALLOWED_TABLES: dict[str, set[str]] = {
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},
     "Dashboard": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault"},
-    "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
+    "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions", "CalendarEntries"},
     "Cleanup": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
     "Onet": set(),
+    "Calendar": {"CalendarEntries"},
 }
 
-ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections", "IdempotencyKeys"}
+ALL_TABLE_NAMES = {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections", "IdempotencyKeys", "CalendarEntries"}
 
 
 _CACHED_TEMPLATE = _synth_all_templates()["RegainApiStack"]

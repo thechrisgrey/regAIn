@@ -53,6 +53,7 @@ class ApiStack(cdk.Stack):
         self.evidence_lambda = lambdas["Evidence"]
         self.dashboard_lambda = lambdas["Dashboard"]
         self.profile_lambda = lambdas["Profile"]
+        self.calendar_lambda = lambdas["Calendar"]
 
     def _create_strands_layer(self) -> _lambda.LayerVersion:
         """Create the Strands Agents Lambda Layer from the local build directory."""
@@ -87,6 +88,8 @@ class ApiStack(cdk.Stack):
         }
         if "IdempotencyKeys" in self.tables:
             env["IDEMPOTENCY_TABLE"] = self.tables["IdempotencyKeys"].table_name
+        if "CalendarEntries" in self.tables:
+            env["CALENDAR_TABLE"] = self.tables["CalendarEntries"].table_name
         return env
 
     def _create_lambda_function(
@@ -135,6 +138,7 @@ class ApiStack(cdk.Stack):
             "Dashboard": "backend.handlers.dashboard.handler.lambda_handler",
             "Profile": "backend.handlers.profile.handler.lambda_handler",
             "Onet": "backend.handlers.onet.handler.lambda_handler",
+            "Calendar": "backend.handlers.calendar.handler.lambda_handler",
         }
         # Missions Lambda gets 512MB for mission generation + scoring workload
         memory_overrides = {"Missions": 512}
@@ -199,11 +203,17 @@ class ApiStack(cdk.Stack):
 
         # Onet: no DynamoDB access — proxies external O*NET API only
 
+        # Calendar: read/write CalendarEntries
+        if "CalendarEntries" in self.tables:
+            self.tables["CalendarEntries"].grant_read_write_data(lambdas["Calendar"])
+
         # Profile: read/write all user tables (for cascade delete) + Cognito
         self.tables["UserProfiles"].grant_read_write_data(lambdas["Profile"])
         self.tables["Campaigns"].grant_read_write_data(lambdas["Profile"])
         self.tables["MissionHistory"].grant_read_write_data(lambdas["Profile"])
         self.tables["EvidenceVault"].grant_read_write_data(lambdas["Profile"])
+        if "CalendarEntries" in self.tables:
+            self.tables["CalendarEntries"].grant_read_write_data(lambdas["Profile"])
         lambdas["Profile"].add_to_role_policy(
             iam.PolicyStatement(
                 actions=[
@@ -356,6 +366,40 @@ class ApiStack(cdk.Stack):
         onet_soc_code.add_method(
             "GET",
             apigw.LambdaIntegration(lambdas["Onet"]),
+            **auth_kwargs,
+        )
+
+        # GET /calendar, POST /calendar
+        calendar = self.api.root.add_resource("calendar")
+        calendar.add_method(
+            "GET",
+            apigw.LambdaIntegration(lambdas["Calendar"]),
+            **auth_kwargs,
+        )
+        calendar.add_method(
+            "POST",
+            apigw.LambdaIntegration(lambdas["Calendar"]),
+            **auth_kwargs,
+        )
+
+        # PUT /calendar/{dateEntryId}, DELETE /calendar/{dateEntryId}
+        calendar_entry = calendar.add_resource("{dateEntryId}")
+        calendar_entry.add_method(
+            "PUT",
+            apigw.LambdaIntegration(lambdas["Calendar"]),
+            **auth_kwargs,
+        )
+        calendar_entry.add_method(
+            "DELETE",
+            apigw.LambdaIntegration(lambdas["Calendar"]),
+            **auth_kwargs,
+        )
+
+        # GET /calendar/heatmap
+        calendar_heatmap = calendar.add_resource("heatmap")
+        calendar_heatmap.add_method(
+            "GET",
+            apigw.LambdaIntegration(lambdas["Calendar"]),
             **auth_kwargs,
         )
 

@@ -11,7 +11,7 @@ from hypothesis import given, settings, strategies as st
 
 from tests.unit.stacks.conftest import _synth_all_templates
 
-EXPECTED_TABLE_COUNT = 9
+EXPECTED_TABLE_COUNT = 10
 
 _CACHED_TEMPLATE = _synth_all_templates()["RegainDataStack"]
 
@@ -60,7 +60,7 @@ def test_every_table_has_name_and_arn_outputs(table_index: int) -> None:
     # Derive the domain table name from the logical ID by stripping the CDK hash suffix.
     # CDK logical IDs look like "RegainUserProfilesABC123" — the resource construct ID
     # is "Regain<TableName>", so we match against known table names.
-    known_tables = ["UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections", "IdempotencyKeys", "ConversationThreads"]
+    known_tables = ["UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "VoiceSessions", "WebSocketConnections", "IdempotencyKeys", "ConversationThreads", "CalendarEntries"]
     matched_table = None
     for name in known_tables:
         if logical_id.startswith(f"Regain{name}"):

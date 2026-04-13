@@ -359,6 +359,13 @@ class AgentStack(cdk.Stack):
                 )
             )
 
+        # Calendar entries: coaching agent needs read/write for read_calendar + write_calendar_entry tools
+        if "CalendarEntries" in self.tables:
+            self.tables["CalendarEntries"].grant_read_write_data(self.coaching_lambda)
+            self.coaching_lambda.add_environment(
+                "CALENDAR_TABLE", self.tables["CalendarEntries"].table_name,
+            )
+
     # ------------------------------------------------------------------
     # Chat Streaming (WebSocket text-based coaching)
     # ------------------------------------------------------------------

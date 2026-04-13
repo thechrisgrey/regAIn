@@ -1009,3 +1009,82 @@ def get_resume(user_id: str) -> dict[str, Any]:
     except Exception as exc:
         logger.exception("get_resume tool failed for user %s", user_id)
         return {"error": "retrieval_failed", "error_kind": ERR_TRANSIENT, "message": str(exc)}
+
+
+@tool
+def read_calendar(user_id: str, start_date: str, end_date: str) -> dict[str, Any]:
+    """Read calendar entries for a user within a date range.
+
+    Use this tool to check what tasks and notes the user has scheduled
+    before suggesting new activities or responding to calendar-related
+    questions. Returns entries sorted by date.
+
+    Args:
+        user_id: The user's unique identifier.
+        start_date: Start of range (YYYY-MM-DD).
+        end_date: End of range (YYYY-MM-DD), inclusive.
+
+    Returns:
+        A dict with 'entries' list containing calendar items.
+    """
+    try:
+        entries = db.query_all(
+            "calendar_entries",
+            Key("userId").eq(user_id)
+            & Key("dateEntryId").between(start_date, end_date + "\xff"),
+        )
+        return {"entries": entries}
+    except ValueError:
+        return {"error": "Calendar table not configured", "error_kind": ERR_TRANSIENT}
+    except Exception as e:
+        logger.exception("read_calendar failed for user %s", user_id)
+        return {"error": str(e), "error_kind": ERR_TRANSIENT}
+
+
+@tool
+def write_calendar_entry(
+    user_id: str, date: str, category: str, content: str
+) -> dict[str, Any]:
+    """Write a new calendar entry for the user as the coaching agent.
+
+    Use this tool to:
+    - Schedule a task after generating a mission
+    - Write a coaching note with observations after a session
+    - Add reminders when the user asks ("Remind me to do X on Thursday")
+    - Track progress ("You've completed 3 missions this week")
+
+    The entry is always authored as 'agent'. The user can delete it but
+    neither the agent nor the user can edit agent entries after creation.
+
+    Args:
+        user_id: The user's unique identifier.
+        date: Target date for the entry (YYYY-MM-DD).
+        category: Entry type — must be 'task' or 'note'.
+        content: Plain text body of the entry.
+
+    Returns:
+        A dict with 'success' and 'entryId' on success, or 'error' on failure.
+    """
+    if category not in ("task", "note"):
+        return {"error": f"Invalid category '{category}'. Use 'task' or 'note'.", "error_kind": ERR_VALIDATION}
+
+    try:
+        now = datetime.now(timezone.utc).isoformat()
+        entry_id = f"{date}#{uuid.uuid4().hex[:12]}"
+
+        db.put_item("calendar_entries", {
+            "userId": user_id,
+            "dateEntryId": entry_id,
+            "date": date,
+            "category": category,
+            "author": "agent",
+            "content": content,
+            "createdAt": now,
+            "updatedAt": now,
+        })
+        return {"success": True, "entryId": entry_id}
+    except ValueError:
+        return {"error": "Calendar table not configured", "error_kind": ERR_TRANSIENT}
+    except Exception as e:
+        logger.exception("write_calendar_entry failed for user %s", user_id)
+        return {"error": str(e), "error_kind": ERR_TRANSIENT}

@@ -9,7 +9,8 @@ export type MutationEventType =
   | 'voice:session_completed'
   | 'scorecard:viewed'
   | 'profile:updated'
-  | 'page:navigated';
+  | 'page:navigated'
+  | 'calendar:updated';
 
 export interface MutationEvent {
   type: MutationEventType;

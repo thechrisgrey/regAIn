@@ -456,3 +456,13 @@ export interface VoiceSessionDetailResponse {
   assessment: VoicePracticeAssessment | null;
 }
 
+export interface CalendarEntry {
+  dateEntryId: string;
+  date: string;
+  category: 'task' | 'note';
+  author: 'user' | 'agent';
+  content: string;
+  createdAt: string;
+  updatedAt: string;
+}
+

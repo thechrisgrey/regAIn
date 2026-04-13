@@ -19,6 +19,7 @@ import type {
   ScoreHistoryResponse,
   ShareResponse,
   ExportResponse,
+  CalendarEntry,
 } from '../types';
 import type { ResumeResponse } from '../types/resume';
 
@@ -283,5 +284,38 @@ export const api = {
         { method: 'GET' },
         token,
       ),
+  },
+  calendar: {
+    list: (start: string, end: string, token: string) =>
+      cachedGet<{ entries: CalendarEntry[] }>(`/calendar?start=${start}&end=${end}`, token, 10_000),
+    create: (data: { date: string; category: string; content: string }, token: string) =>
+      apiRequest<{ dateEntryId: string }>(
+        '/calendar',
+        { method: 'POST', body: data },
+        token,
+      ).then((res) => {
+        invalidateCache('/calendar');
+        return res;
+      }),
+    update: (dateEntryId: string, content: string, token: string) =>
+      apiRequest<{ status: string }>(
+        `/calendar/${encodeURIComponent(dateEntryId)}`,
+        { method: 'PUT', body: { content } },
+        token,
+      ).then((res) => {
+        invalidateCache('/calendar');
+        return res;
+      }),
+    delete: (dateEntryId: string, token: string) =>
+      apiRequest<{ status: string }>(
+        `/calendar/${encodeURIComponent(dateEntryId)}`,
+        { method: 'DELETE' },
+        token,
+      ).then((res) => {
+        invalidateCache('/calendar');
+        return res;
+      }),
+    heatmap: (year: string, token: string) =>
+      cachedGet<{ heatmap: Record<string, number> }>(`/calendar/heatmap?year=${year}`, token, 60_000),
   },
 };

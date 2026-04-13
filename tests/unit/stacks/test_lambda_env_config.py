@@ -21,7 +21,7 @@ REQUIRED_TABLE_ENV_VARS = [
     "MARKET_DATA_TABLE",
 ]
 
-EXPECTED_LAMBDA_COUNT = 8
+EXPECTED_LAMBDA_COUNT = 9
 
 
 _CACHED_TEMPLATE = _synth_all_templates()["RegainApiStack"]

@@ -11,7 +11,7 @@ from hypothesis import given, settings, strategies as st
 
 from tests.unit.stacks.conftest import _synth_all_templates
 
-EXPECTED_TABLE_COUNT = 9
+EXPECTED_TABLE_COUNT = 10
 
 _CACHED_TEMPLATE = _synth_all_templates()["RegainDataStack"]
 

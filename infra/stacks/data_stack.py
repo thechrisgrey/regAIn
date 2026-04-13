@@ -31,6 +31,7 @@ class DataStack(cdk.Stack):
         self._create_ws_connections_table()
         self._create_idempotency_keys_table()
         self._create_conversation_threads_table()
+        self._create_calendar_entries_table()
         self._create_thread_archives_bucket()
 
         self._create_monitoring()
@@ -246,6 +247,23 @@ class DataStack(cdk.Stack):
             time_to_live_attribute="expiresAt",
         )
 
+    def _create_calendar_entries_table(self) -> None:
+        """Create CalendarEntries table (PK: userId, SK: dateEntryId)."""
+        self.tables["CalendarEntries"] = dynamodb.Table(
+            self,
+            "RegainCalendarEntries",
+            table_name="RegainCalendarEntries",
+            partition_key=dynamodb.Attribute(
+                name="userId", type=dynamodb.AttributeType.STRING
+            ),
+            sort_key=dynamodb.Attribute(
+                name="dateEntryId", type=dynamodb.AttributeType.STRING
+            ),
+            billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
+            removal_policy=self._removal_policy,
+            point_in_time_recovery=True,
+        )
+
     def _create_thread_archives_bucket(self) -> None:
         """Create S3 bucket for compacted thread archives."""
         self.thread_archives_bucket = s3.Bucket(
@@ -296,7 +314,7 @@ class DataStack(cdk.Stack):
         monitored_tables = [
             "UserProfiles", "Campaigns", "MissionHistory",
             "EvidenceVault", "MarketData", "VoiceSessions",
-            "ConversationThreads",
+            "ConversationThreads", "CalendarEntries",
         ]
 
         for table_name in monitored_tables:

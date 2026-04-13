@@ -9,6 +9,7 @@ const navItems = [
   { to: '/missions', label: 'Missions', icon: 'missions' },
   { to: '/evidence', label: 'Evidence', icon: 'evidence' },
   { to: '/voice-practice', label: 'Voice', icon: 'voice-practice' },
+  { to: '/calendar', label: 'Calendar', icon: 'calendar' },
   { to: '/scorecard', label: 'Score', icon: 'scorecard' },
   { to: '/analytics', label: 'Analytics', icon: 'analytics' },
   { to: '/resume', label: 'Resume', icon: 'resume' },

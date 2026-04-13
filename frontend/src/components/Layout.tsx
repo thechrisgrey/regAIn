@@ -30,6 +30,7 @@ const MOBILE_NAV_GROUPS = [
     items: [
       { to: '/missions', label: 'Missions', icon: 'missions' },
       { to: '/voice-practice', label: 'Voice Practice', icon: 'voice-practice' },
+      { to: '/calendar', label: 'Calendar', icon: 'calendar' },
     ],
   },
   {

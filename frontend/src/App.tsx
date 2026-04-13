@@ -25,6 +25,7 @@ const OnetPage = lazy(() => import('./pages/OnetPage'));
 const AnalyticsPage = lazy(() => import('./pages/AnalyticsPage'));
 const ImpactScorecardPage = lazy(() => import('./pages/ImpactScorecardPage'));
 const PublicScorecardPage = lazy(() => import('./pages/PublicScorecardPage'));
+const CalendarPage = lazy(() => import('./pages/CalendarPage'));
 
 const router = createBrowserRouter([
   {
@@ -57,6 +58,7 @@ const router = createBrowserRouter([
       { path: 'missions', element: <Missions /> },
       { path: 'evidence', element: <Evidence /> },
       { path: 'analytics', element: <AnalyticsPage /> },
+      { path: 'calendar', element: <CalendarPage /> },
       { path: 'scorecard', element: <ImpactScorecardPage /> },
       { path: 'resume', element: <ResumePage /> },
       { path: 'onet', element: <OnetPage /> },

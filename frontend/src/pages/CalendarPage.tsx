@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
 import { useCalendar } from '../hooks/useCalendar';
+import { useOnMutation } from '../hooks/useMutationBus';
 import type { CalendarEntry } from '../types';
 
 type ViewMode = 'year' | 'month' | 'week' | 'day';
@@ -630,6 +631,10 @@ export default function CalendarPage() {
     heatmapData,
     fetchHeatmap,
   } = useCalendar(start, end);
+
+  // Cross-page freshness: refresh when other pages emit calendar-relevant mutations
+  useOnMutation('calendar:updated', refresh);
+  useOnMutation('mission:completed', refresh);
 
   const entriesByDate = useMemo(() => getEntriesByDate(entries), [entries]);
 

@@ -630,6 +630,7 @@ export default function CalendarPage() {
     deleteEntry,
     heatmapData,
     fetchHeatmap,
+    refresh,
   } = useCalendar(start, end);
 
   // Cross-page freshness: refresh when other pages emit calendar-relevant mutations

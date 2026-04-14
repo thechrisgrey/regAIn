@@ -168,37 +168,13 @@ def create_coaching_agent(
         tool_names = [getattr(t, "__name__", getattr(t, "TOOL_SPEC", {}).get("name", str(t))) for t in tools] if isinstance(tools, list) else []
         logger.info("Agent cache HIT for %s — tools: %s", cache_key, tool_names)
     else:
-        from backend.agents.coaching.circuit_breaker import gateway_circuit
-
-        if _is_gateway_available() and not gateway_circuit.is_open:
-            try:
-                logger.info("Using AgentCore Gateway tools")
-                tools = _get_gateway_tools(jwt_token)
-                gateway_circuit.record_success()
-            except Exception:
-                logger.warning("Gateway tool discovery failed, falling back to direct tools")
-                gateway_circuit.record_failure()
-                tools = _get_direct_tools()
-        else:
-            if gateway_circuit.is_open:
-                logger.info("Gateway circuit open, using direct tool invocation")
-            else:
-                logger.info("Gateway not provisioned, using direct tool invocation")
-            tools = _get_direct_tools()
-
-        # Calendar tools always use direct invocation — they access the
-        # DynamoDB table via the chat-stream Lambda's CALENDAR_TABLE env var.
-        from backend.agents.coaching.tools import (
-            read_calendar as _read_cal,
-            write_calendar_entry as _write_cal,
-        )
-
-        if isinstance(tools, list):
-            tools.extend([_read_cal, _write_cal])
-            tool_names = [getattr(t, "__name__", getattr(t, "TOOL_SPEC", {}).get("name", str(t))) for t in tools]
-            logger.info("Agent cache MISS — loaded %d tools: %s", len(tools), tool_names)
-        else:
-            logger.warning("Agent tools is not a list (%s), calendar tools NOT appended", type(tools))
+        # Gateway tool discovery is disabled — the Strands version in the
+        # Lambda layer rejects the ModuleType tool format produced by
+        # GatewayToolClient, resulting in zero usable tools.  Use direct
+        # @tool functions which Strands recognises natively.
+        tools = _get_direct_tools()
+        tool_names = [getattr(t, "__name__", "?") for t in tools]
+        logger.info("Loaded %d direct tools: %s", len(tools), tool_names)
 
         from backend.agents.coaching.tools import get_valid_skill_tags
 

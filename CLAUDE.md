@@ -105,7 +105,8 @@ cd frontend && npm run lint     # ESLint
 bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
 
 # CDK Deploy (all stacks in us-east-1, account 563170906428)
-cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval never
+# CRITICAL: Always include AWS_DEFAULT_REGION=us-east-1 — SSO credential export does NOT set region
+cd infra && eval "$(AWS_PROFILE=regain aws configure export-credentials --format env)" && AWS_DEFAULT_REGION=us-east-1 npx cdk deploy <StackName> --require-approval never
 # Stacks: RegainAuthStack, RegainDataStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack, RegainVoicePracticeStack, RegainResumeStack
 ```
 
@@ -149,7 +150,8 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Token budget compaction**: ~27k token budget. At 100% auto-compacts. Manual compact via UI button. Archives to S3, summary replaces thread, also stored in AgentCore Memory
 - **Lambda concurrency**: Account limit is only 10 (not the default 1000). Reserved concurrency is NOT set — all Lambdas share the unreserved pool. Request a quota increase via Service Quotas before adding `reserved_concurrent_executions`
 - **Bedrock IAM scoped to models**: `agent_stack.py` and `voice_practice_stack.py` scope `bedrock:InvokeModel*` to `amazon.nova-lite-v1:0` and `amazon.nova-2-sonic-v1:0` ARNs (not `arn:aws:bedrock:*:*:*`). `resume_stack.py` already scoped to `nova-lite-v1:0` only
-- **Agent Gateway fallback**: `backend/agents/coaching/agent.py` checks `AGENTCORE_GATEWAY_ENDPOINT` — if `"pending-agentcore-deploy"` or empty, uses direct `@tool` functions from `tools.py` instead of `GatewayToolClient`. All imports are lazy to avoid circular dependencies
+- **Agent tools always use direct @tool functions**: `backend/agents/coaching/agent.py` always calls `_get_direct_tools()` from `tools.py`. Gateway tool discovery via `GatewayToolClient` is disabled — the Strands version in the Lambda layer rejects `ModuleType` tool objects with "unrecognized tool specification", resulting in zero usable tools. All imports are lazy to avoid circular dependencies
+- **Strands Agent tool introspection**: Use `agent.tool_names` (property) to list registered tools. `agent.tools` and `agent._tools` do NOT exist — tools live in `agent.tool_registry`
 - **AgentCore Gateway wiring**: `agentcore_stack.py` exposes `gateway_id` and `gateway_endpoint` properties. `app.py` creates AgentCoreStack before AgentStack and passes these values. AgentStack uses them in `_bedrock_env()` with sentinel fallback (`self.gateway_id or "pending-agentcore-deploy"`). All three agent Lambdas (voice, coaching, chat stream) get `bedrock:InvokeAgent` + `bedrock:InvokeAgentCore` IAM permissions on `gateway/*`
 - **Session tracing**: `SessionTracer` from `instrumentation.py` wraps all coaching agent invocations. `stream_handler.py` uses `connection_id` as session ID; `service.py` uses `uuid.uuid4()`. `_flush_spans()` emits structured JSON `TRACE` logs to CloudWatch (parseable by Insights). Enabled via `REGAIN_TRACING_ENABLED=true` env var set in `_bedrock_env()`
 - **CDK stack ordering**: AgentCoreStack must be created before AgentStack in `app.py` so Gateway ID/endpoint are available as cross-stack references. Dependency chain: AgentStack → AgentCoreStack → ApiStack (valid DAG, no cycles)
@@ -187,6 +189,8 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 
 ## Gotchas
 
+- **Agent tool DynamoDB wiring**: When adding a new DynamoDB table that coaching agent tools need, you must update THREE places in `agent_stack.py`: (1) `_table_env()` for the env var, (2) `_grant_chat_stream_lambda_permissions()` for IAM grants, (3) `_grant_voice_lambda_permissions()` for IAM grants. The REST API coaching Lambda in ApiStack is separate. Also update `AGENT_ALLOWED_TABLES` in `test_iam_least_privilege.py`
+- **LLM hallucinating tool success on error**: When a tool returns `{"error": ...}`, Nova Lite/Pro may still respond as if the action succeeded. Tools that fail silently (e.g. missing table env var → ValueError → caught → error dict) are especially dangerous — the user sees "I've added the note" while nothing was written
 - Tailwind v4 uses `@theme` in CSS, not `theme.extend` in config — tokens must go in `index.css`
 - React 19: `JSX.Element` namespace requires explicit import (`ReactNode` from 'react' instead)
 - SkeletonBlock needs explicit `style` prop in interface if passing inline styles
@@ -208,7 +212,7 @@ cd infra && AWS_PROFILE=regain npx cdk deploy <StackName> --require-approval nev
 - **Cross-stack Lambda Layer references break on update**: CloudFormation can't update an export when other stacks import it, and LayerVersion always creates a new physical resource. Solution: create the layer inline in each stack that needs it
 - **CDK cyclic dependency with cross-stack construct references**: When StackA owns a Lambda and StackB owns a resource, passing StackB's construct reference to modify StackA's Lambda env vars creates StackA → StackB dependency. If StackB already depends on StackA, this cycles. Solution: pass plain string ARNs/names (not construct references) and use inline `iam.PolicyStatement` instead of `grant_invoke()`/`grant_read()`. See `agent_stack.py` resume wiring for the pattern. For AgentCore Gateway wiring specifically: coaching_lambda (owned by ApiStack) gets gateway env vars via `cdk.Fn.import_value()` to break the cycle, while voice/chat Lambdas (owned by AgentStack) can use CDK token references directly
 - **CfnResource cross-stack `get_att`**: Use `cfn_resource.get_att("Attr")` (construct method), NOT `cdk.Fn.get_att(cfn_resource.logical_id, "Attr")` (raw string). The raw string version creates a local `Fn::GetAtt` that CDK can't track for cross-stack exports, causing `references undefined resource` errors in the consuming stack
-- **CDK + Node v25 SSO credentials**: CDK's JS credential provider chain fails silently with Node v25. Workaround: `eval "$(AWS_PROFILE=regain aws configure export-credentials --format env)" && npx cdk deploy ...` to export SSO credentials as env vars before invoking CDK
+- **CDK + Node v25 SSO credentials**: CDK's JS credential provider chain fails silently with Node v25. Workaround: `eval "$(AWS_PROFILE=regain aws configure export-credentials --format env)" && AWS_DEFAULT_REGION=us-east-1 npx cdk deploy ...` — the credential export does NOT set region env vars, so without `AWS_DEFAULT_REGION=us-east-1` CDK may deploy to the wrong region
 - **Voice audio: use ScriptProcessorNode, not AudioWorklet** — AudioWorklet fails silently in production (module loading issues) and falls back to ScriptProcessor anyway. Use ScriptProcessorNode directly; the deprecation warning is harmless. Reference implementation: `~/Desktop/altivum/elo/src/hooks/useAudioCapture.ts`
 - **Voice playback: continuous buffer, not scheduled AudioBufferSource** — Scheduling individual `AudioBufferSourceNode.start(time)` causes audible gaps between chunks. Use a single ScriptProcessorNode with a growing Float32Array buffer (read/write indices) for gapless playback. Reference: `~/Desktop/altivum/elo/src/hooks/useAudioPlayback.ts`
 - **Voice feedback prevention**: Auto-mute the mic track when AI is speaking (set `track.enabled = false`). Send silence frames instead of nothing to keep the Nova Sonic stream alive. Unmute when `isAgentSpeaking` goes false

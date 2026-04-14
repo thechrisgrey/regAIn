@@ -21,7 +21,7 @@ export interface ToolStep {
 }
 
 interface StreamEvent {
-  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success' | 'proactive' | 'thread_meta';
+  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success' | 'proactive' | 'thread_meta' | 'debug';
   text?: string;
   message?: string;
   tool?: string;
@@ -281,6 +281,12 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             return;
           }
 
+          if (data.type === 'debug') {
+            // eslint-disable-next-line no-console
+            console.log('[REGAIN debug]', data);
+            return;
+          }
+
           if (data.type === 'proactive') {
             setMessages((prev) => [
               ...prev,
@@ -358,9 +364,6 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             setStreaming(false);
             clearToolSteps();
             clearStreamTimeout();
-          } else if (data.type === 'debug') {
-            // eslint-disable-next-line no-console
-            console.log('[REGAIN debug]', data);
           }
         } catch {
           // Ignore non-JSON messages.

@@ -214,8 +214,8 @@ EXPECTED_AGENT_LAMBDA_COUNT = 2
 
 # Map each Agent Lambda logical-name fragment to the tables it MAY access.
 AGENT_ALLOWED_TABLES: dict[str, set[str]] = {
-    "VoiceSession": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "WebSocketConnections"},
-    "ChatStream": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "WebSocketConnections"},
+    "VoiceSession": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "WebSocketConnections", "CalendarEntries"},
+    "ChatStream": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData", "WebSocketConnections", "CalendarEntries"},
 }
 
 

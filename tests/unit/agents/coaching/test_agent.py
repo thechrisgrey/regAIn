@@ -1,9 +1,8 @@
 """Unit tests for the Coaching Agent configuration.
 
-Verifies that create_coaching_agent detects Gateway availability and
-selects the correct tool source:
-- Gateway provisioned → GatewayToolClient for tool discovery.
-- Gateway pending     → direct @tool functions from tools.py.
+Verifies that create_coaching_agent always uses direct @tool functions
+from tools.py (Gateway tool discovery is disabled — Strands rejects
+the ModuleType format).
 
 The strands SDK is stubbed since it is not installed in the test
 environment.
@@ -11,7 +10,6 @@ environment.
 
 import sys
 import types
-from types import ModuleType
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -54,22 +52,6 @@ def _pending_env(monkeypatch):
 
 
 @pytest.fixture()
-def mock_gateway_tools():
-    """Patch _get_gateway_tools and return a list with a fake tool module."""
-    fake_tool = ModuleType("regain_read_user_profile")
-    fake_tool.TOOL_SPEC = {  # type: ignore[attr-defined]
-        "name": "regain_read_user_profile",
-        "description": "Read a user profile.",
-        "inputSchema": {"json": {"type": "object", "properties": {}}},
-    }
-    with patch(
-        "backend.agents.coaching.agent._get_gateway_tools",
-        return_value=[fake_tool],
-    ) as mock_fn:
-        yield mock_fn, [fake_tool]
-
-
-@pytest.fixture()
 def mock_direct_tools():
     """Patch _get_direct_tools and return a list of sentinel tool functions."""
     sentinel_tools = [MagicMock(name=f"tool_{i}") for i in range(13)]
@@ -94,26 +76,40 @@ def mock_bedrock_model():
         yield mock_cls
 
 
-class TestGatewayMode:
-    """Tests for when AgentCore Gateway is provisioned."""
+class TestDirectTools:
+    """Tests for direct @tool function loading (always used)."""
 
-    @pytest.mark.usefixtures("_gateway_env")
-    def test_uses_gateway_tools_when_endpoint_available(
-        self, mock_gateway_tools, mock_agent, mock_bedrock_model
+    @pytest.mark.usefixtures("_pending_env")
+    def test_always_uses_direct_tools(
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
     ):
-        """When Gateway endpoint is a real URL, should use Gateway tools."""
-        mock_fn, tools = mock_gateway_tools
+        """Should always use direct tools regardless of Gateway env vars."""
+        mock_fn, tools = mock_direct_tools
         from backend.agents.coaching.agent import create_coaching_agent
 
         create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
 
-        mock_fn.assert_called_once_with("my-jwt")
+        mock_fn.assert_called_once()
         call_kwargs = mock_agent.call_args
         assert call_kwargs.kwargs["tools"] == tools
 
     @pytest.mark.usefixtures("_gateway_env")
+    def test_uses_direct_tools_even_with_gateway_available(
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
+    ):
+        """Even when Gateway endpoint is set, should use direct tools."""
+        mock_fn, tools = mock_direct_tools
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
+
+        mock_fn.assert_called_once()
+        call_kwargs = mock_agent.call_args
+        assert call_kwargs.kwargs["tools"] == tools
+
+    @pytest.mark.usefixtures("_pending_env")
     def test_configures_bedrock_model(
-        self, mock_gateway_tools, mock_agent, mock_bedrock_model
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
     ):
         """BedrockModel should be configured from environment variables."""
         from backend.agents.coaching.agent import create_coaching_agent
@@ -125,9 +121,9 @@ class TestGatewayMode:
             region_name="us-east-1",
         )
 
-    @pytest.mark.usefixtures("_gateway_env")
+    @pytest.mark.usefixtures("_pending_env")
     def test_passes_system_prompt(
-        self, mock_gateway_tools, mock_agent, mock_bedrock_model
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
     ):
         """Agent should receive the system prompt from get_system_prompt()."""
         from backend.agents.coaching.agent import create_coaching_agent
@@ -141,9 +137,9 @@ class TestGatewayMode:
         call_kwargs = mock_agent.call_args
         assert call_kwargs.kwargs["system_prompt"] == "You are a coach."
 
-    @pytest.mark.usefixtures("_gateway_env")
+    @pytest.mark.usefixtures("_pending_env")
     def test_returns_agent_instance(
-        self, mock_gateway_tools, mock_agent, mock_bedrock_model
+        self, mock_direct_tools, mock_agent, mock_bedrock_model
     ):
         """Should return the Agent instance."""
         from backend.agents.coaching.agent import create_coaching_agent
@@ -151,52 +147,6 @@ class TestGatewayMode:
         result = create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
 
         assert result == mock_agent.return_value
-
-
-class TestDirectToolFallback:
-    """Tests for when Gateway is not provisioned (pending)."""
-
-    @pytest.mark.usefixtures("_pending_env")
-    def test_uses_direct_tools_when_pending(
-        self, mock_direct_tools, mock_agent, mock_bedrock_model
-    ):
-        """When Gateway endpoint is 'pending-agentcore-deploy', should use direct tools."""
-        mock_fn, tools = mock_direct_tools
-        from backend.agents.coaching.agent import create_coaching_agent
-
-        create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
-
-        mock_fn.assert_called_once()
-        call_kwargs = mock_agent.call_args
-        assert call_kwargs.kwargs["tools"] == tools
-
-    def test_uses_direct_tools_when_env_missing(
-        self, mock_direct_tools, mock_agent, mock_bedrock_model, monkeypatch
-    ):
-        """When AGENTCORE_GATEWAY_ENDPOINT is not set, should use direct tools."""
-        monkeypatch.delenv("AGENTCORE_GATEWAY_ENDPOINT", raising=False)
-        monkeypatch.setenv("BEDROCK_MODEL_ID", "amazon.nova-lite-v1:0")
-        monkeypatch.setenv("AWS_REGION", "us-east-1")
-
-        mock_fn, _ = mock_direct_tools
-        from backend.agents.coaching.agent import create_coaching_agent
-
-        create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
-
-        mock_fn.assert_called_once()
-
-    @pytest.mark.usefixtures("_pending_env")
-    def test_does_not_import_gateway_client_when_pending(
-        self, mock_direct_tools, mock_agent, mock_bedrock_model
-    ):
-        """Gateway client module should not be imported in fallback mode."""
-        from backend.agents.coaching.agent import create_coaching_agent
-
-        with patch(
-            "backend.agents.coaching.agent._get_gateway_tools"
-        ) as gw_mock:
-            create_coaching_agent(user_id="user-123", jwt_token="my-jwt")
-            gw_mock.assert_not_called()
 
 
 class TestGatewayDetection:

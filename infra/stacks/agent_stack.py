@@ -73,7 +73,7 @@ class AgentStack(cdk.Stack):
 
     def _table_env(self) -> dict[str, str]:
         """Return environment variables mapping for all DynamoDB table names."""
-        return {
+        env = {
             "USER_PROFILES_TABLE": self.tables["UserProfiles"].table_name,
             "CAMPAIGNS_TABLE": self.tables["Campaigns"].table_name,
             "MISSION_HISTORY_TABLE": self.tables["MissionHistory"].table_name,
@@ -81,6 +81,9 @@ class AgentStack(cdk.Stack):
             "MARKET_DATA_TABLE": self.tables["MarketData"].table_name,
             "WS_CONNECTIONS_TABLE": self.tables["WebSocketConnections"].table_name,
         }
+        if "CalendarEntries" in self.tables:
+            env["CALENDAR_TABLE"] = self.tables["CalendarEntries"].table_name
+        return env
 
     def _bedrock_env(self) -> dict[str, str]:
         """Return Bedrock, AgentCore, and Gateway environment variables."""
@@ -272,6 +275,10 @@ class AgentStack(cdk.Stack):
         self.tables["EvidenceVault"].grant_read_write_data(voice_lambda)
         self.tables["MarketData"].grant_read_data(voice_lambda)
         self.tables["WebSocketConnections"].grant_read_write_data(voice_lambda)
+
+        # CalendarEntries for agent tools.
+        if "CalendarEntries" in self.tables:
+            self.tables["CalendarEntries"].grant_read_write_data(voice_lambda)
 
         voice_lambda.add_to_role_policy(
             iam.PolicyStatement(
@@ -498,6 +505,10 @@ class AgentStack(cdk.Stack):
         # ConversationThreads for thread persistence.
         if "ConversationThreads" in self.tables:
             self.tables["ConversationThreads"].grant_read_write_data(chat_stream_lambda)
+
+        # CalendarEntries for read_calendar + write_calendar_entry agent tools.
+        if "CalendarEntries" in self.tables:
+            self.tables["CalendarEntries"].grant_read_write_data(chat_stream_lambda)
 
         # CloudWatch PutMetricData for business metrics
         chat_stream_lambda.add_to_role_policy(

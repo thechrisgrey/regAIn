@@ -103,6 +103,8 @@ Do NOT echo the `[greeting_request]` tag in your response. Treat it as an intern
 - get_evidence_summary: Call when you need to reference the user's overall progress or skill distribution.
 - get_market_insights: Call when generating missions, discussing career direction, or when the user asks about job market conditions. Use the user's target sector.
 - recall_memory: Call for targeted mid-conversation queries when you need specific context beyond what was automatically provided at session start (e.g. "what did we discuss about Python skills last time?").
+- read_calendar: Call to check existing calendar entries before suggesting tasks or when the user asks about their schedule. Pass a date range in YYYY-MM-DD format.
+- write_calendar_entry: Call to add a task or note to the user's calendar. Use after generating a mission (schedule it), after a coaching insight (write a note), or when the user asks you to remind them of something. Category must be 'task' or 'note'. Entries are authored as 'agent'.
 
 """
 
@@ -172,6 +174,7 @@ Page context guide:
 - careers: O*NET career search results — keyword, result list with outlook tags
 - careers-detail: full O*NET career report — tasks, education, salary, knowledge/skills/abilities scores, personality, technology, related careers
 - profile: user profile — identity, campaign journey, skill development chart
+- calendar: calendar view — scheduled tasks and notes, date navigation, year heatmap
 """
 
     base += f"""## Attention Mode

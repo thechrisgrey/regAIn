@@ -563,6 +563,19 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 session_id=connection_id,
                 cache_key=connection_id,
             )
+
+            # Debug: send available tool names to frontend console.
+            try:
+                agent_tools = getattr(agent, "tools", agent._tools if hasattr(agent, "_tools") else [])
+                tool_names = []
+                for t in (agent_tools or []):
+                    name = getattr(t, "__name__", None) or getattr(t, "TOOL_SPEC", {}).get("name", str(t))
+                    tool_names.append(name)
+                send_ws({"type": "debug", "available_tools": tool_names})
+                slog.info("Agent tool list for %s: %s", user_id, tool_names)
+            except Exception as dbg_exc:
+                slog.warning("Debug tool list failed: %s", dbg_exc)
+
             result = agent(
                 f"[session_type={session_type}] [user_id={user_id}] {message}"
             )

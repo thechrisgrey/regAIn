@@ -358,6 +358,9 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
             setStreaming(false);
             clearToolSteps();
             clearStreamTimeout();
+          } else if (data.type === 'debug') {
+            // eslint-disable-next-line no-console
+            console.log('[REGAIN debug]', data);
           }
         } catch {
           // Ignore non-JSON messages.

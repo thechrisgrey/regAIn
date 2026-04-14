@@ -42,6 +42,7 @@ class AgentCoreStack(cdk.Stack):
         evidence_lambda: _lambda.Function,
         dashboard_lambda: _lambda.Function,
         market_intel_lambda: _lambda.Function | None = None,
+        calendar_lambda: _lambda.Function | None = None,
         profile_lambda: _lambda.Function,
         user_pool: cognito.UserPool,
         **kwargs,
@@ -56,6 +57,8 @@ class AgentCoreStack(cdk.Stack):
         }
         if market_intel_lambda:
             self._lambda_targets["market_intel"] = market_intel_lambda
+        if calendar_lambda:
+            self._lambda_targets["calendar"] = calendar_lambda
 
         self._user_pool = user_pool
         self._profile_lambda = profile_lambda
@@ -438,6 +441,48 @@ class AgentCoreStack(cdk.Stack):
                 "output_schema": {
                     "Type": "array",
                     "Items": {"Type": "object"},
+                },
+            },
+            {
+                "name": "regain_read_calendar",
+                "description": "Read calendar entries for a user within a date range. Use to check existing tasks and notes before suggesting new activities.",
+                "lambda_target": "calendar",
+                "input_schema": {
+                    "Type": "object",
+                    "Properties": {
+                        "userId": user_id_prop,
+                        "startDate": {"Type": "string", "Description": "Start of range (YYYY-MM-DD)."},
+                        "endDate": {"Type": "string", "Description": "End of range (YYYY-MM-DD), inclusive."},
+                    },
+                    "Required": ["userId", "startDate", "endDate"],
+                },
+                "output_schema": {
+                    "Type": "object",
+                    "Properties": {
+                        "entries": {"Type": "array", "Items": {"Type": "object"}},
+                    },
+                },
+            },
+            {
+                "name": "regain_write_calendar_entry",
+                "description": "Write a new task or note to the user's calendar. Use after generating missions, coaching insights, or when the user asks for reminders.",
+                "lambda_target": "calendar",
+                "input_schema": {
+                    "Type": "object",
+                    "Properties": {
+                        "userId": user_id_prop,
+                        "date": {"Type": "string", "Description": "Target date (YYYY-MM-DD)."},
+                        "category": {"Type": "string", "Description": "Entry type: 'task' or 'note'."},
+                        "content": {"Type": "string", "Description": "Plain text body of the entry."},
+                    },
+                    "Required": ["userId", "date", "category", "content"],
+                },
+                "output_schema": {
+                    "Type": "object",
+                    "Properties": {
+                        "success": {"Type": "boolean"},
+                        "entryId": {"Type": "string"},
+                    },
                 },
             },
         ]

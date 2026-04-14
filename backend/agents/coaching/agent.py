@@ -63,6 +63,8 @@ def _get_direct_tools() -> list:
         recall_memory,
         generate_resume,
         get_resume,
+        read_calendar,
+        write_calendar_entry,
     )
 
     return [
@@ -80,6 +82,8 @@ def _get_direct_tools() -> list:
         recall_memory,
         generate_resume,
         get_resume,
+        read_calendar,
+        write_calendar_entry,
     ]
 
 
@@ -153,13 +157,16 @@ def create_coaching_agent(
     Returns:
         A configured Strands Agent.
     """
-    if cache_key and cache_key in _component_cache:
+    cache_hit = cache_key and cache_key in _component_cache
+    if cache_hit:
         _component_cache.move_to_end(cache_key)
         cached = _component_cache[cache_key]
         tools = cached["tools"]
         model = cached["model"]
         session_manager = cached["session_manager"]
         system_prompt = cached["system_prompt"]
+        tool_names = [getattr(t, "__name__", getattr(t, "TOOL_SPEC", {}).get("name", str(t))) for t in tools] if isinstance(tools, list) else []
+        logger.info("Agent cache HIT for %s — tools: %s", cache_key, tool_names)
     else:
         from backend.agents.coaching.circuit_breaker import gateway_circuit
 
@@ -178,6 +185,20 @@ def create_coaching_agent(
             else:
                 logger.info("Gateway not provisioned, using direct tool invocation")
             tools = _get_direct_tools()
+
+        # Calendar tools always use direct invocation — they access the
+        # DynamoDB table via the chat-stream Lambda's CALENDAR_TABLE env var.
+        from backend.agents.coaching.tools import (
+            read_calendar as _read_cal,
+            write_calendar_entry as _write_cal,
+        )
+
+        if isinstance(tools, list):
+            tools.extend([_read_cal, _write_cal])
+            tool_names = [getattr(t, "__name__", getattr(t, "TOOL_SPEC", {}).get("name", str(t))) for t in tools]
+            logger.info("Agent cache MISS — loaded %d tools: %s", len(tools), tool_names)
+        else:
+            logger.warning("Agent tools is not a list (%s), calendar tools NOT appended", type(tools))
 
         from backend.agents.coaching.tools import get_valid_skill_tags
 

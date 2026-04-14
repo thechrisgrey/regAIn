@@ -1027,6 +1027,7 @@ def read_calendar(user_id: str, start_date: str, end_date: str) -> dict[str, Any
     Returns:
         A dict with 'entries' list containing calendar items.
     """
+    logger.info("read_calendar CALLED — user=%s range=%s to %s", user_id, start_date, end_date)
     try:
         entries = db.query_all(
             "calendar_entries",
@@ -1065,6 +1066,7 @@ def write_calendar_entry(
     Returns:
         A dict with 'success' and 'entryId' on success, or 'error' on failure.
     """
+    logger.info("write_calendar_entry CALLED — user=%s date=%s cat=%s content=%s", user_id, date, category, content[:80])
     if category not in ("task", "note"):
         return {"error": f"Invalid category '{category}'. Use 'task' or 'note'.", "error_kind": ERR_VALIDATION}
 

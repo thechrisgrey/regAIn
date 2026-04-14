@@ -78,6 +78,7 @@ agentcore_stack = AgentCoreStack(
     missions_lambda=api_stack.missions_lambda,
     evidence_lambda=api_stack.evidence_lambda,
     dashboard_lambda=api_stack.dashboard_lambda,
+    calendar_lambda=api_stack.calendar_lambda,
     profile_lambda=api_stack.profile_lambda,
     user_pool=auth_stack.user_pool,
     env=env,

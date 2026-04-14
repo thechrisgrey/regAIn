@@ -516,6 +516,81 @@ _STORE_MEMORY: dict[str, Any] = {
     "required_auth_claims": ["sub"],
 }
 
+_READ_CALENDAR: dict[str, Any] = {
+    "name": "regain_read_calendar",
+    "description": (
+        "Read calendar entries for a user within a date range. "
+        "Use to check what tasks and notes the user has scheduled "
+        "before suggesting new activities or responding to "
+        "calendar-related questions."
+    ),
+    "lambda_target": "calendar",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "userId": _USER_ID_PROPERTY,
+            "start_date": {
+                "type": "string",
+                "description": "Start of range (YYYY-MM-DD).",
+            },
+            "end_date": {
+                "type": "string",
+                "description": "End of range (YYYY-MM-DD), inclusive.",
+            },
+        },
+        "required": ["userId", "start_date", "end_date"],
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "entries": {
+                "type": "array",
+                "items": {"type": "object"},
+            },
+        },
+    },
+    "required_auth_claims": ["sub"],
+}
+
+_WRITE_CALENDAR_ENTRY: dict[str, Any] = {
+    "name": "regain_write_calendar_entry",
+    "description": (
+        "Write a new task or note to the user's calendar. Use after "
+        "generating a mission (schedule it), after a coaching insight "
+        "(write a note), or when the user asks for a reminder. "
+        "Entries are authored as 'agent'."
+    ),
+    "lambda_target": "calendar",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "userId": _USER_ID_PROPERTY,
+            "date": {
+                "type": "string",
+                "description": "Target date (YYYY-MM-DD).",
+            },
+            "category": {
+                "type": "string",
+                "description": "Entry type: 'task' or 'note'.",
+                "enum": ["task", "note"],
+            },
+            "content": {
+                "type": "string",
+                "description": "Plain text body of the entry.",
+            },
+        },
+        "required": ["userId", "date", "category", "content"],
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "success": {"type": "boolean"},
+            "entryId": {"type": "string"},
+        },
+    },
+    "required_auth_claims": ["sub"],
+}
+
 _CODE_INTERPRETER: dict[str, Any] = {
     "name": "regain_code_interpreter",
     "description": (
@@ -590,6 +665,8 @@ TOOL_SCHEMAS: list[dict[str, Any]] = [
     _GET_ALIGNMENT,
     _RECALL_MEMORY,
     _STORE_MEMORY,
+    _READ_CALENDAR,
+    _WRITE_CALENDAR_ENTRY,
     _CODE_INTERPRETER,
 ]
 

@@ -253,7 +253,7 @@ export default function Layout() {
 
       {/* Desktop three-panel grid */}
       <div
-        className="hidden md:grid min-h-screen"
+        className="hidden md:grid h-screen overflow-hidden"
         style={{
           gridTemplateColumns: voice
             ? 'var(--nav-w) 1fr'
@@ -263,7 +263,7 @@ export default function Layout() {
       >
         <Sidebar />
 
-        <main className="overflow-y-auto bg-surface-2">
+        <main className="min-h-0 overflow-y-auto bg-surface-2">
           {voice ? (
             <ErrorBoundary>
               <Suspense fallback={<RouteLoader />}>
@@ -286,7 +286,7 @@ export default function Layout() {
         {!voice && <DrawerHandle open={chatOpen} onToggle={toggleChat} />}
 
         {!voice && (
-          <div className={`overflow-hidden ${chatOpen ? '' : 'w-0'}`}>
+          <div className={`min-h-0 overflow-hidden ${chatOpen ? '' : 'w-0'}`}>
             <ChatPanel visible={chatOpen} />
           </div>
         )}

@@ -566,11 +566,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
 
             # Debug: send available tool names to frontend console.
             try:
-                agent_tools = getattr(agent, "tools", agent._tools if hasattr(agent, "_tools") else [])
-                tool_names = []
-                for t in (agent_tools or []):
-                    name = getattr(t, "__name__", None) or getattr(t, "TOOL_SPEC", {}).get("name", str(t))
-                    tool_names.append(name)
+                tool_names = agent.tool_names
                 send_ws({"type": "debug", "available_tools": tool_names})
                 slog.info("Agent tool list for %s: %s", user_id, tool_names)
             except Exception as dbg_exc:

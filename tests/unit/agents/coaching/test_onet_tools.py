@@ -53,3 +53,77 @@ class TestOnetSearchCareers:
 
         assert result == fake_payload
         mock_search.assert_called_once_with("software engineer")
+
+    def test_rejects_empty_keyword(self) -> None:
+        """Empty string returns validation error without calling service."""
+        tools = _load_tools()
+        with patch("backend.handlers.onet.service.search_careers") as mock_search:
+            result = tools.onet_search_careers("")
+
+        assert result["error_kind"] == tools.ERR_VALIDATION
+        mock_search.assert_not_called()
+
+    def test_rejects_whitespace_keyword(self) -> None:
+        """Whitespace-only keyword returns validation error."""
+        tools = _load_tools()
+        with patch("backend.handlers.onet.service.search_careers") as mock_search:
+            result = tools.onet_search_careers("   \t\n  ")
+
+        assert result["error_kind"] == tools.ERR_VALIDATION
+        mock_search.assert_not_called()
+
+    def test_strips_whitespace_before_calling_service(self) -> None:
+        """Leading/trailing whitespace is stripped before delegation."""
+        tools = _load_tools()
+        with patch(
+            "backend.handlers.onet.service.search_careers",
+            return_value={"career": []},
+        ) as mock_search:
+            tools.onet_search_careers("  nurse  ")
+        mock_search.assert_called_once_with("nurse")
+
+    def test_404_maps_to_not_found(self) -> None:
+        """HTTP 404 from O*NET maps to ERR_NOT_FOUND."""
+        tools = _load_tools()
+        err = urllib.error.HTTPError(
+            url="u", code=404, msg="Not Found", hdrs=None, fp=None
+        )
+        with patch(
+            "backend.handlers.onet.service.search_careers", side_effect=err
+        ):
+            result = tools.onet_search_careers("nonsense")
+        assert result["error_kind"] == tools.ERR_NOT_FOUND
+
+    def test_4xx_maps_to_permanent(self) -> None:
+        """Non-404 4xx from O*NET maps to ERR_PERMANENT."""
+        tools = _load_tools()
+        err = urllib.error.HTTPError(
+            url="u", code=403, msg="Forbidden", hdrs=None, fp=None
+        )
+        with patch(
+            "backend.handlers.onet.service.search_careers", side_effect=err
+        ):
+            result = tools.onet_search_careers("nurse")
+        assert result["error_kind"] == tools.ERR_PERMANENT
+
+    def test_5xx_maps_to_transient(self) -> None:
+        """5xx from O*NET maps to ERR_TRANSIENT."""
+        tools = _load_tools()
+        err = urllib.error.HTTPError(
+            url="u", code=502, msg="Bad Gateway", hdrs=None, fp=None
+        )
+        with patch(
+            "backend.handlers.onet.service.search_careers", side_effect=err
+        ):
+            result = tools.onet_search_careers("nurse")
+        assert result["error_kind"] == tools.ERR_TRANSIENT
+
+    def test_network_error_maps_to_transient(self) -> None:
+        """URLError (DNS, connection refused, timeout) maps to ERR_TRANSIENT."""
+        tools = _load_tools()
+        with patch(
+            "backend.handlers.onet.service.search_careers",
+            side_effect=urllib.error.URLError("connection refused"),
+        ):
+            result = tools.onet_search_careers("nurse")
+        assert result["error_kind"] == tools.ERR_TRANSIENT

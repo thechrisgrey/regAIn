@@ -11,6 +11,7 @@ import importlib
 import json
 import logging
 import os
+import urllib.error
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -1108,3 +1109,59 @@ def write_calendar_entry(
     except Exception as e:
         logger.exception("write_calendar_entry failed for user %s", user_id)
         return {"error": str(e), "error_kind": ERR_TRANSIENT}
+
+
+# ---------------------------------------------------------------------------
+# O*NET career data tools
+# ---------------------------------------------------------------------------
+
+
+@tool
+def onet_search_careers(keyword: str) -> dict[str, Any]:
+    """Search O*NET for careers matching a keyword.
+
+    Use this when you need to find the O*NET SOC code for a role the user
+    mentions (e.g. "software engineer", "nurse"). Returns candidate careers
+    with SOC codes and titles. Follow up with onet_career_detail to pull
+    rich data for a specific career.
+
+    Args:
+        keyword: Free-text role or occupation query.
+
+    Returns:
+        Raw O*NET search response dict with a "career" list, or an error
+        dict with ``error_kind``.
+    """
+    if not keyword or not keyword.strip():
+        return {
+            "error": "invalid_keyword",
+            "error_kind": ERR_VALIDATION,
+            "message": "keyword must be a non-empty string.",
+        }
+
+    from backend.handlers.onet import service as _onet_service  # lazy import
+
+    try:
+        return _onet_service.search_careers(keyword.strip())
+    except urllib.error.HTTPError as exc:
+        kind = ERR_NOT_FOUND if exc.code == 404 else (
+            ERR_PERMANENT if 400 <= exc.code < 500 else ERR_TRANSIENT
+        )
+        return {
+            "error": "onet_http_error",
+            "error_kind": kind,
+            "message": f"O*NET API returned HTTP {exc.code}.",
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "error": "onet_network_error",
+            "error_kind": ERR_TRANSIENT,
+            "message": f"Could not reach O*NET: {exc.reason}",
+        }
+    except Exception as exc:
+        logger.exception("onet_search_careers failed")
+        return {
+            "error": "onet_unknown",
+            "error_kind": ERR_TRANSIENT,
+            "message": str(exc),
+        }

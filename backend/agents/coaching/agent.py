@@ -65,6 +65,8 @@ def _get_direct_tools() -> list:
         get_resume,
         read_calendar,
         write_calendar_entry,
+        onet_search_careers,
+        onet_career_detail,
     )
 
     return [
@@ -84,6 +86,8 @@ def _get_direct_tools() -> list:
         get_resume,
         read_calendar,
         write_calendar_entry,
+        onet_search_careers,
+        onet_career_detail,
     ]
 
 

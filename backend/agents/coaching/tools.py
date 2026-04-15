@@ -1165,3 +1165,94 @@ def onet_search_careers(keyword: str) -> dict[str, Any]:
             "error_kind": ERR_TRANSIENT,
             "message": str(exc),
         }
+
+
+@tool
+def onet_career_detail(soc_code: str, sections: list[str]) -> dict[str, Any]:
+    """Fetch authoritative O*NET data for a specific career.
+
+    ``sections`` is REQUIRED — pick only what you need to avoid bloating
+    context. Valid sections: "knowledge", "skills", "abilities",
+    "personality", "technology", "education", "job_outlook",
+    "check_out_my_state", "explore_more". The overview (code, title,
+    what_they_do, on_the_job) is always included.
+
+    Args:
+        soc_code: O*NET SOC code like "15-1252.00" (obtain via onet_search_careers).
+        sections: Explicit non-empty list of section names from the list above.
+
+    Returns:
+        Dict with overview fields plus one key per requested section, or
+        an error dict with ``error_kind``.
+    """
+    if not soc_code or not _ONET_SOC_PATTERN.match(soc_code.strip()):
+        return {
+            "error": "invalid_soc_code",
+            "error_kind": ERR_VALIDATION,
+            "message": (
+                "soc_code must match the pattern '##-####.##' "
+                "(e.g. '15-1252.00')."
+            ),
+        }
+
+    if not sections or not isinstance(sections, list):
+        return {
+            "error": "missing_sections",
+            "error_kind": ERR_VALIDATION,
+            "message": (
+                "sections must be a non-empty list. Valid names: "
+                + ", ".join(sorted(ONET_VALID_SECTIONS))
+            ),
+        }
+
+    unknown = [s for s in sections if s not in ONET_VALID_SECTIONS]
+    if unknown:
+        return {
+            "error": "unknown_section",
+            "error_kind": ERR_VALIDATION,
+            "message": (
+                f"Unknown section(s): {unknown}. Valid names: "
+                + ", ".join(sorted(ONET_VALID_SECTIONS))
+            ),
+        }
+
+    from backend.handlers.onet import service as _onet_service  # lazy import
+
+    code = soc_code.strip()
+    try:
+        base_path = f"/careers/{code}"
+        result = dict(_onet_service._onet_request(f"{base_path}/"))
+        for section in sections:
+            try:
+                result[section] = _onet_service._onet_request(
+                    f"{base_path}/{section}"
+                )
+            except urllib.error.HTTPError as exc:
+                logger.warning(
+                    "onet_career_detail: section %s HTTP %s for %s",
+                    section, exc.code, code,
+                )
+                result[section] = None
+        return result
+    except urllib.error.HTTPError as exc:
+        kind = ERR_NOT_FOUND if exc.code == 404 else (
+            ERR_PERMANENT if 400 <= exc.code < 500 else ERR_TRANSIENT
+        )
+        return {
+            "error": "onet_http_error",
+            "error_kind": kind,
+            "message": f"O*NET API returned HTTP {exc.code} for {code}.",
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "error": "onet_network_error",
+            "error_kind": ERR_TRANSIENT,
+            "message": f"Could not reach O*NET: {exc.reason}",
+        }
+    except Exception as exc:
+        logger.exception("onet_career_detail failed")
+        return {
+            "error": "onet_unknown",
+            "error_kind": ERR_TRANSIENT,
+            "message": str(exc),
+        }

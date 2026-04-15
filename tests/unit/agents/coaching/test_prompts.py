@@ -117,3 +117,32 @@ class TestGetSystemPrompt:
         rules_idx = prompt.index("## Behavioral Rules")
 
         assert opening_idx < rules_idx
+
+
+class TestOnetSection:
+    """Tests for the O*NET career data section of the system prompt."""
+
+    def test_prompt_mentions_onet_tools(self) -> None:
+        """Prompt lists both O*NET tool names."""
+        prompt = get_system_prompt(target_role="Software Engineer")
+        assert "onet_search_careers" in prompt
+        assert "onet_career_detail" in prompt
+
+    def test_prompt_includes_explicit_target_role(self) -> None:
+        """When target_role is provided, it appears in the prompt verbatim."""
+        prompt = get_system_prompt(target_role="Registered Nurse")
+        assert "Registered Nurse" in prompt
+
+    def test_prompt_falls_back_when_target_role_missing(self) -> None:
+        """When target_role is None, the prompt renders a sentinel string."""
+        prompt = get_system_prompt(target_role=None)
+        assert "(not yet set)" in prompt
+
+    def test_existing_skill_tags_still_work_with_target_role(self) -> None:
+        """target_role is orthogonal to skill tags — both can coexist."""
+        prompt = get_system_prompt(
+            valid_skill_tags=["Python Programming"],
+            target_role="Data Analyst",
+        )
+        assert "Python Programming" in prompt
+        assert "Data Analyst" in prompt

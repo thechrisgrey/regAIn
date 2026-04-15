@@ -180,12 +180,29 @@ def create_coaching_agent(
         tool_names = [getattr(t, "__name__", "?") for t in tools]
         logger.info("Loaded %d direct tools: %s", len(tools), tool_names)
 
-        from backend.agents.coaching.tools import get_valid_skill_tags
+        from backend.agents.coaching.tools import (
+            get_valid_skill_tags,
+            db as _tools_db,
+        )
 
         valid_tags = get_valid_skill_tags(user_id)
+
+        # Fetch target_role for prompt grounding. Failure is non-fatal —
+        # the prompt falls back to "(not yet set)".
+        target_role: str | None = None
+        try:
+            profile = _tools_db.get_item("user_profiles", {"userId": user_id})
+            if profile:
+                raw = profile.get("targetRole")
+                if isinstance(raw, str) and raw.strip():
+                    target_role = raw.strip()
+        except Exception:
+            logger.warning("Could not read targetRole for %s", user_id, exc_info=True)
+
         system_prompt = get_system_prompt(
             valid_skill_tags=valid_tags,
             attention_mode=attention_mode,
+            target_role=target_role,
         )
 
         model = BedrockModel(

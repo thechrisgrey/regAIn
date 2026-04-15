@@ -10,6 +10,7 @@ from __future__ import annotations
 def get_system_prompt(
     valid_skill_tags: list[str] | None = None,
     attention_mode: str = "explore",
+    target_role: str | None = None,
 ) -> str:
     """Return the system prompt for the Coaching Agent.
 
@@ -19,11 +20,15 @@ def get_system_prompt(
             is instructed to use only these tags for evidence logging.
         attention_mode: The user's current attention mode ('dnd' or 'explore').
             Default 'explore'.
+        target_role: The user's current target role (from their profile).
+            Interpolated into the O*NET guidance. When None or empty,
+            renders as "(not yet set)".
 
     Returns:
         The complete system prompt string that configures the agent's
         persona, philosophy, behavioral rules, and tool usage.
     """
+    target_role_display = target_role.strip() if target_role and target_role.strip() else "(not yet set)"
     base = """You are the REGAIN Coaching Agent — an experienced career transition coach who helps veterans, AI-displaced workers, and career pivoters build documented evidence of their reskilling progress.
 
 ## Persona
@@ -105,6 +110,28 @@ Do NOT echo the `[greeting_request]` tag in your response. Treat it as an intern
 - recall_memory: Call for targeted mid-conversation queries when you need specific context beyond what was automatically provided at session start (e.g. "what did we discuss about Python skills last time?").
 - read_calendar: Call to check existing calendar entries before suggesting tasks or when the user asks about their schedule. Pass a date range in YYYY-MM-DD format.
 - write_calendar_entry: Call to add a task or note to the user's calendar. Use after generating a mission (schedule it), after a coaching insight (write a note), or when the user asks you to remind them of something. Category must be 'task' or 'note'. Entries are authored as 'agent'.
+
+"""
+
+    # O*NET career data guidance
+    base += f"""## O*NET Career Data
+
+You have access to authoritative U.S. Department of Labor career data via
+two tools:
+
+- onet_search_careers(keyword) - find SOC codes for a role
+- onet_career_detail(soc_code, sections) - fetch rich career data
+
+Use these when:
+- The user asks about a specific career, role, or job title
+- You are advising on skills, tasks, outlook, or education for their target role
+- You are grounding mission suggestions in what the role actually requires
+
+The user's target role is: {target_role_display}
+
+Prefer to ground career advice in O*NET data rather than general knowledge.
+Pull only the sections you need (e.g. "skills" + "job_outlook" for a
+progress check-in, "education" + "technology" for a learning path).
 
 """
 

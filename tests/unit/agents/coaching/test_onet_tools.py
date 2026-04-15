@@ -161,3 +161,77 @@ class TestOnetCareerDetail:
         # Unrequested sections must NOT be present
         assert "knowledge" not in result
         assert "abilities" not in result
+
+    @pytest.mark.parametrize("bad_soc", ["", "15-1252", "abc", "1-1.0", None])
+    def test_rejects_invalid_soc(self, bad_soc) -> None:
+        """Invalid SOC format returns ERR_VALIDATION without HTTP calls."""
+        tools = _load_tools()
+        with patch("backend.handlers.onet.service._onet_request") as mock_req:
+            result = tools.onet_career_detail(bad_soc, ["skills"])
+        assert result["error_kind"] == tools.ERR_VALIDATION
+        mock_req.assert_not_called()
+
+    def test_rejects_empty_sections(self) -> None:
+        """Empty sections list returns ERR_VALIDATION."""
+        tools = _load_tools()
+        with patch("backend.handlers.onet.service._onet_request") as mock_req:
+            result = tools.onet_career_detail("15-1252.00", [])
+        assert result["error_kind"] == tools.ERR_VALIDATION
+        mock_req.assert_not_called()
+
+    def test_rejects_non_list_sections(self) -> None:
+        """Passing a string instead of a list returns ERR_VALIDATION."""
+        tools = _load_tools()
+        with patch("backend.handlers.onet.service._onet_request") as mock_req:
+            result = tools.onet_career_detail("15-1252.00", "skills")  # type: ignore[arg-type]
+        assert result["error_kind"] == tools.ERR_VALIDATION
+        mock_req.assert_not_called()
+
+    def test_rejects_unknown_section(self) -> None:
+        """Unknown section names are rejected with ERR_VALIDATION."""
+        tools = _load_tools()
+        with patch("backend.handlers.onet.service._onet_request") as mock_req:
+            result = tools.onet_career_detail(
+                "15-1252.00", ["skills", "bogus_section"]
+            )
+        assert result["error_kind"] == tools.ERR_VALIDATION
+        assert "bogus_section" in result["message"]
+        mock_req.assert_not_called()
+
+    def test_404_on_overview_maps_to_not_found(self) -> None:
+        """HTTP 404 on overview fetch maps to ERR_NOT_FOUND."""
+        tools = _load_tools()
+        err = urllib.error.HTTPError(
+            url="u", code=404, msg="Not Found", hdrs=None, fp=None
+        )
+        with patch(
+            "backend.handlers.onet.service._onet_request", side_effect=err
+        ):
+            result = tools.onet_career_detail("99-9999.99", ["skills"])
+        assert result["error_kind"] == tools.ERR_NOT_FOUND
+
+    def test_section_fetch_failure_returns_null_for_that_section(self) -> None:
+        """If a single section fails, it's set to None; others still returned."""
+        tools = _load_tools()
+        def fake_request(path: str):
+            if path == "/careers/15-1252.00/":
+                return {"code": "15-1252.00", "title": "Software Developers"}
+            if path == "/careers/15-1252.00/skills":
+                return {"element": [{"name": "Programming"}]}
+            if path == "/careers/15-1252.00/technology":
+                raise urllib.error.HTTPError(
+                    url="u", code=500, msg="Server Error", hdrs=None, fp=None
+                )
+            raise AssertionError(f"Unexpected path: {path}")
+
+        with patch(
+            "backend.handlers.onet.service._onet_request",
+            side_effect=fake_request,
+        ):
+            result = tools.onet_career_detail(
+                "15-1252.00", ["skills", "technology"]
+            )
+
+        assert result["skills"] == {"element": [{"name": "Programming"}]}
+        assert result["technology"] is None
+        assert result["code"] == "15-1252.00"

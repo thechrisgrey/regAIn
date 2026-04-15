@@ -127,3 +127,37 @@ class TestOnetSearchCareers:
         ):
             result = tools.onet_search_careers("nurse")
         assert result["error_kind"] == tools.ERR_TRANSIENT
+
+
+class TestOnetCareerDetail:
+    """Tests for onet_career_detail."""
+
+    def test_happy_path_returns_overview_plus_requested_sections(self) -> None:
+        """Overview is always included; only requested sections are fetched."""
+        tools = _load_tools()
+        # Fake _onet_request: dispatch by path
+        def fake_request(path: str):
+            if path == "/careers/15-1252.00/":
+                return {"code": "15-1252.00", "title": "Software Developers",
+                        "what_they_do": "Write code.", "on_the_job": {}}
+            if path == "/careers/15-1252.00/skills":
+                return {"element": [{"name": "Programming"}]}
+            if path == "/careers/15-1252.00/job_outlook":
+                return {"outlook": {"category": "Bright"}}
+            raise AssertionError(f"Unexpected path: {path}")
+
+        with patch(
+            "backend.handlers.onet.service._onet_request",
+            side_effect=fake_request,
+        ):
+            result = tools.onet_career_detail(
+                "15-1252.00", ["skills", "job_outlook"]
+            )
+
+        assert result["code"] == "15-1252.00"
+        assert result["title"] == "Software Developers"
+        assert result["skills"] == {"element": [{"name": "Programming"}]}
+        assert result["job_outlook"] == {"outlook": {"category": "Bright"}}
+        # Unrequested sections must NOT be present
+        assert "knowledge" not in result
+        assert "abilities" not in result

@@ -136,6 +136,67 @@ class TestUpdateUserProfile:
 
         assert result.get("targetRole") == "PM"
 
+    def test_snake_case_keys_normalize_to_camelcase(self, dynamodb_tables: Dict[str, Any]) -> None:
+        """Snake_case keys from the LLM must be written as camelCase attributes.
+
+        The tool docstring uses snake_case (target_role, first_name, ...) so
+        Nova Lite often passes those names. DynamoDB attributes are camelCase
+        by project convention. The tool must normalize before writing —
+        otherwise the write creates an orphan attribute that no consumer reads.
+        """
+        table = dynamodb_tables["user_profiles"]
+        table.put_item(Item={
+            "userId": "user-snake",
+            "email": "[email]",
+            "targetRole": "OLD_ROLE",
+            "createdAt": "2025-01-01T00:00:00Z",
+        })
+
+        tools = _load_tools(dynamodb_tables)
+        result = tools.update_user_profile("user-snake", {
+            "target_role": "Senior Cloud Solutions Architect",
+            "first_name": "Chris",
+        })
+
+        # Returned profile uses camelCase
+        assert result.get("targetRole") == "Senior Cloud Solutions Architect"
+        assert result.get("firstName") == "Chris"
+        # No orphan snake_case attributes remain
+        assert "target_role" not in result
+        assert "first_name" not in result
+
+        # Verify the raw DynamoDB row — the authoritative check
+        row = table.get_item(Key={"userId": "user-snake"})["Item"]
+        assert row.get("targetRole") == "Senior Cloud Solutions Architect"
+        assert row.get("firstName") == "Chris"
+        assert "target_role" not in row
+        assert "first_name" not in row
+
+    def test_mixed_snake_and_camel_keys_merge_to_camelcase(
+        self, dynamodb_tables: Dict[str, Any]
+    ) -> None:
+        """If the LLM passes both snake and camel for the same logical field,
+        camelCase wins (explicit canonical form) and no orphan is written."""
+        table = dynamodb_tables["user_profiles"]
+        table.put_item(Item={
+            "userId": "user-mixed",
+            "email": "[email]",
+            "createdAt": "2025-01-01T00:00:00Z",
+        })
+
+        tools = _load_tools(dynamodb_tables)
+        result = tools.update_user_profile("user-mixed", {
+            "target_role": "snake_value",
+            "targetRole": "camel_value",
+        })
+
+        assert result.get("targetRole") == "camel_value"
+        assert "target_role" not in result
+
+        row = table.get_item(Key={"userId": "user-mixed"})["Item"]
+        assert row.get("targetRole") == "camel_value"
+        assert "target_role" not in row
+
     def test_returns_error_when_table_not_configured(self, aws_credentials: None) -> None:
         """Updating when the table env var is missing returns an error dict."""
         import os

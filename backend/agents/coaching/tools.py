@@ -63,7 +63,10 @@ _ONET_SOC_PATTERN = _re.compile(r"^\d{2}-\d{4}\.\d{2}$")
 
 db = DynamoDBClient()
 
-from backend.agents.coaching.profile_fields import ALLOWED_PROFILE_FIELDS as _PROFILE_ALLOWED_FIELDS
+from backend.agents.coaching.profile_fields import (
+    ALLOWED_PROFILE_FIELDS as _PROFILE_ALLOWED_FIELDS,
+    SNAKE_TO_CAMEL_PROFILE_FIELDS as _PROFILE_SNAKE_TO_CAMEL,
+)
 
 # Lazy-load taxonomy normalization
 _taxonomy_mod = importlib.import_module("backend.handlers.market_intel.taxonomy")
@@ -158,11 +161,22 @@ def update_user_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]
             "message": f"Protected field(s) cannot be updated: {sorted(forbidden)}",
         }
 
+    # Normalize snake_case keys (from the tool docstring) to the canonical
+    # camelCase DynamoDB attribute names. If both forms are present for the
+    # same logical field, the camelCase value wins (explicit canonical form).
+    normalized_updates: dict[str, Any] = {}
+    for key, value in updates.items():
+        canonical = _PROFILE_SNAKE_TO_CAMEL.get(key, key)
+        if canonical in updates and canonical != key:
+            # camelCase sibling exists — skip the snake_case variant
+            continue
+        normalized_updates[canonical] = value
+
     try:
         response = db.update_item(
             "user_profiles",
             key={"userId": user_id},
-            updates=updates,
+            updates=normalized_updates,
         )
         return response.get("Attributes", {})
     except ValueError as exc:

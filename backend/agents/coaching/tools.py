@@ -42,6 +42,24 @@ ERR_PERMANENT = "permanent"
 ERR_RATE_LIMITED = "rate_limited"
 ERR_VALIDATION = "validation"
 
+# O*NET v2 section names recognised by onet_career_detail.
+# Mirrors the sections in backend/handlers/onet/service.py::get_career_detail.
+ONET_VALID_SECTIONS = frozenset({
+    "knowledge",
+    "skills",
+    "abilities",
+    "personality",
+    "technology",
+    "education",
+    "job_outlook",
+    "check_out_my_state",
+    "explore_more",
+})
+
+# SOC code pattern: e.g. "15-1252.00"
+import re as _re  # local alias to avoid polluting module namespace
+_ONET_SOC_PATTERN = _re.compile(r"^\d{2}-\d{4}\.\d{2}$")
+
 db = DynamoDBClient()
 
 from backend.agents.coaching.profile_fields import ALLOWED_PROFILE_FIELDS as _PROFILE_ALLOWED_FIELDS

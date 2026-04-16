@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 _PENDING = "pending-agentcore-deploy"
 
+# Beyond ~30 text-only turns, Nova Pro pattern-matches prior assistant
+# narrative and skips tool invocation. Only applies to the fallback
+# path — AgentCoreMemorySessionManager replays full tool_use/tool_result.
+MAX_REPLAYED_TURNS = 15
+
 _MAX_CACHE_SIZE = 50
 _component_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
@@ -65,6 +70,8 @@ def _get_direct_tools() -> list:
         get_resume,
         read_calendar,
         write_calendar_entry,
+        onet_search_careers,
+        onet_career_detail,
     )
 
     return [
@@ -84,6 +91,8 @@ def _get_direct_tools() -> list:
         get_resume,
         read_calendar,
         write_calendar_entry,
+        onet_search_careers,
+        onet_career_detail,
     ]
 
 
@@ -108,7 +117,6 @@ def _create_session_manager(user_id: str, session_id: str | None = None):
     try:
         from bedrock_agentcore.memory.integrations.strands.config import (
             AgentCoreMemoryConfig,
-            RetrievalConfig,
         )
         from bedrock_agentcore.memory.integrations.strands.session_manager import (
             AgentCoreMemorySessionManager,
@@ -118,7 +126,7 @@ def _create_session_manager(user_id: str, session_id: str | None = None):
             memory_id=memory_id,
             actor_id=user_id,
             session_id=resolved_session_id,
-            retrieval_config=RetrievalConfig(),
+            retrieval_config=None,
         )
         return AgentCoreMemorySessionManager(
             agentcore_memory_config=config,
@@ -127,6 +135,33 @@ def _create_session_manager(user_id: str, session_id: str | None = None):
     except Exception:
         logger.warning("Failed to create AgentCoreMemorySessionManager", exc_info=True)
         return None
+
+
+import re
+
+_NOISE_TOKEN_RE = re.compile(
+    r"\[page_context:\s*\w+\]\s*"
+    r"|\[page_data:\s*\{[^}]*\}\]\s*"
+    r"|\[proactive_check\]\s*"
+)
+
+
+def _is_noise_turn(turn: dict) -> bool:
+    """Return True if this conversation turn is background noise that
+    should not be replayed."""
+    role = turn.get("role", "")
+    content = turn.get("content", "") or ""
+    stripped = content.strip()
+
+    if role == "user" and "[proactive_check]" in stripped:
+        return True
+    if role == "assistant" and stripped == "[no_suggestion]":
+        return True
+    if role == "user" and stripped.startswith("[page_context:"):
+        remainder = _NOISE_TOKEN_RE.sub("", stripped).strip()
+        if not remainder:
+            return True
+    return False
 
 
 def create_coaching_agent(
@@ -176,12 +211,29 @@ def create_coaching_agent(
         tool_names = [getattr(t, "__name__", "?") for t in tools]
         logger.info("Loaded %d direct tools: %s", len(tools), tool_names)
 
-        from backend.agents.coaching.tools import get_valid_skill_tags
+        from backend.agents.coaching.tools import (
+            get_valid_skill_tags,
+            db as _tools_db,
+        )
 
         valid_tags = get_valid_skill_tags(user_id)
+
+        # Fetch target_role for prompt grounding. Failure is non-fatal —
+        # the prompt falls back to "(not yet set)".
+        target_role: str | None = None
+        try:
+            profile = _tools_db.get_item("user_profiles", {"userId": user_id})
+            if profile:
+                raw = profile.get("targetRole")
+                if isinstance(raw, str) and raw.strip():
+                    target_role = raw.strip()
+        except Exception:
+            logger.warning("Could not read targetRole for %s", user_id, exc_info=True)
+
         system_prompt = get_system_prompt(
             valid_skill_tags=valid_tags,
             attention_mode=attention_mode,
+            target_role=target_role,
         )
 
         model = BedrockModel(
@@ -225,12 +277,15 @@ def create_coaching_agent(
     # populated and appending thread turns would duplicate context.
     session_restored = session_manager is not None and agent.messages
     if conversation_history and not session_restored:
+        filtered = [t for t in conversation_history if not _is_noise_turn(t)]
+        recent_turns = filtered[-MAX_REPLAYED_TURNS:]
+
         # Bedrock requires the first message to be role=user.  Skip any
         # assistant turns that appear before the first user turn (can happen
         # when action_event proactive responses are saved without a
         # corresponding user turn).
         first_user_seen = False
-        for turn in conversation_history:
+        for turn in recent_turns:
             role = turn.get("role", "")
             content = turn.get("content", "")
             if role == "user":

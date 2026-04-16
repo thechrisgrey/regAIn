@@ -11,6 +11,7 @@ import importlib
 import json
 import logging
 import os
+import urllib.error
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
@@ -42,9 +43,30 @@ ERR_PERMANENT = "permanent"
 ERR_RATE_LIMITED = "rate_limited"
 ERR_VALIDATION = "validation"
 
+# O*NET v2 section names recognised by onet_career_detail.
+# Mirrors the sections in backend/handlers/onet/service.py::get_career_detail.
+ONET_VALID_SECTIONS = frozenset({
+    "knowledge",
+    "skills",
+    "abilities",
+    "personality",
+    "technology",
+    "education",
+    "job_outlook",
+    "check_out_my_state",
+    "explore_more",
+})
+
+# SOC code pattern: e.g. "15-1252.00"
+import re as _re  # local alias to avoid polluting module namespace
+_ONET_SOC_PATTERN = _re.compile(r"^\d{2}-\d{4}\.\d{2}$")
+
 db = DynamoDBClient()
 
-from backend.agents.coaching.profile_fields import ALLOWED_PROFILE_FIELDS as _PROFILE_ALLOWED_FIELDS
+from backend.agents.coaching.profile_fields import (
+    ALLOWED_PROFILE_FIELDS as _PROFILE_ALLOWED_FIELDS,
+    SNAKE_TO_CAMEL_PROFILE_FIELDS as _PROFILE_SNAKE_TO_CAMEL,
+)
 
 # Lazy-load taxonomy normalization
 _taxonomy_mod = importlib.import_module("backend.handlers.market_intel.taxonomy")
@@ -139,11 +161,22 @@ def update_user_profile(user_id: str, updates: dict[str, Any]) -> dict[str, Any]
             "message": f"Protected field(s) cannot be updated: {sorted(forbidden)}",
         }
 
+    # Normalize snake_case keys (from the tool docstring) to the canonical
+    # camelCase DynamoDB attribute names. If both forms are present for the
+    # same logical field, the camelCase value wins (explicit canonical form).
+    normalized_updates: dict[str, Any] = {}
+    for key, value in updates.items():
+        canonical = _PROFILE_SNAKE_TO_CAMEL.get(key, key)
+        if canonical in updates and canonical != key:
+            # camelCase sibling exists — skip the snake_case variant
+            continue
+        normalized_updates[canonical] = value
+
     try:
         response = db.update_item(
             "user_profiles",
             key={"userId": user_id},
-            updates=updates,
+            updates=normalized_updates,
         )
         return response.get("Attributes", {})
     except ValueError as exc:
@@ -1090,3 +1123,150 @@ def write_calendar_entry(
     except Exception as e:
         logger.exception("write_calendar_entry failed for user %s", user_id)
         return {"error": str(e), "error_kind": ERR_TRANSIENT}
+
+
+# ---------------------------------------------------------------------------
+# O*NET career data tools
+# ---------------------------------------------------------------------------
+
+
+@tool
+def onet_search_careers(keyword: str) -> dict[str, Any]:
+    """Search O*NET for careers matching a keyword.
+
+    Use this when you need to find the O*NET SOC code for a role the user
+    mentions (e.g. "software engineer", "nurse"). Returns candidate careers
+    with SOC codes and titles. Follow up with onet_career_detail to pull
+    rich data for a specific career.
+
+    Args:
+        keyword: Free-text role or occupation query.
+
+    Returns:
+        Raw O*NET search response dict with a "career" list, or an error
+        dict with ``error_kind``.
+    """
+    if not keyword or not keyword.strip():
+        return {
+            "error": "invalid_keyword",
+            "error_kind": ERR_VALIDATION,
+            "message": "keyword must be a non-empty string.",
+        }
+
+    from backend.handlers.onet import service as _onet_service  # lazy import
+
+    try:
+        return _onet_service.search_careers(keyword.strip())
+    except urllib.error.HTTPError as exc:
+        kind = ERR_NOT_FOUND if exc.code == 404 else (
+            ERR_PERMANENT if 400 <= exc.code < 500 else ERR_TRANSIENT
+        )
+        return {
+            "error": "onet_http_error",
+            "error_kind": kind,
+            "message": f"O*NET API returned HTTP {exc.code}.",
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "error": "onet_network_error",
+            "error_kind": ERR_TRANSIENT,
+            "message": f"Could not reach O*NET: {exc.reason}",
+        }
+    except Exception as exc:
+        logger.exception("onet_search_careers failed")
+        return {
+            "error": "onet_unknown",
+            "error_kind": ERR_TRANSIENT,
+            "message": str(exc),
+        }
+
+
+@tool
+def onet_career_detail(soc_code: str, sections: list[str]) -> dict[str, Any]:
+    """Fetch authoritative O*NET data for a specific career.
+
+    ``sections`` is REQUIRED — pick only what you need to avoid bloating
+    context. Valid sections: "knowledge", "skills", "abilities",
+    "personality", "technology", "education", "job_outlook",
+    "check_out_my_state", "explore_more". The overview (code, title,
+    what_they_do, on_the_job) is always included.
+
+    Args:
+        soc_code: O*NET SOC code like "15-1252.00" (obtain via onet_search_careers).
+        sections: Explicit non-empty list of section names from the list above.
+
+    Returns:
+        Dict with overview fields plus one key per requested section, or
+        an error dict with ``error_kind``.
+    """
+    if not soc_code or not _ONET_SOC_PATTERN.match(soc_code.strip()):
+        return {
+            "error": "invalid_soc_code",
+            "error_kind": ERR_VALIDATION,
+            "message": (
+                "soc_code must match the pattern '##-####.##' "
+                "(e.g. '15-1252.00')."
+            ),
+        }
+
+    if not sections or not isinstance(sections, list):
+        return {
+            "error": "missing_sections",
+            "error_kind": ERR_VALIDATION,
+            "message": (
+                "sections must be a non-empty list. Valid names: "
+                + ", ".join(sorted(ONET_VALID_SECTIONS))
+            ),
+        }
+
+    unknown = [s for s in sections if s not in ONET_VALID_SECTIONS]
+    if unknown:
+        return {
+            "error": "unknown_section",
+            "error_kind": ERR_VALIDATION,
+            "message": (
+                f"Unknown section(s): {unknown}. Valid names: "
+                + ", ".join(sorted(ONET_VALID_SECTIONS))
+            ),
+        }
+
+    from backend.handlers.onet import service as _onet_service  # lazy import
+
+    code = soc_code.strip()
+    try:
+        base_path = f"/careers/{code}"
+        result = dict(_onet_service._onet_request(f"{base_path}/"))
+        for section in sections:
+            try:
+                result[section] = _onet_service._onet_request(
+                    f"{base_path}/{section}"
+                )
+            except urllib.error.HTTPError as exc:
+                logger.warning(
+                    "onet_career_detail: section %s HTTP %s for %s",
+                    section, exc.code, code,
+                )
+                result[section] = None
+        return result
+    except urllib.error.HTTPError as exc:
+        kind = ERR_NOT_FOUND if exc.code == 404 else (
+            ERR_PERMANENT if 400 <= exc.code < 500 else ERR_TRANSIENT
+        )
+        return {
+            "error": "onet_http_error",
+            "error_kind": kind,
+            "message": f"O*NET API returned HTTP {exc.code} for {code}.",
+        }
+    except urllib.error.URLError as exc:
+        return {
+            "error": "onet_network_error",
+            "error_kind": ERR_TRANSIENT,
+            "message": f"Could not reach O*NET: {exc.reason}",
+        }
+    except Exception as exc:
+        logger.exception("onet_career_detail failed")
+        return {
+            "error": "onet_unknown",
+            "error_kind": ERR_TRANSIENT,
+            "message": str(exc),
+        }

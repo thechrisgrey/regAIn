@@ -43,7 +43,8 @@ def _load_tools():
 # Hypothesis strategies
 # ---------------------------------------------------------------------------
 
-_TAXONOMY_CATEGORIES = ("transferable_skills", "technical_skills", "domain_knowledge")
+# Categories as written to DynamoDB (camelCase after normalization).
+_TAXONOMY_CATEGORIES = ("transferableSkills", "technicalSkills", "domainKnowledge")
 
 # User IDs: non-empty alphanumeric strings with dashes
 _user_id_strategy = st.text(
@@ -132,10 +133,11 @@ class TestSkillTaxonomyPartitioning:
         profile = tools.read_user_profile(user_id=user_id)
         assert "error" not in profile, f"read_user_profile failed: {profile}"
 
-        # Extract the three categories from the profile
-        read_transferable = set(profile.get("transferable_skills", []))
-        read_technical = set(profile.get("technical_skills", []))
-        read_domain = set(profile.get("domain_knowledge", []))
+        # Extract the three categories from the profile (camelCase after
+        # update_user_profile normalization).
+        read_transferable = set(profile.get("transferableSkills", []))
+        read_technical = set(profile.get("technicalSkills", []))
+        read_domain = set(profile.get("domainKnowledge", []))
 
         # Assert: exactly three category keys exist in the profile
         for cat in _TAXONOMY_CATEGORIES:

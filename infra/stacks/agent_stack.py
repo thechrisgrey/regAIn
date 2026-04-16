@@ -252,11 +252,26 @@ class AgentStack(cdk.Stack):
             resources=[gateway_resource],
         )
 
+    def _onet_ssm_policy(self) -> iam.PolicyStatement:
+        """Create IAM policy statement for O*NET API key retrieval from SSM.
+
+        The O*NET v2 API key is stored at /regain/onet/api-key (SecureString).
+        Granted to every agent Lambda because the coaching agent's
+        onet_search_careers and onet_career_detail tools lazily fetch it.
+        """
+        return iam.PolicyStatement(
+            actions=["ssm:GetParameter"],
+            resources=[
+                f"arn:aws:ssm:{cdk.Aws.REGION}:{cdk.Aws.ACCOUNT_ID}:parameter/regain/onet/*"
+            ],
+        )
+
     def _grant_voice_lambda_permissions(self, voice_lambda: _lambda.Function) -> None:
         """Grant the Voice Lambda Bedrock, DynamoDB, and WebSocket management permissions."""
         voice_lambda.add_to_role_policy(self._bedrock_policy())
         voice_lambda.add_to_role_policy(self._agentcore_memory_policy())
         voice_lambda.add_to_role_policy(self._agentcore_gateway_policy())
+        voice_lambda.add_to_role_policy(self._onet_ssm_policy())
 
         # Grant execute-api:ManageConnections so Lambda can call post_to_connection.
         voice_lambda.add_to_role_policy(
@@ -293,6 +308,7 @@ class AgentStack(cdk.Stack):
         self.coaching_lambda.add_to_role_policy(self._bedrock_policy())
         self.coaching_lambda.add_to_role_policy(self._agentcore_memory_policy())
         self.coaching_lambda.add_to_role_policy(self._agentcore_gateway_policy())
+        self.coaching_lambda.add_to_role_policy(self._onet_ssm_policy())
 
         # Add Bedrock and AgentCore env vars to the coaching Lambda.
         # Gateway values use Fn.import_value() instead of CDK token references
@@ -483,6 +499,7 @@ class AgentStack(cdk.Stack):
         chat_stream_lambda.add_to_role_policy(self._bedrock_policy())
         chat_stream_lambda.add_to_role_policy(self._agentcore_memory_policy())
         chat_stream_lambda.add_to_role_policy(self._agentcore_gateway_policy())
+        chat_stream_lambda.add_to_role_policy(self._onet_ssm_policy())
 
         # Grant execute-api:ManageConnections so Lambda can call post_to_connection.
         chat_stream_lambda.add_to_role_policy(

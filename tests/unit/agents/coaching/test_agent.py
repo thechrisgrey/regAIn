@@ -347,3 +347,272 @@ class TestComponentCaching:
         from backend.agents.coaching.agent import evict_cached_components
 
         evict_cached_components("does-not-exist")
+
+
+class TestSessionManagerRetrievalConfig:
+    """Pydantic schema for AgentCoreMemoryConfig requires
+    retrieval_config to be Optional[Dict[str, RetrievalConfig]], not
+    a bare RetrievalConfig. See layer_build/.../strands/config.py.
+    """
+
+    def test_retrieval_config_is_dict_or_none(self, monkeypatch):
+        """AgentCoreMemoryConfig must receive retrieval_config as
+        dict or None, never a bare RetrievalConfig instance."""
+        monkeypatch.setenv("AGENTCORE_MEMORY_ID", "mem-123")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        mock_config_cls = MagicMock(name="AgentCoreMemoryConfig")
+        mock_retrieval_cls = MagicMock(name="RetrievalConfig")
+        mock_session_mgr_cls = MagicMock(name="AgentCoreMemorySessionManager")
+
+        config_mod = types.ModuleType(
+            "bedrock_agentcore.memory.integrations.strands.config"
+        )
+        config_mod.AgentCoreMemoryConfig = mock_config_cls
+        config_mod.RetrievalConfig = mock_retrieval_cls
+
+        mgr_mod = types.ModuleType(
+            "bedrock_agentcore.memory.integrations.strands.session_manager"
+        )
+        mgr_mod.AgentCoreMemorySessionManager = mock_session_mgr_cls
+
+        with patch.dict(sys.modules, {
+            "bedrock_agentcore": types.ModuleType("bedrock_agentcore"),
+            "bedrock_agentcore.memory": types.ModuleType("bedrock_agentcore.memory"),
+            "bedrock_agentcore.memory.integrations": types.ModuleType("bedrock_agentcore.memory.integrations"),
+            "bedrock_agentcore.memory.integrations.strands": types.ModuleType("bedrock_agentcore.memory.integrations.strands"),
+            "bedrock_agentcore.memory.integrations.strands.config": config_mod,
+            "bedrock_agentcore.memory.integrations.strands.session_manager": mgr_mod,
+        }):
+            from backend.agents.coaching.agent import _create_session_manager
+
+            _create_session_manager("user-42", session_id="ws-conn-abc")
+
+        mock_config_cls.assert_called_once()
+        call_kwargs = mock_config_cls.call_args.kwargs
+        retrieval = call_kwargs.get("retrieval_config")
+        assert retrieval is None or isinstance(retrieval, dict), (
+            f"retrieval_config must be None or dict, got {type(retrieval).__name__}: {retrieval}"
+        )
+
+
+class TestConversationHistoryCap:
+    """When session_manager is None, conversation_history must be
+    truncated to the last N turns before appending to agent.messages.
+    Long text-only replays contaminate Nova Pro's tool-calling."""
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_long_history_is_truncated_to_last_15(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Long conversation should be truncated to last 15 turns."""
+        from backend.agents.coaching.agent import (
+            MAX_REPLAYED_TURNS,
+            create_coaching_agent,
+        )
+
+        assert MAX_REPLAYED_TURNS == 15, (
+            "Cap constant must be 15 (empirically safe for Nova Pro)"
+        )
+
+        # Build 55 turns so that turns[-15] lands on a user turn
+        # (index 40, even = user). This avoids the first-user-seen
+        # guard dropping one turn and lets us assert exactly 15.
+        turns = []
+        for i in range(27):
+            turns.append({"role": "user", "content": f"user msg {i}"})
+            turns.append({"role": "assistant", "content": f"assistant msg {i}"})
+        turns.append({"role": "user", "content": "user msg 27"})
+
+        # Use a plain list for agent.messages so append() works.
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        replayed = agent_instance.messages
+        assert len(replayed) == MAX_REPLAYED_TURNS, (
+            f"Expected {MAX_REPLAYED_TURNS} messages replayed, got {len(replayed)}"
+        )
+        # Content of first replayed message should be one of the LAST
+        # 15 turns from the input.
+        first_replayed_text = replayed[0]["content"][0]["text"]
+        assert first_replayed_text in [
+            t["content"] for t in turns[-MAX_REPLAYED_TURNS:]
+        ]
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_short_history_is_unchanged(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Histories at or below the cap should replay fully."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        turns = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi"},
+            {"role": "user", "content": "update target to SWE"},
+        ]
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        assert len(agent_instance.messages) == 3
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_cap_preserves_first_user_turn_rule(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Bedrock requires the first message to be role=user. After
+        truncation, if the first kept turn is assistant, drop it."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        # Build 20 turns; turn[-15] happens to be assistant (even index).
+        turns = []
+        for i in range(10):
+            turns.append({"role": "user", "content": f"u{i}"})
+            turns.append({"role": "assistant", "content": f"a{i}"})
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        # Drop assistant turns that appear before the first user turn.
+        assert len(agent_instance.messages) > 0
+        assert agent_instance.messages[0]["role"] == "user", (
+            "First replayed message must be role=user"
+        )
+
+
+class TestReplayNoiseFilter:
+    """[proactive_check] and bare [page_context:X] turns are noise and
+    must be filtered out before replay."""
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_proactive_check_turns_are_filtered(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        turns = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there"},
+            {"role": "user", "content": '[page_context: dashboard] [page_data: {"page":"dashboard"}] [proactive_check]'},
+            {"role": "assistant", "content": "[no_suggestion]"},
+            {"role": "user", "content": "Update my target"},
+        ]
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        texts = [m["content"][0]["text"] for m in agent_instance.messages]
+        assert "Hello" in texts
+        assert "Hi there" in texts
+        assert "Update my target" in texts
+        assert not any("[proactive_check]" in t for t in texts), (
+            "proactive_check turns must be filtered"
+        )
+        assert "[no_suggestion]" not in texts, (
+            "no_suggestion assistant responses must be filtered"
+        )
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_bare_page_context_turns_are_filtered(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """A turn that's ONLY a [page_context:X] prefix with no user
+        text after it adds no signal."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        turns = [
+            {"role": "user", "content": "Hello"},
+            {"role": "user", "content": "[page_context: dashboard]"},
+            {"role": "user", "content": "[page_context: missions] What mission next?"},
+        ]
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        texts = [m["content"][0]["text"] for m in agent_instance.messages]
+        assert "Hello" in texts
+        assert any("What mission next?" in t for t in texts), (
+            "page_context turns with real user text must be kept"
+        )
+        assert len(texts) == 2, (
+            "bare [page_context: dashboard] turn must be filtered"
+        )
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_filter_applied_before_cap(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Filter happens first, THEN cap to last 15. So noisy
+        histories don't waste cap budget on filtered turns."""
+        from backend.agents.coaching.agent import (
+            MAX_REPLAYED_TURNS,
+            create_coaching_agent,
+        )
+
+        # 20 noise turns followed by 5 real turns. After filtering,
+        # only 5 turns remain and all should be replayed.
+        turns = []
+        for i in range(20):
+            turns.append({
+                "role": "user",
+                "content": '[page_context: dashboard] [page_data: {"page":"dashboard"}] [proactive_check]',
+            })
+            turns.append({"role": "assistant", "content": "[no_suggestion]"})
+        for i in range(5):
+            turns.append({"role": "user", "content": f"real user turn {i}"})
+            turns.append({"role": "assistant", "content": f"real asst turn {i}"})
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        # 10 real turns (less than 15 cap), so all 10 should be replayed.
+        assert len(agent_instance.messages) == 10

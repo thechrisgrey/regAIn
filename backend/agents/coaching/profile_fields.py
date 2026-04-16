@@ -32,3 +32,25 @@ RESTRICTED_PROFILE_FIELDS: frozenset[str] = frozenset({
     "tier",
     "userId",
 })
+
+# Map snake_case docstring names -> canonical camelCase DynamoDB attributes.
+# The LLM often passes snake_case from the tool docstring; DynamoDB attributes
+# are camelCase by project convention. update_user_profile normalizes through
+# this map before writing so consumers that read camelCase get the value.
+SNAKE_TO_CAMEL_PROFILE_FIELDS: dict[str, str] = {
+    "target_role": "targetRole",
+    "onboarding_completed": "onboardingCompleted",
+    "first_name": "firstName",
+    "last_name": "lastName",
+    "current_role": "currentRole",
+    "years_experience": "yearsExperience",
+    "years_in_role": "yearsInRole",
+    "highest_position": "highestPosition",
+    "coach_notes": "coachNotes",
+    "experience_years": "experienceYears",
+    "role_history": "roleHistory",
+    "transferable_skills": "transferableSkills",
+    "technical_skills": "technicalSkills",
+    "domain_knowledge": "domainKnowledge",
+    "skills_focus": "skillsFocus",
+}

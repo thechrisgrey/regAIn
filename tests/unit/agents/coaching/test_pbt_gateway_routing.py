@@ -136,6 +136,23 @@ def _params_strategy_for(schema: dict[str, Any]) -> st.SearchStrategy[dict[str, 
     if name == "regain_get_evidence_summary":
         return st.fixed_dictionaries({"userId": _user_id})
 
+    _date = st.from_regex(r"^20[2-3][0-9]-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$", fullmatch=True)
+
+    if name == "regain_read_calendar":
+        return st.fixed_dictionaries({
+            "userId": _user_id,
+            "start_date": _date,
+            "end_date": _date,
+        })
+
+    if name == "regain_write_calendar_entry":
+        return st.fixed_dictionaries({
+            "userId": _user_id,
+            "date": _date,
+            "category": st.sampled_from(["task", "note"]),
+            "content": _safe_text,
+        })
+
     return st.fixed_dictionaries({"userId": _user_id})
 
 

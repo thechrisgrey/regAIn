@@ -134,11 +134,13 @@ class TestProfileUpdateRoundTrip:
         read_result = tools.read_user_profile(user_id=user_id)
         assert "error" not in read_result, f"read_user_profile failed: {read_result}"
 
-        # Assert all updated fields are present with equivalent values
+        # Assert all updated fields are present with equivalent values.
+        # update_user_profile normalizes snake_case -> camelCase before
+        # writing (DynamoDB convention), so reads return camelCase keys.
         assert read_result["skills"] == skills
-        assert read_result["experience_years"] == experience_years
+        assert read_result["experienceYears"] == experience_years
         assert read_result["industry"] == industry
-        assert read_result["role_history"] == role_history
+        assert read_result["roleHistory"] == role_history
 
         # Original fields should also be preserved
         assert read_result["userId"] == user_id

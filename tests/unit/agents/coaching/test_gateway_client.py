@@ -131,8 +131,11 @@ class TestDiscoverTools:
 
         tools = client.discover_tools()
 
-        # Should get tools from local schemas (14 tools including code interpreter).
-        assert len(tools) == 14
+        # Should get tools from local schemas. Grows with TOOL_SCHEMAS —
+        # read directly to avoid churn when tools are added.
+        from backend.agents.coaching.tool_schemas import TOOL_SCHEMAS
+
+        assert len(tools) == len(TOOL_SCHEMAS)
 
     def test_tool_handler_routes_through_invoke_tool(self, client):
         """The handler function on a discovered tool should call invoke_tool."""

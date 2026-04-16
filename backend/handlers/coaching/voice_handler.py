@@ -129,11 +129,25 @@ def _validate_cognito_token(token: str) -> Optional[str]:
 
 
 def _get_system_prompt(user_id: str) -> str:
-    """Get the coaching system prompt with the user's skill tags."""
+    """Get the coaching system prompt with the user's skill tags and target role."""
     from backend.agents.coaching.prompts import get_system_prompt
 
     valid_tags = _tools_mod.get_valid_skill_tags(user_id)
-    return get_system_prompt(valid_skill_tags=valid_tags or None)
+
+    target_role: str | None = None
+    try:
+        profile = _tools_mod.db.get_item("user_profiles", {"userId": user_id})
+        if profile:
+            raw = profile.get("targetRole")
+            if isinstance(raw, str) and raw.strip():
+                target_role = raw.strip()
+    except Exception:
+        logger.warning("Could not read targetRole for %s", user_id, exc_info=True)
+
+    return get_system_prompt(
+        valid_skill_tags=valid_tags or None,
+        target_role=target_role,
+    )
 
 
 def _execute_tool(user_id: str, tool_name: str, tool_use_id: str, args: dict) -> Any:

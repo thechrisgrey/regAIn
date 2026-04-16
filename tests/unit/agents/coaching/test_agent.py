@@ -503,3 +503,116 @@ class TestConversationHistoryCap:
         assert agent_instance.messages[0]["role"] == "user", (
             "First replayed message must be role=user"
         )
+
+
+class TestReplayNoiseFilter:
+    """[proactive_check] and bare [page_context:X] turns are noise and
+    must be filtered out before replay."""
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_proactive_check_turns_are_filtered(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        turns = [
+            {"role": "user", "content": "Hello"},
+            {"role": "assistant", "content": "Hi there"},
+            {"role": "user", "content": '[page_context: dashboard] [page_data: {"page":"dashboard"}] [proactive_check]'},
+            {"role": "assistant", "content": "[no_suggestion]"},
+            {"role": "user", "content": "Update my target"},
+        ]
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        texts = [m["content"][0]["text"] for m in agent_instance.messages]
+        assert "Hello" in texts
+        assert "Hi there" in texts
+        assert "Update my target" in texts
+        assert not any("[proactive_check]" in t for t in texts), (
+            "proactive_check turns must be filtered"
+        )
+        assert "[no_suggestion]" not in texts, (
+            "no_suggestion assistant responses must be filtered"
+        )
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_bare_page_context_turns_are_filtered(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """A turn that's ONLY a [page_context:X] prefix with no user
+        text after it adds no signal."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        turns = [
+            {"role": "user", "content": "Hello"},
+            {"role": "user", "content": "[page_context: dashboard]"},
+            {"role": "user", "content": "[page_context: missions] What mission next?"},
+        ]
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        texts = [m["content"][0]["text"] for m in agent_instance.messages]
+        assert "Hello" in texts
+        assert any("What mission next?" in t for t in texts), (
+            "page_context turns with real user text must be kept"
+        )
+        assert len(texts) == 2, (
+            "bare [page_context: dashboard] turn must be filtered"
+        )
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_filter_applied_before_cap(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Filter happens first, THEN cap to last 15. So noisy
+        histories don't waste cap budget on filtered turns."""
+        from backend.agents.coaching.agent import (
+            MAX_REPLAYED_TURNS,
+            create_coaching_agent,
+        )
+
+        # 20 noise turns followed by 5 real turns. After filtering,
+        # only 5 turns remain and all should be replayed.
+        turns = []
+        for i in range(20):
+            turns.append({
+                "role": "user",
+                "content": '[page_context: dashboard] [page_data: {"page":"dashboard"}] [proactive_check]',
+            })
+            turns.append({"role": "assistant", "content": "[no_suggestion]"})
+        for i in range(5):
+            turns.append({"role": "user", "content": f"real user turn {i}"})
+            turns.append({"role": "assistant", "content": f"real asst turn {i}"})
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        # 10 real turns (less than 15 cap), so all 10 should be replayed.
+        assert len(agent_instance.messages) == 10

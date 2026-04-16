@@ -137,6 +137,33 @@ def _create_session_manager(user_id: str, session_id: str | None = None):
         return None
 
 
+import re
+
+_NOISE_TOKEN_RE = re.compile(
+    r"\[page_context:\s*\w+\]\s*"
+    r"|\[page_data:\s*\{[^}]*\}\]\s*"
+    r"|\[proactive_check\]\s*"
+)
+
+
+def _is_noise_turn(turn: dict) -> bool:
+    """Return True if this conversation turn is background noise that
+    should not be replayed."""
+    role = turn.get("role", "")
+    content = turn.get("content", "") or ""
+    stripped = content.strip()
+
+    if role == "user" and "[proactive_check]" in stripped:
+        return True
+    if role == "assistant" and stripped == "[no_suggestion]":
+        return True
+    if role == "user" and stripped.startswith("[page_context:"):
+        remainder = _NOISE_TOKEN_RE.sub("", stripped).strip()
+        if not remainder:
+            return True
+    return False
+
+
 def create_coaching_agent(
     user_id: str,
     jwt_token: str,
@@ -250,7 +277,8 @@ def create_coaching_agent(
     # populated and appending thread turns would duplicate context.
     session_restored = session_manager is not None and agent.messages
     if conversation_history and not session_restored:
-        recent_turns = conversation_history[-MAX_REPLAYED_TURNS:]
+        filtered = [t for t in conversation_history if not _is_noise_turn(t)]
+        recent_turns = filtered[-MAX_REPLAYED_TURNS:]
 
         # Bedrock requires the first message to be role=user.  Skip any
         # assistant turns that appear before the first user turn (can happen

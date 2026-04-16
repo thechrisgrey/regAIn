@@ -73,7 +73,7 @@ def search(query: str, max_results: int = 5, topic: str = "general") -> dict[str
         method="POST",
     )
 
-    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:
+    with urllib.request.urlopen(req, timeout=REQUEST_TIMEOUT_SECONDS) as resp:  # nosec B310
         raw = json.loads(resp.read().decode("utf-8"))
 
     results = [

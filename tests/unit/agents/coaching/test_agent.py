@@ -394,3 +394,112 @@ class TestSessionManagerRetrievalConfig:
         assert retrieval is None or isinstance(retrieval, dict), (
             f"retrieval_config must be None or dict, got {type(retrieval).__name__}: {retrieval}"
         )
+
+
+class TestConversationHistoryCap:
+    """When session_manager is None, conversation_history must be
+    truncated to the last N turns before appending to agent.messages.
+    Long text-only replays contaminate Nova Pro's tool-calling."""
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_long_history_is_truncated_to_last_15(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Long conversation should be truncated to last 15 turns."""
+        from backend.agents.coaching.agent import (
+            MAX_REPLAYED_TURNS,
+            create_coaching_agent,
+        )
+
+        assert MAX_REPLAYED_TURNS == 15, (
+            "Cap constant must be 15 (empirically safe for Nova Pro)"
+        )
+
+        # Build 55 turns so that turns[-15] lands on a user turn
+        # (index 40, even = user). This avoids the first-user-seen
+        # guard dropping one turn and lets us assert exactly 15.
+        turns = []
+        for i in range(27):
+            turns.append({"role": "user", "content": f"user msg {i}"})
+            turns.append({"role": "assistant", "content": f"assistant msg {i}"})
+        turns.append({"role": "user", "content": "user msg 27"})
+
+        # Use a plain list for agent.messages so append() works.
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        replayed = agent_instance.messages
+        assert len(replayed) == MAX_REPLAYED_TURNS, (
+            f"Expected {MAX_REPLAYED_TURNS} messages replayed, got {len(replayed)}"
+        )
+        # Content of first replayed message should be one of the LAST
+        # 15 turns from the input.
+        first_replayed_text = replayed[0]["content"][0]["text"]
+        assert first_replayed_text in [
+            t["content"] for t in turns[-MAX_REPLAYED_TURNS:]
+        ]
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_short_history_is_unchanged(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Histories at or below the cap should replay fully."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        turns = [
+            {"role": "user", "content": "hello"},
+            {"role": "assistant", "content": "hi"},
+            {"role": "user", "content": "update target to SWE"},
+        ]
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        assert len(agent_instance.messages) == 3
+
+    @pytest.mark.usefixtures("_pending_env")
+    def test_cap_preserves_first_user_turn_rule(
+        self, mock_direct_tools, mock_bedrock_model
+    ):
+        """Bedrock requires the first message to be role=user. After
+        truncation, if the first kept turn is assistant, drop it."""
+        from backend.agents.coaching.agent import create_coaching_agent
+
+        # Build 20 turns; turn[-15] happens to be assistant (even index).
+        turns = []
+        for i in range(10):
+            turns.append({"role": "user", "content": f"u{i}"})
+            turns.append({"role": "assistant", "content": f"a{i}"})
+
+        with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
+            agent_instance = MagicMock()
+            agent_instance.messages = []
+            mock_agent_cls.return_value = agent_instance
+
+            create_coaching_agent(
+                user_id="user-1",
+                jwt_token="jwt",
+                conversation_history=turns,
+            )
+
+        # Drop assistant turns that appear before the first user turn.
+        assert len(agent_instance.messages) > 0
+        assert agent_instance.messages[0]["role"] == "user", (
+            "First replayed message must be role=user"
+        )

@@ -22,6 +22,11 @@ logger = logging.getLogger(__name__)
 
 _PENDING = "pending-agentcore-deploy"
 
+# Beyond ~30 text-only turns, Nova Pro pattern-matches prior assistant
+# narrative and skips tool invocation. Only applies to the fallback
+# path — AgentCoreMemorySessionManager replays full tool_use/tool_result.
+MAX_REPLAYED_TURNS = 15
+
 _MAX_CACHE_SIZE = 50
 _component_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
 
@@ -245,12 +250,14 @@ def create_coaching_agent(
     # populated and appending thread turns would duplicate context.
     session_restored = session_manager is not None and agent.messages
     if conversation_history and not session_restored:
+        recent_turns = conversation_history[-MAX_REPLAYED_TURNS:]
+
         # Bedrock requires the first message to be role=user.  Skip any
         # assistant turns that appear before the first user turn (can happen
         # when action_event proactive responses are saved without a
         # corresponding user turn).
         first_user_seen = False
-        for turn in conversation_history:
+        for turn in recent_turns:
             role = turn.get("role", "")
             content = turn.get("content", "")
             if role == "user":

@@ -9,6 +9,7 @@ import type { Campaign } from '../types';
 import { DISPLAY_PHASES, phaseIndex, phaseLabel, phaseProgress, daysActive, formatDate } from '../utils/campaign';
 import { computeSkillStats } from '../utils/evidence';
 import { Card, SectionLabel, Badge, ProgressBar, Button, Input, SkeletonBlock } from '../components/ui';
+import { EditableTargetRole } from '../components/profile/EditableTargetRole';
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -98,10 +99,12 @@ function IdentitySummary({
   username,
   campaign,
   stats,
+  onSaveTargetRole,
 }: {
   username: string;
   campaign: Campaign;
   stats: { missionsCompleted: number; evidenceCount: number };
+  onSaveTargetRole: (next: string) => Promise<void>;
 }) {
   const days = daysActive(campaign.startDate);
   const idx = phaseIndex(campaign.phase);
@@ -110,9 +113,10 @@ function IdentitySummary({
     <Card className="p-8">
       <SectionLabel>Transition Profile</SectionLabel>
 
-      <p className="mt-5 text-2xl font-semibold tracking-tight text-neutral-900">
-        {campaign.targetRole}
-      </p>
+      <EditableTargetRole
+        value={campaign.targetRole}
+        onSave={onSaveTargetRole}
+      />
 
       <div className="mt-2.5 flex flex-wrap items-center gap-3">
         <Badge variant="primary">
@@ -516,11 +520,22 @@ function DeleteAccount({
 export default function Profile() {
   const { user, getToken, signOut } = useAuth();
   const { data, loading, error, fetchDashboard } = useDashboard();
-  const { setPageSnapshot } = useMutationBus();
+  const { setPageSnapshot, emit } = useMutationBus();
 
   useEffect(() => {
     void fetchDashboard();
   }, [fetchDashboard]);
+
+  const handleSaveTargetRole = useCallback(
+    async (next: string) => {
+      const token = await getToken();
+      if (!token) throw new Error('Not signed in');
+      await api.profile.updateTargetRole(next, token);
+      emit({ type: 'profile:updated', payload: { field: 'targetRole' } });
+      await fetchDashboard();
+    },
+    [getToken, emit, fetchDashboard],
+  );
 
   // Publish page snapshot for coaching agent context
   useEffect(() => {
@@ -571,6 +586,7 @@ export default function Profile() {
         username={user?.username ?? ''}
         campaign={campaign}
         stats={stats}
+        onSaveTargetRole={handleSaveTargetRole}
       />
 
       <SkillsInventory skills={campaign.skillsFocus} />

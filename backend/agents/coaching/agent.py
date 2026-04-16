@@ -112,7 +112,6 @@ def _create_session_manager(user_id: str, session_id: str | None = None):
     try:
         from bedrock_agentcore.memory.integrations.strands.config import (
             AgentCoreMemoryConfig,
-            RetrievalConfig,
         )
         from bedrock_agentcore.memory.integrations.strands.session_manager import (
             AgentCoreMemorySessionManager,
@@ -122,7 +121,7 @@ def _create_session_manager(user_id: str, session_id: str | None = None):
             memory_id=memory_id,
             actor_id=user_id,
             session_id=resolved_session_id,
-            retrieval_config=RetrievalConfig(),
+            retrieval_config=None,
         )
         return AgentCoreMemorySessionManager(
             agentcore_memory_config=config,

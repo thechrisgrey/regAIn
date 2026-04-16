@@ -347,3 +347,50 @@ class TestComponentCaching:
         from backend.agents.coaching.agent import evict_cached_components
 
         evict_cached_components("does-not-exist")
+
+
+class TestSessionManagerRetrievalConfig:
+    """Pydantic schema for AgentCoreMemoryConfig requires
+    retrieval_config to be Optional[Dict[str, RetrievalConfig]], not
+    a bare RetrievalConfig. See layer_build/.../strands/config.py.
+    """
+
+    def test_retrieval_config_is_dict_or_none(self, monkeypatch):
+        """AgentCoreMemoryConfig must receive retrieval_config as
+        dict or None, never a bare RetrievalConfig instance."""
+        monkeypatch.setenv("AGENTCORE_MEMORY_ID", "mem-123")
+        monkeypatch.setenv("AWS_REGION", "us-east-1")
+
+        mock_config_cls = MagicMock(name="AgentCoreMemoryConfig")
+        mock_retrieval_cls = MagicMock(name="RetrievalConfig")
+        mock_session_mgr_cls = MagicMock(name="AgentCoreMemorySessionManager")
+
+        config_mod = types.ModuleType(
+            "bedrock_agentcore.memory.integrations.strands.config"
+        )
+        config_mod.AgentCoreMemoryConfig = mock_config_cls
+        config_mod.RetrievalConfig = mock_retrieval_cls
+
+        mgr_mod = types.ModuleType(
+            "bedrock_agentcore.memory.integrations.strands.session_manager"
+        )
+        mgr_mod.AgentCoreMemorySessionManager = mock_session_mgr_cls
+
+        with patch.dict(sys.modules, {
+            "bedrock_agentcore": types.ModuleType("bedrock_agentcore"),
+            "bedrock_agentcore.memory": types.ModuleType("bedrock_agentcore.memory"),
+            "bedrock_agentcore.memory.integrations": types.ModuleType("bedrock_agentcore.memory.integrations"),
+            "bedrock_agentcore.memory.integrations.strands": types.ModuleType("bedrock_agentcore.memory.integrations.strands"),
+            "bedrock_agentcore.memory.integrations.strands.config": config_mod,
+            "bedrock_agentcore.memory.integrations.strands.session_manager": mgr_mod,
+        }):
+            from backend.agents.coaching.agent import _create_session_manager
+
+            _create_session_manager("user-42", session_id="ws-conn-abc")
+
+        mock_config_cls.assert_called_once()
+        call_kwargs = mock_config_cls.call_args.kwargs
+        retrieval = call_kwargs.get("retrieval_config")
+        assert retrieval is None or isinstance(retrieval, dict), (
+            f"retrieval_config must be None or dict, got {type(retrieval).__name__}: {retrieval}"
+        )

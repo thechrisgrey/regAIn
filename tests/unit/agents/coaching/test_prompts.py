@@ -61,6 +61,14 @@ class TestGetSystemPrompt:
         assert "read_user_profile" in prompt
         assert "log_evidence" in prompt
 
+    def test_includes_web_search_guidance(self) -> None:
+        """web_search tool should be documented with citation + safety guidance."""
+        prompt = get_system_prompt()
+
+        assert "web_search" in prompt
+        assert "markdown hyperlink" in prompt or "[Source Title" in prompt
+        assert "untrusted" in prompt
+
     def test_skill_tagging_section_present(self) -> None:
         """A 'Skill Tagging' section should always be included."""
         prompt_with = get_system_prompt(valid_skill_tags=["Python Programming"])

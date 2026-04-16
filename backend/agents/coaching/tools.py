@@ -396,6 +396,54 @@ class _RateLimitExceeded(Exception):
     """Raised when the daily mission generation limit is reached."""
 
 
+class _SearchRateLimitExceeded(Exception):
+    """Raised when the daily web-search limit is reached."""
+
+
+WEB_SEARCH_DAILY_LIMIT = 20
+
+
+def _enforce_daily_search_limit(user_id: str) -> None:
+    """Atomically increment the daily web-search counter.
+
+    Uses a DynamoDB conditional update on UserProfiles to cap web searches
+    at WEB_SEARCH_DAILY_LIMIT per user per day. Counter resets when the
+    UTC date changes.
+
+    Args:
+        user_id: The user whose counter to increment.
+
+    Raises:
+        _SearchRateLimitExceeded: If the user has hit the daily limit.
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    table = db._get_table("user_profiles")
+
+    # Reset counter when the date has changed.
+    try:
+        table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression="SET dailySearchCount = :zero, lastSearchDate = :today",
+            ConditionExpression=(
+                "attribute_not_exists(lastSearchDate) OR lastSearchDate <> :today"
+            ),
+            ExpressionAttributeValues={":zero": 0, ":today": today},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        pass
+
+    # Atomically increment if under the daily cap.
+    try:
+        table.update_item(
+            Key={"userId": user_id},
+            UpdateExpression="ADD dailySearchCount :inc",
+            ConditionExpression="dailySearchCount < :limit",
+            ExpressionAttributeValues={":inc": 1, ":limit": WEB_SEARCH_DAILY_LIMIT},
+        )
+    except table.meta.client.exceptions.ConditionalCheckFailedException:
+        raise _SearchRateLimitExceeded()
+
+
 def _enforce_daily_rate_limit(user_id: str) -> None:
     """Atomically increment the daily mission generation counter.
 

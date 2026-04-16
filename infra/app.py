@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 """REGAIN Platform — CDK Application Entry Point."""
-import os
-
 import aws_cdk as cdk
 from stacks.auth_stack import AuthStack
 from stacks.data_stack import DataStack
@@ -13,8 +11,12 @@ from stacks.resume_stack import ResumeStack
 from stacks.voice_practice_stack import VoicePracticeStack
 from stacks.score_stack import ScoreStack
 
-_ACCOUNT = os.environ.get("CDK_DEFAULT_ACCOUNT", "563170906428")
-_REGION = os.environ.get("CDK_DEFAULT_REGION", "us-east-1")
+# Hardcoded — do NOT read CDK_DEFAULT_ACCOUNT from env. The CDK CLI auto-populates
+# that variable from whatever credentials it resolves, which silently sends
+# deploys to the wrong account when SSO falls back through ~/.aws/credentials.
+# Use scripts/deploy.sh to deploy, which validates the caller identity first.
+_ACCOUNT = "563170906428"
+_REGION = "us-east-1"
 
 app = cdk.App()
 

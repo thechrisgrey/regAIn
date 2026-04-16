@@ -100,10 +100,16 @@ cd frontend && npm run lint     # ESLint
 # Build Strands Lambda Layer (requires Docker)
 bash infra/build_layer.sh  # outputs to infra/layer_build/ (~212MB)
 
-# CDK Deploy (all stacks in us-east-1, account 563170906428)
-# CRITICAL: Always include AWS_DEFAULT_REGION=us-east-1 — SSO credential export does NOT set region
-cd infra && eval "$(AWS_PROFILE=regain aws configure export-credentials --format env)" && AWS_DEFAULT_REGION=us-east-1 npx cdk deploy <StackName> --require-approval never
-# Stacks: RegainAuthStack, RegainDataStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack, RegainVoicePracticeStack, RegainResumeStack
+# CDK Deploy — ALWAYS use the safe wrapper (all stacks: account 563170906428, us-east-1)
+# The wrapper validates caller identity before deploy, preventing silent cross-account drift
+# when SSO expires and CDK falls back to long-lived IAM user creds in ~/.aws/credentials.
+bash scripts/deploy.sh <StackName>
+bash scripts/deploy.sh <StackName> --exclusively   # skip dependency stacks
+# Stacks: RegainAuthStack, RegainDataStack, RegainApiStack, RegainAgentStack, RegainAgentCoreStack, RegainMarketIntelStack, RegainVoicePracticeStack, RegainResumeStack, RegainScoreStack
+
+# DO NOT run `npx cdk deploy` directly — credential chain silently routes to account 205930636302
+# via the default IAM user when SSO expires. The wrapper strips leaked AWS_* env vars, refreshes
+# SSO if needed, and asserts account=563170906428 before calling cdk. See scripts/deploy.sh.
 ```
 
 ## Key Decisions & Patterns
@@ -179,7 +185,7 @@ cd infra && eval "$(AWS_PROFILE=regain aws configure export-credentials --format
 - **Agent tool DynamoDB wiring**: When adding a DynamoDB table that coaching agent tools need, update THREE places in `agent_stack.py`: (1) `_table_env()` for env var, (2) `_grant_chat_stream_lambda_permissions()`, (3) `_grant_voice_lambda_permissions()`. The REST API coaching Lambda in ApiStack is separate. Also update `AGENT_ALLOWED_TABLES` in `test_iam_least_privilege.py`
 - **Hardcoded test counts**: When adding Lambdas/routes to **ApiStack**, update `EXPECTED_LAMBDA_COUNT` in `test_iam_least_privilege.py`, `test_lambda_env_config.py`, `test_lambda_runtime_consistency.py`, and `EXPECTED_METHOD_COUNT` in `test_api_authorization.py`. When adding tables to **DataStack**, update `EXPECTED_TABLE_COUNT` in `test_on_demand_billing.py` and `test_table_output_completeness.py` (+ `known_tables`). Update `ALLOWED_TABLES` in `test_iam_least_privilege.py` if permissions change
 - **CDK cross-stack patterns**: Passing a construct reference from StackB to modify StackA's Lambda creates StackA → StackB dependency and often cycles. Fix: pass plain string ARNs/names (not construct references), use inline `iam.PolicyStatement` instead of `grant_invoke()`/`grant_read()`. For CfnResource cross-stack attrs, use `cfn_resource.get_att("Attr")` (construct method), NOT `cdk.Fn.get_att(logical_id, "Attr")`. For Lambda Layers: create inline `LayerVersion` in each consuming stack — don't share via export (CloudFormation can't update exports that other stacks import). For coaching_lambda (ApiStack) consuming AgentStack resources, use `cdk.Fn.import_value()` to break cycles
-- **CDK + Node v25 SSO**: CDK's JS credential chain fails silently with Node v25. Always run: `eval "$(AWS_PROFILE=regain aws configure export-credentials --format env)" && AWS_DEFAULT_REGION=us-east-1 npx cdk deploy ...` — credential export does NOT set region
+- **CDK cross-account deploy guard**: Use `bash scripts/deploy.sh <StackName>` — NOT `npx cdk deploy` directly. The CDK CLI auto-populates `CDK_DEFAULT_ACCOUNT` from whatever credentials it resolves; when the `regain` SSO session expires, CDK silently falls back to the long-lived IAM user in `~/.aws/credentials` (account 205930636302) and deploys there instead. The wrapper strips leaked `AWS_*` env vars, re-runs `aws sso login --profile regain` if needed, and asserts `sts get-caller-identity` returns 563170906428 before invoking CDK. `infra/app.py` now hardcodes `_ACCOUNT = "563170906428"` (no env override) and `tests/unit/infra/test_app_account_pinned.py` enforces that via AST check
 - **`infra/layer_build/`** is gitignored — rebuild via `bash infra/build_layer.sh` before `cdk deploy`
 - **API Gateway CORS**: `default_cors_preflight_options` only handles OPTIONS and only covers L2 resources. Add `GatewayResponse` for `DEFAULT_4_XX`/`DEFAULT_5_XX` with CORS headers. L1 `CfnResource` routes (ResumeStack, VoicePracticeStack — used to avoid cyclic deps) need manual MOCK OPTIONS methods
 - **S3 versioned bucket deletion**: `delete_objects` without `VersionId` only creates delete markers — actual object versions persist indefinitely. Use `list_object_versions` paginator (returns `Versions` + `DeleteMarkers` with `VersionId`). Works on non-versioned buckets too (`VersionId` is `"null"`)

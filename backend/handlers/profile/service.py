@@ -115,6 +115,76 @@ class ProfileService:
         logger.info("Recovered soft-deleted account for user %s", user_id)
         return {"status": "recovered"}
 
+    _MAX_TARGET_ROLE_LEN = 200
+
+    def update_target_role(self, user_id: str, target_role: str) -> Dict[str, Any]:
+        """Atomically update targetRole on UserProfiles and the active Campaign.
+
+        Both writes happen inside a single DynamoDB TransactWriteItems call,
+        so either both succeed or both fail. If the user has no active
+        campaign, only UserProfiles is written.
+
+        Args:
+            user_id: Cognito sub from JWT claims.
+            target_role: New target role string. Trimmed; must be 1–200 chars.
+
+        Returns:
+            ``{"targetRole": <trimmed value>}``.
+
+        Raises:
+            ValueError: When ``target_role`` is empty after trimming or
+                exceeds 200 characters.
+        """
+        trimmed = (target_role or "").strip()
+        if not trimmed:
+            raise ValueError("target_role must not be empty")
+        if len(trimmed) > self._MAX_TARGET_ROLE_LEN:
+            raise ValueError(
+                f"target_role exceeds {self._MAX_TARGET_ROLE_LEN} characters"
+            )
+
+        active_campaign = self._find_active_campaign(user_id)
+
+        profiles_table = os.environ["USER_PROFILES_TABLE"]
+        campaigns_table = os.environ["CAMPAIGNS_TABLE"]
+
+        items: list[Dict[str, Any]] = [{
+            "Update": {
+                "TableName": profiles_table,
+                "Key": {"userId": {"S": user_id}},
+                "UpdateExpression": "SET targetRole = :v",
+                "ExpressionAttributeValues": {":v": {"S": trimmed}},
+            }
+        }]
+        if active_campaign:
+            items.append({
+                "Update": {
+                    "TableName": campaigns_table,
+                    "Key": {
+                        "userId": {"S": user_id},
+                        "campaignId": {"S": active_campaign["campaignId"]},
+                    },
+                    "UpdateExpression": "SET targetRole = :v",
+                    "ExpressionAttributeValues": {":v": {"S": trimmed}},
+                }
+            })
+
+        client = boto3.client("dynamodb")
+        client.transact_write_items(TransactItems=items)
+        logger.info("Updated targetRole for user %s", user_id)
+        return {"targetRole": trimmed}
+
+    def _find_active_campaign(self, user_id: str) -> Dict[str, Any] | None:
+        """Return the user's active campaign row, or None if none exists."""
+        from boto3.dynamodb.conditions import Attr, Key
+
+        items = self.db.query(
+            "campaigns",
+            key_condition=Key("userId").eq(user_id),
+            filter_expression=Attr("status").eq("active"),
+        )
+        return items[0] if items else None
+
     def hard_delete_user_account(self, user_id: str) -> Dict[str, Any]:
         """Permanently delete all user data from DynamoDB, S3, and Cognito.
 

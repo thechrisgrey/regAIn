@@ -72,6 +72,7 @@ def _get_direct_tools() -> list:
         write_calendar_entry,
         onet_search_careers,
         onet_career_detail,
+        web_search,
     )
 
     return [
@@ -93,6 +94,7 @@ def _get_direct_tools() -> list:
         write_calendar_entry,
         onet_search_careers,
         onet_career_detail,
+        web_search,
     ]
 
 

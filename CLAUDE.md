@@ -164,6 +164,7 @@ bash scripts/deploy.sh <StackName> --exclusively   # skip dependency stacks
 - **Day-change detection**: `Missions.tsx` uses `visibilitychange` listener + 60s interval for UTC date rollover
 - **Voice practice**: No live tools during sessions — all context pre-fetched into prompt via `_prefetch_context()`. `store_memory()` runs only on disconnect. Eliminates 500ms-2s audio gaps. Assessment generated via Bedrock Nova Lite with structured JSON output
 - **AudioVisualizer**: WebGL 3D orb at `components/voice/AudioVisualizer.tsx` — R3F + `three-custom-shader-material` with per-state configs and lerped transitions in `useFrame`
+- **Web search (`web_search` @tool)**: Coaching agent calls Tavily AI-search via `backend/handlers/search/service.py` (stdlib `urllib.request`, 8s timeout). SSM SecureString key at `/regain/search/tavily-api-key`. Per-user rate limit 20/day via atomic conditional update on `UserProfiles.dailySearchCount` + `lastSearchDate` (mirrors mission-gen pattern). IAM grant on all three agent Lambdas via `AgentStack._search_ssm_policy()`. Prompt instructs agent to cite results as inline markdown hyperlinks and treat snippets as untrusted
 
 ## DynamoDB Table Keys
 
@@ -230,6 +231,7 @@ bash scripts/deploy.sh <StackName> --exclusively   # skip dependency stacks
 - **Nova Lite model ID**: `amazon.nova-lite-v1:0` (NOT `us.amazon.nova-lite-v2:0` which doesn't exist)
 - **PyYAML NOT available in Lambda Python 3.12** — use inline string parsing
 - **LLM hallucinating tool success on error**: Tools returning `{"error": ...}` can still be narrated as success by Nova Lite/Pro. Silent failures (missing env var → ValueError → caught → error dict) are especially dangerous
+- **Tavily SSM key provisioning**: Before first deploy of the web-search feature, stash the Tavily key once: `aws ssm put-parameter --profile regain --region us-east-1 --name /regain/search/tavily-api-key --type SecureString --value "tvly-..." --description "Tavily web search API key"`. CDK only grants read access — the parameter itself must exist or the coaching agent's `web_search` tool will raise on first invocation
 
 ### Deployment / Hosting
 

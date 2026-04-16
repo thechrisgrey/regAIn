@@ -13,7 +13,7 @@ import threading
 import time
 import uuid
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, Optional, Set
 
 import boto3
 
@@ -90,11 +90,12 @@ class _StreamingToolHooks:
     instead of appearing stuck.
     """
 
-    def __init__(self, send_fn: Callable[[Dict[str, Any]], None], tracer: Any = None) -> None:
+    def __init__(self, send_fn: Callable[[Dict[str, Any]], None], tracer: Any = None, allowed_urls: Optional[Set[str]] = None) -> None:
         self._send = send_fn
         self._tracer = tracer
         self._tool_spans: Dict[str, Any] = {}
         self._tool_start_times: Dict[str, float] = {}
+        self._allowed_urls = allowed_urls
 
     def register_hooks(self, registry: Any, **kwargs: Any) -> None:
         from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent
@@ -118,6 +119,8 @@ class _StreamingToolHooks:
     def _on_after_tool(self, event: Any) -> None:
         tool_name = event.tool_use.get("name", "")
         logger.info("Tool completed: %s", tool_name)
+        if tool_name == "web_search" and self._allowed_urls is not None:
+            self._extract_search_urls(event)
         cm = self._tool_spans.pop(tool_name, None)
         if cm:
             cm.__exit__(None, None, None)
@@ -134,6 +137,22 @@ class _StreamingToolHooks:
             self._send({"type": "thinking_complete", "tool": tool_name})
         except ConnectionGoneError:
             pass
+
+    def _extract_search_urls(self, event: Any) -> None:
+        """Populate allowed_urls from a web_search tool result."""
+        try:
+            import json as _json
+
+            content = event.result.get("content", [])
+            if not content:
+                return
+            raw = _json.loads(content[0].get("text", "{}"))
+            for r in raw.get("results", []):
+                url = r.get("url")
+                if url:
+                    self._allowed_urls.add(url)
+        except Exception:
+            logger.debug("Could not extract URLs from web_search result", exc_info=True)
 
 
 def _validate_cognito_token(token: str) -> Optional[str]:
@@ -475,12 +494,19 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     # The connection_stale flag is set by the heartbeat thread if a send fails.
     connection_stale = threading.Event()
 
+    # URL filter: strip hallucinated markdown links whose URLs are not in
+    # the actual Tavily results.  The allowed_urls set is populated by
+    # _StreamingToolHooks._on_after_tool when web_search completes.
+    allowed_urls: Set[str] = set()
+    from backend.handlers.coaching.url_filter import UrlFilter
+    url_filter = UrlFilter(send_fn=send_ws, allowed_urls=allowed_urls)
+
     def stream_callback(**kwargs):
         if connection_stale.is_set():
             return
         if "data" in kwargs:
             try:
-                send_ws({"type": "delta", "text": kwargs["data"]})
+                url_filter.write(kwargs["data"])
             except ConnectionGoneError:
                 connection_stale.set()
 
@@ -527,7 +553,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         from backend.agents.coaching.instrumentation import SessionTracer
 
         tracer = SessionTracer(session_id=connection_id, user_id=user_id)
-        tool_hooks = _StreamingToolHooks(send_fn=send_ws, tracer=tracer)
+        tool_hooks = _StreamingToolHooks(send_fn=send_ws, tracer=tracer, allowed_urls=allowed_urls)
 
         # Auto-compact if at token budget.
         if thread["tokenEstimate"] >= thread["maxTokenBudget"] and thread["turns"]:
@@ -576,10 +602,20 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
                 f"[session_type={session_type}] [user_id={user_id}] {message}"
             )
 
+        # Flush any buffered partial link in the URL filter.
+        try:
+            url_filter.flush()
+        except ConnectionGoneError:
+            connection_stale.set()
+
+        # Use the filter's output for the done payload so the frontend's
+        # final message text matches the filtered streaming deltas.
+        filtered_text = url_filter.filtered_output or str(result)
+
         # Only send done if we haven't already sent a timeout error.
         if not timed_out.is_set() and not connection_stale.is_set():
             try:
-                send_ws({"type": "done", "text": str(result)})
+                send_ws({"type": "done", "text": filtered_text})
             except ConnectionGoneError:
                 connection_stale.set()
 
@@ -587,7 +623,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             now_ts = datetime.now(timezone.utc).isoformat()
             new_turns = [
                 {"role": "user", "content": message, "timestamp": now_ts, "source": "chat"},
-                {"role": "assistant", "content": str(result), "timestamp": now_ts, "source": "chat"},
+                {"role": "assistant", "content": filtered_text, "timestamp": now_ts, "source": "chat"},
             ]
             append_turns(user_id, new_turns)
 

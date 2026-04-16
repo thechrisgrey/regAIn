@@ -69,6 +69,21 @@ class TestGetSystemPrompt:
         assert "markdown hyperlink" in prompt or "[Source Title" in prompt
         assert "untrusted" in prompt
 
+    def test_web_search_forbids_url_invention(self) -> None:
+        """Prompt must explicitly forbid inventing URLs not in Tavily results.
+
+        Regression guard: Nova Lite hallucinated a TechCrunch URL during
+        the initial prod smoke test, which 404'd when the user clicked it.
+        The prompt must make it unambiguous that only URLs appearing in
+        the tool's `results[].url` field are quotable.
+        """
+        prompt = get_system_prompt()
+
+        # Must mention the exact result field so the model knows where URLs come from.
+        assert "results[].url" in prompt
+        # Must contain a clear prohibition on URL invention.
+        assert "do NOT invent" in prompt or "never invent" in prompt.lower()
+
     def test_skill_tagging_section_present(self) -> None:
         """A 'Skill Tagging' section should always be included."""
         prompt_with = get_system_prompt(valid_skill_tags=["Python Programming"])

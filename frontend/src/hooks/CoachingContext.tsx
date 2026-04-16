@@ -47,6 +47,13 @@ const TOOL_LABELS: Record<string, string> = {
   recall_memory: 'Recalling conversation',
   store_memory: 'Saving notes',
   compact_thread: 'Compacting conversation',
+  web_search: 'Searching the web',
+  read_calendar: 'Checking your calendar',
+  write_calendar_entry: 'Updating your calendar',
+  onet_search_careers: 'Searching O*NET careers',
+  onet_career_detail: 'Reading O*NET career detail',
+  generate_resume: 'Drafting resume',
+  get_resume: 'Loading resume',
 };
 
 export type ConnectionStatus = 'connected' | 'reconnecting' | 'disconnected';

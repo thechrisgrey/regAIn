@@ -40,15 +40,15 @@ def _get_authorizer_ids(template: dict) -> set[str]:
     }
 
 
-# The API stack defines exactly 18 non-OPTIONS methods:
+# The API stack defines exactly 19 non-OPTIONS methods:
 # POST /onboarding, GET /missions, POST /missions/generate,
 # POST /missions/{missionId}/complete, GET /evidence,
 # GET /evidence/suggest-tags, POST /coaching/checkin,
-# GET /dashboard, GET /analytics, DELETE /profile,
+# GET /dashboard, GET /analytics, PATCH /profile, DELETE /profile,
 # POST /profile/recover, GET /onet/search, GET /onet/careers/{soc_code},
 # GET /calendar, POST /calendar, PUT /calendar/{dateEntryId},
 # DELETE /calendar/{dateEntryId}, GET /calendar/heatmap
-EXPECTED_METHOD_COUNT = 18
+EXPECTED_METHOD_COUNT = 19
 
 # Synthesize once, reuse across all Hypothesis examples
 _CACHED_TEMPLATE = _synth_all_templates()["RegainApiStack"]

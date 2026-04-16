@@ -19,7 +19,7 @@ _VALID_MODES = {"immediate", "scheduled"}
 
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
-    """Handle profile requests (DELETE /profile, POST /profile/recover).
+    """Handle profile requests (PATCH /profile, DELETE /profile, POST /profile/recover).
 
     Args:
         event: API Gateway event.
@@ -41,6 +41,33 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
         if http_method == "POST" and resource == "/profile/recover":
             result = service.recover_user_account(user_id)
+            return success_response(result)
+
+        if http_method == "PATCH" and resource == "/profile":
+            raw_body = event.get("body")
+            if not raw_body:
+                return error_response(
+                    "Missing request body", 400, error_kind="VALIDATION",
+                )
+            try:
+                body = json.loads(raw_body)
+            except (json.JSONDecodeError, TypeError):
+                return error_response(
+                    "Invalid JSON body", 400, error_kind="VALIDATION",
+                )
+
+            target_role = body.get("targetRole")
+            if not isinstance(target_role, str):
+                return error_response(
+                    "Missing or invalid field: targetRole",
+                    400,
+                    error_kind="VALIDATION",
+                )
+
+            try:
+                result = service.update_target_role(user_id, target_role)
+            except ValueError as exc:
+                return error_response(str(exc), 400, error_kind="VALIDATION")
             return success_response(result)
 
         if http_method == "DELETE":

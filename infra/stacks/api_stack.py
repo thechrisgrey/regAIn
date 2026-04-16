@@ -339,8 +339,13 @@ class ApiStack(cdk.Stack):
             **auth_kwargs,
         )
 
-        # DELETE /profile + POST /profile/recover
+        # PATCH /profile, DELETE /profile, POST /profile/recover
         profile = self.api.root.add_resource("profile")
+        profile.add_method(
+            "PATCH",
+            apigw.LambdaIntegration(lambdas["Profile"]),
+            **auth_kwargs,
+        )
         profile.add_method(
             "DELETE",
             apigw.LambdaIntegration(lambdas["Profile"]),

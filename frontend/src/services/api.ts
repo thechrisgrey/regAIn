@@ -34,7 +34,7 @@ const MUTATION_RETRY_DELAY_MS = 500;
 export type ErrorKind = 'NOT_FOUND' | 'CONFLICT' | 'RATE_LIMITED' | 'TRANSIENT' | 'VALIDATION' | 'UNKNOWN';
 
 interface ApiRequestOptions {
-  method: 'GET' | 'POST' | 'PUT' | 'DELETE';
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
   body?: unknown;
   headers?: Record<string, string>;
 }
@@ -240,6 +240,15 @@ export const api = {
       cachedGet<VoiceSessionDetailResponse>(`/voice-sessions/${sessionId}`, token, 10_000),
   },
   profile: {
+    updateTargetRole: (targetRole: string, token: string) =>
+      apiRequest<{ targetRole: string }>(
+        '/profile',
+        { method: 'PATCH', body: { targetRole } },
+        token,
+      ).then((res) => {
+        invalidateCache('/dashboard');
+        return res;
+      }),
     delete: (token: string, mode: 'immediate' | 'scheduled' = 'immediate') =>
       apiRequest<{ status: string; deletionDate?: string; deleted?: Record<string, number> }>(
         '/profile',

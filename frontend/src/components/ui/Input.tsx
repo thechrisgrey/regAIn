@@ -1,4 +1,10 @@
-import { type InputHTMLAttributes, type TextareaHTMLAttributes, type SelectHTMLAttributes } from 'react';
+import {
+  useId,
+  type InputHTMLAttributes,
+  type Ref,
+  type TextareaHTMLAttributes,
+  type SelectHTMLAttributes,
+} from 'react';
 
 /* ------------------------------------------------------------------ */
 /* Input                                                              */
@@ -7,20 +13,28 @@ import { type InputHTMLAttributes, type TextareaHTMLAttributes, type SelectHTMLA
 interface InputProps extends InputHTMLAttributes<HTMLInputElement> {
   label?: string;
   error?: string;
+  ref?: Ref<HTMLInputElement>;
 }
 
 const baseInput =
   'block w-full rounded-[var(--radius-button)] border border-neutral-200 bg-white px-3.5 py-2.5 text-sm text-neutral-900 placeholder:text-neutral-400 focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-500/20 transition-shadow min-h-[44px]';
 
-export function Input({ label, error, id, className = '', ...rest }: InputProps) {
+export function Input({ label, error, id, className = '', ref, ...rest }: InputProps) {
+  const generatedId = useId();
+  const inputId = id ?? generatedId;
   return (
     <div>
       {label && (
-        <label htmlFor={id} className="block text-sm font-medium text-neutral-700">
+        <label htmlFor={inputId} className="block text-sm font-medium text-neutral-700">
           {label}
         </label>
       )}
-      <input id={id} className={`${label ? 'mt-1.5' : ''} ${baseInput} ${className}`} {...rest} />
+      <input
+        ref={ref}
+        id={inputId}
+        className={`${label ? 'mt-1.5' : ''} ${baseInput} ${className}`}
+        {...rest}
+      />
       {error && <p className="mt-1.5 text-xs text-error-600">{error}</p>}
     </div>
   );

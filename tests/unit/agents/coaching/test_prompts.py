@@ -118,6 +118,27 @@ class TestGetSystemPrompt:
 
         assert opening_idx < rules_idx
 
+    def test_mandatory_tool_call_rule_present(self) -> None:
+        """The prompt must contain an explicit rule that the agent
+        MUST call a tool to perform any action (never claim a state
+        change in narrative alone)."""
+        prompt = get_system_prompt()
+
+        assert "MUST call a tool" in prompt, (
+            "Prompt must contain explicit 'MUST call a tool' directive"
+        )
+        assert "narrative alone" in prompt or "narrative only" in prompt, (
+            "Prompt must forbid narrating actions without tool calls"
+        )
+
+    def test_mandatory_tool_call_rule_survives_skill_tags(self) -> None:
+        """Rule is present whether or not valid_skill_tags is set."""
+        with_tags = get_system_prompt(valid_skill_tags=["Python"])
+        without_tags = get_system_prompt()
+
+        for p in (with_tags, without_tags):
+            assert "MUST call a tool" in p
+
 
 class TestOnetSection:
     """Tests for the O*NET career data section of the system prompt."""

@@ -20,8 +20,20 @@ export interface ToolStep {
   status: 'active' | 'done';
 }
 
+export interface SearchSource {
+  title: string;
+  url: string;
+}
+
+export interface SearchTrace {
+  query: string;
+  result_count: number;
+  sources: SearchSource[];
+  error?: string;
+}
+
 interface StreamEvent {
-  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success' | 'proactive' | 'thread_meta' | 'debug';
+  type: 'delta' | 'done' | 'error' | 'thinking' | 'thinking_complete' | 'heartbeat' | 'auth_success' | 'proactive' | 'thread_meta' | 'debug' | 'search_trace';
   text?: string;
   message?: string;
   tool?: string;
@@ -29,6 +41,10 @@ interface StreamEvent {
   tokenBudget?: number;
   attentionMode?: 'explore' | 'dnd';
   pendingMessages?: Array<{ type: string; text: string }>;
+  query?: string;
+  result_count?: number;
+  sources?: SearchSource[];
+  error?: string;
 }
 
 /** Human-readable labels for tool names sent by the backend. */
@@ -64,6 +80,7 @@ export interface CoachingContextType {
   streamingText: string;
   thinking: boolean;
   toolSteps: ToolStep[];
+  searchTrace: SearchTrace | null;
   error: string | null;
   connectionStatus: ConnectionStatus;
   streamHint: string | null;
@@ -119,6 +136,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   const [streaming, setStreaming] = useState(false);
   const [streamingText, setStreamingText] = useState('');
   const [toolSteps, setToolSteps] = useState<ToolStep[]>([]);
+  const [searchTrace, setSearchTrace] = useState<SearchTrace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<ConnectionStatus>(
     WS_URL ? 'reconnecting' : 'disconnected',
@@ -170,6 +188,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
 
   const clearToolSteps = useCallback(() => {
     setToolSteps([]);
+    setSearchTrace(null);
     hasStepsRef.current = false;
     clearTimeout(fadeTimerRef.current);
     fadeTimerRef.current = undefined;
@@ -348,6 +367,13 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
               return next;
             });
             resetStreamTimeout();
+          } else if (data.type === 'search_trace') {
+            setSearchTrace({
+              query: data.query || '',
+              result_count: data.result_count || 0,
+              sources: data.sources || [],
+              error: data.error,
+            });
           } else if (data.type === 'done') {
             cancelAndFlushBuffer();
             const finalText = data.text || '';
@@ -545,6 +571,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         streamingText,
         thinking,
         toolSteps,
+        searchTrace,
         error,
         connectionStatus,
         streamHint,

@@ -8,7 +8,7 @@ import {
 } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useCoaching, TOOL_LABELS } from '../hooks/useCoaching';
-import type { ChatMessage, ToolStep } from '../hooks/useCoaching';
+import type { ChatMessage, ToolStep, SearchTrace } from '../hooks/useCoaching';
 import { useMutationBus } from '../hooks/useMutationBus';
 import { MarkdownMessage, AgentActivityFeed } from './ui';
 
@@ -67,11 +67,13 @@ function StreamingBubble({
   toolSteps,
   thinking,
   streamHint,
+  searchTrace,
 }: {
   text: string;
   toolSteps: ToolStep[];
   thinking: boolean;
   streamHint: string | null;
+  searchTrace: SearchTrace | null;
 }) {
   const labeledSteps = toolSteps.map(s => ({
     ...s,
@@ -82,6 +84,27 @@ function StreamingBubble({
     <div className="flex justify-start">
       <div className="max-w-[85%]">
         <AgentActivityFeed steps={labeledSteps} visible={!text && thinking} />
+        {searchTrace && searchTrace.sources.length > 0 && (
+          <div className="mb-2 rounded-[var(--radius-button)] bg-surface-2 border border-neutral-200 px-3 py-2 text-[11px]">
+            <p className="font-medium text-neutral-500 uppercase tracking-widest mb-1">
+              Sources found for &ldquo;{searchTrace.query}&rdquo;
+            </p>
+            <ul className="space-y-0.5">
+              {searchTrace.sources.map((s, i) => (
+                <li key={i}>
+                  <a
+                    href={s.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-primary-600 underline underline-offset-2 hover:text-primary-700 break-all"
+                  >
+                    {s.title || s.url}
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         {text ? (
           <div className="rounded-[var(--radius-card)] bg-surface-3 px-3.5 py-2.5 text-[13px] leading-relaxed text-neutral-800">
             <MarkdownMessage content={text} />
@@ -129,6 +152,7 @@ export default function ChatPanel({ visible }: ChatPanelProps) {
     streamingText,
     thinking,
     toolSteps,
+    searchTrace,
     connectionStatus,
     streamHint,
     sendMessage,
@@ -304,6 +328,7 @@ export default function ChatPanel({ visible }: ChatPanelProps) {
             toolSteps={toolSteps}
             thinking={thinking}
             streamHint={streamHint}
+            searchTrace={searchTrace}
           />
         )}
 

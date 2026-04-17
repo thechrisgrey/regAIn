@@ -140,23 +140,69 @@ class _StreamingToolHooks:
             pass
 
     def _extract_search_urls(self, event: Any) -> None:
-        """Populate allowed_urls and url_titles from a web_search tool result."""
+        """Populate allowed_urls and url_titles from a web_search tool result.
+
+        Also sends a ``search_trace`` WebSocket event so the frontend can
+        display what was actually searched and which sources were found.
+        """
         try:
             import json as _json
 
+            # Extract query from the tool_use input.
+            tool_input = event.tool_use.get("input", {})
+            query = tool_input.get("query", "")
+
             content = event.result.get("content", [])
             if not content:
+                logger.warning("WEB_SEARCH_TRACE no content in tool result query=%r", query)
                 return
             raw = _json.loads(content[0].get("text", "{}"))
+
+            # Check for error responses from the tool.
+            if "error" in raw:
+                logger.warning(
+                    "WEB_SEARCH_TRACE ERROR query=%r error=%s kind=%s message=%s",
+                    query, raw["error"], raw.get("error_kind", ""), raw.get("message", ""),
+                )
+                try:
+                    self._send({
+                        "type": "search_trace",
+                        "query": query,
+                        "error": raw.get("message", raw["error"]),
+                        "result_count": 0,
+                        "sources": [],
+                    })
+                except ConnectionGoneError:
+                    pass
+                return
+
+            sources = []
             for r in raw.get("results", []):
                 url = r.get("url")
+                title = r.get("title", "")
                 if url:
                     self._allowed_urls.add(url)
-                    title = r.get("title", "")
                     if title and self._url_titles is not None:
                         self._url_titles[url] = title
+                    sources.append({"title": title, "url": url})
+
+            logger.info(
+                "WEB_SEARCH_TRACE OK query=%r result_count=%d urls=%s",
+                query, len(sources), [s["url"] for s in sources],
+            )
+
+            # Send trace to frontend for display.
+            try:
+                self._send({
+                    "type": "search_trace",
+                    "query": query,
+                    "result_count": len(sources),
+                    "sources": sources,
+                })
+            except ConnectionGoneError:
+                pass
         except Exception:
-            logger.debug("Could not extract URLs from web_search result", exc_info=True)
+            logger.exception("WEB_SEARCH_TRACE failed to extract URLs from tool result")
 
 
 def _validate_cognito_token(token: str) -> Optional[str]:

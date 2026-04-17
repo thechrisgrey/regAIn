@@ -1380,11 +1380,14 @@ def web_search(
 
     from backend.handlers.search import service as _search_service  # lazy import
 
+    logger.info("WEB_SEARCH query=%r user=%s max_results=%d topic=%s", query, user_id, max_results, topic)
+
     try:
         result = _search_service.search(
             query=query, max_results=max_results, topic=topic
         )
     except ValueError as exc:
+        logger.warning("WEB_SEARCH VALIDATION_ERROR query=%r error=%s", query, exc)
         return {
             "error": "invalid_argument",
             "error_kind": ERR_VALIDATION,
@@ -1399,26 +1402,30 @@ def web_search(
             kind = ERR_PERMANENT
         else:
             kind = ERR_TRANSIENT
+        logger.warning("WEB_SEARCH HTTP_ERROR query=%r code=%d kind=%s", query, exc.code, kind)
         return {
             "error": "search_http_error",
             "error_kind": kind,
             "message": f"Tavily returned HTTP {exc.code}.",
         }
     except urllib.error.URLError as exc:
+        logger.error("WEB_SEARCH NETWORK_ERROR query=%r reason=%s", query, exc.reason)
         return {
             "error": "search_network_error",
             "error_kind": ERR_TRANSIENT,
             "message": f"Could not reach Tavily: {exc.reason}",
         }
     except Exception as exc:
-        logger.exception("web_search failed")
+        logger.exception("WEB_SEARCH UNKNOWN_ERROR query=%r", query)
         return {
             "error": "search_unknown",
             "error_kind": ERR_TRANSIENT,
             "message": str(exc),
         }
 
+    urls = [r.get("url", "") for r in result.get("results", [])]
     remaining = _remaining_searches_today(user_id)
+    logger.info("WEB_SEARCH OK query=%r result_count=%d remaining=%d urls=%s", query, len(urls), remaining, urls)
     return {
         "answer": result.get("answer"),
         "results": result.get("results", []),

@@ -34,9 +34,12 @@ through unchanged.
 
 from __future__ import annotations
 
+import logging
 import re
 from typing import Any, Callable, Dict, Set
 from urllib.parse import urlparse
+
+logger = logging.getLogger(__name__)
 
 _LINK_RE = re.compile(r"\[([^\]]*)\]\(([^)]+)\)")
 
@@ -109,10 +112,14 @@ class UrlFilter:
             if m:
                 label, url = m.group(1), m.group(2)
                 resolved = self._resolve_url(label, url)
-                if resolved:
+                if resolved == url:
+                    logger.info("URL_FILTER PASS label=%r url=%r", label, url)
+                    self._emit(f"[{label}]({resolved})")
+                elif resolved:
+                    logger.info("URL_FILTER REPAIRED label=%r hallucinated=%r real=%r", label, url, resolved)
                     self._emit(f"[{label}]({resolved})")
                 else:
-                    # No match — drop the link, keep the label.
+                    logger.warning("URL_FILTER STRIPPED label=%r hallucinated=%r allowed=%s", label, url, list(self._allowed))
                     self._emit(f"[{label}]" if label else "")
                 self._buffer = self._buffer[m.end():]
                 continue

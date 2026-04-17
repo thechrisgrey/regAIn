@@ -13,7 +13,7 @@ across chunks), and non-link bracketed text (must pass through).
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Set
+from typing import Any, Dict, List, Optional, Set
 
 from backend.handlers.coaching.url_filter import UrlFilter
 
@@ -36,9 +36,13 @@ class _Sink:
         return "".join(m.get("text", "") for m in self.messages if m.get("type") == "delta")
 
 
-def _run(chunks: List[str], allowed: Set[str]) -> str:
+def _run(
+    chunks: List[str],
+    allowed: Set[str],
+    url_titles: Dict[str, str] | None = None,
+) -> str:
     sink = _Sink()
-    filt = UrlFilter(send_fn=sink, allowed_urls=allowed)
+    filt = UrlFilter(send_fn=sink, allowed_urls=allowed, url_titles=url_titles or {})
     for c in chunks:
         filt.write(c)
     filt.flush()
@@ -59,13 +63,39 @@ class TestUrlFilter:
         assert result == "See [the article](https://example.com/real) for details."
 
     def test_disallowed_url_link_reduced_to_label(self) -> None:
-        # Nova Lite invented techcrunch.com — not in Tavily's results.
+        # Nova Lite invented techcrunch.com — not in Tavily's results,
+        # and no real techcrunch.com URL exists in the allow-set for repair.
         allowed = {"https://example.com/real"}
         result = _run(
             ["See ", "[TechCrunch](https://techcrunch.com/fake-url)", " for details."],
             allowed=allowed,
         )
         assert result == "See [TechCrunch] for details."
+
+    def test_domain_repair_hallucinated_url(self) -> None:
+        """A hallucinated URL at the same domain gets repaired to the real one.
+
+        Nova Lite invents plausible paths (techcrunch.com/ai-jobs-2025)
+        when Tavily returned a different path at the same domain. The
+        filter should repair to the real URL.
+        """
+        allowed = {"https://techcrunch.com/2025/04/real-article"}
+        result = _run(
+            ["See [TC Article](https://techcrunch.com/fake-path)", " here."],
+            allowed=allowed,
+        )
+        assert result == "See [TC Article](https://techcrunch.com/2025/04/real-article) here."
+
+    def test_title_based_repair(self) -> None:
+        """When domain doesn't match, fall back to title keyword matching."""
+        allowed = {"https://some-aggregator.com/article/123"}
+        titles = {"https://some-aggregator.com/article/123": "TechCrunch Report on AI"}
+        result = _run(
+            ["See [TechCrunch](https://invented.example.com/fake)", "."],
+            allowed=allowed,
+            url_titles=titles,
+        )
+        assert result == "See [TechCrunch](https://some-aggregator.com/article/123)."
 
     def test_link_split_across_chunks(self) -> None:
         """Boundaries should not leak an invalid URL.
@@ -109,19 +139,25 @@ class TestUrlFilter:
         # We flush remaining buffer as-is.
         assert result == "text ending with [unclosed"
 
-    def test_url_strict_equality_not_prefix_match(self) -> None:
-        """A variant URL (trailing slash, different path) must NOT be allowed.
+    def test_domain_repair_uses_real_url_not_hallucinated(self) -> None:
+        """Domain repair substitutes the real URL, not the hallucinated one.
 
-        Nova Lite often invents plausible variants — we require exact match
-        to the Tavily-returned URL.
+        When the model invents a path at the same domain, repair should
+        use the actual Tavily URL, not the hallucinated variant.
         """
         allowed = {"https://example.com/article"}
-        # Trailing slash variant — strip.
+        # Trailing slash variant — repaired to real URL.
         result = _run(["[A](https://example.com/article/)"], allowed=allowed)
-        assert result == "[A]"
-        # Exact match — pass.
+        assert result == "[A](https://example.com/article)"
+        # Exact match — pass as-is.
         result2 = _run(["[B](https://example.com/article)"], allowed=allowed)
         assert result2 == "[B](https://example.com/article)"
+
+    def test_completely_different_domain_stripped(self) -> None:
+        """A URL at a domain not in the allow-set gets stripped entirely."""
+        allowed = {"https://example.com/real"}
+        result = _run(["[Z](https://unknown-domain.org/page)"], allowed=allowed)
+        assert result == "[Z]"
 
     def test_flush_emits_trailing_plain_text(self) -> None:
         sink = _Sink()

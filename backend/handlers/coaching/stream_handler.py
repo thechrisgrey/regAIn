@@ -90,12 +90,13 @@ class _StreamingToolHooks:
     instead of appearing stuck.
     """
 
-    def __init__(self, send_fn: Callable[[Dict[str, Any]], None], tracer: Any = None, allowed_urls: Optional[Set[str]] = None) -> None:
+    def __init__(self, send_fn: Callable[[Dict[str, Any]], None], tracer: Any = None, allowed_urls: Optional[Set[str]] = None, url_titles: Optional[Dict[str, str]] = None) -> None:
         self._send = send_fn
         self._tracer = tracer
         self._tool_spans: Dict[str, Any] = {}
         self._tool_start_times: Dict[str, float] = {}
         self._allowed_urls = allowed_urls
+        self._url_titles = url_titles
 
     def register_hooks(self, registry: Any, **kwargs: Any) -> None:
         from strands.hooks import BeforeToolCallEvent, AfterToolCallEvent
@@ -139,7 +140,7 @@ class _StreamingToolHooks:
             pass
 
     def _extract_search_urls(self, event: Any) -> None:
-        """Populate allowed_urls from a web_search tool result."""
+        """Populate allowed_urls and url_titles from a web_search tool result."""
         try:
             import json as _json
 
@@ -151,6 +152,9 @@ class _StreamingToolHooks:
                 url = r.get("url")
                 if url:
                     self._allowed_urls.add(url)
+                    title = r.get("title", "")
+                    if title and self._url_titles is not None:
+                        self._url_titles[url] = title
         except Exception:
             logger.debug("Could not extract URLs from web_search result", exc_info=True)
 
@@ -494,12 +498,13 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
     # The connection_stale flag is set by the heartbeat thread if a send fails.
     connection_stale = threading.Event()
 
-    # URL filter: strip hallucinated markdown links whose URLs are not in
-    # the actual Tavily results.  The allowed_urls set is populated by
+    # URL filter: strip or repair hallucinated markdown links whose URLs are
+    # not in actual Tavily results.  Both dicts are populated by
     # _StreamingToolHooks._on_after_tool when web_search completes.
     allowed_urls: Set[str] = set()
+    url_titles: Dict[str, str] = {}
     from backend.handlers.coaching.url_filter import UrlFilter
-    url_filter = UrlFilter(send_fn=send_ws, allowed_urls=allowed_urls)
+    url_filter = UrlFilter(send_fn=send_ws, allowed_urls=allowed_urls, url_titles=url_titles)
 
     def stream_callback(**kwargs):
         if connection_stale.is_set():
@@ -553,7 +558,7 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
         from backend.agents.coaching.instrumentation import SessionTracer
 
         tracer = SessionTracer(session_id=connection_id, user_id=user_id)
-        tool_hooks = _StreamingToolHooks(send_fn=send_ws, tracer=tracer, allowed_urls=allowed_urls)
+        tool_hooks = _StreamingToolHooks(send_fn=send_ws, tracer=tracer, allowed_urls=allowed_urls, url_titles=url_titles)
 
         # Auto-compact if at token budget.
         if thread["tokenEstimate"] >= thread["maxTokenBudget"] and thread["turns"]:

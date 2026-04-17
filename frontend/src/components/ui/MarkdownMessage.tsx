@@ -69,10 +69,19 @@ const components: Components = {
   ),
 };
 
+/** Convert `<thinking>...</thinking>` blocks to italicized text. */
+function formatThinkingBlocks(text: string): string {
+  return text.replace(
+    /<thinking>([\s\S]*?)<\/thinking>/g,
+    (_match, inner: string) => `*${inner.trim()}*`,
+  );
+}
+
 export default memo(function MarkdownMessage({ content }: MarkdownMessageProps) {
+  const processed = formatThinkingBlocks(content);
   return (
     <Markdown remarkPlugins={[remarkGfm]} components={components}>
-      {content}
+      {processed}
     </Markdown>
   );
 });

@@ -6,6 +6,7 @@ import type {
   ActivityHeatmapDay,
   VelocityWeek,
   CampaignEta,
+  MarketAlignment,
 } from '../types';
 import { Card, SectionLabel, ProgressBar, Badge, Button, SkeletonBlock } from '../components/ui';
 
@@ -375,7 +376,7 @@ function SkillBarChart({ skills }: { skills: SkillBreakdownItem[] }) {
   const visible = skills.slice(0, 10);
 
   return (
-    <Card className="p-6 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
+    <Card className="p-6 animate-fade-in-up" style={{ animationDelay: '240ms' }}>
       <SectionLabel>Skill Breakdown</SectionLabel>
 
       {visible.length === 0 ? (
@@ -413,12 +414,117 @@ function SkillBarChart({ skills }: { skills: SkillBreakdownItem[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Market Alignment
+// ---------------------------------------------------------------------------
+
+function MarketAlignmentCard({
+  alignment,
+}: {
+  alignment: MarketAlignment | null;
+}) {
+  if (!alignment) {
+    return (
+      <Card className="p-6 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
+        <SectionLabel>Market Alignment</SectionLabel>
+        <p className="mt-5 text-sm leading-relaxed text-neutral-500">
+          Set a target role in your{' '}
+          <a href="/profile" className="text-primary-600 underline underline-offset-2">
+            profile
+          </a>{' '}
+          to see market alignment.
+        </p>
+      </Card>
+    );
+  }
+
+  const pct = Math.round(alignment.alignmentPct);
+
+  return (
+    <Card className="p-6 animate-fade-in-up" style={{ animationDelay: '180ms' }}>
+      <div className="flex items-start justify-between">
+        <div>
+          <SectionLabel>Market Alignment</SectionLabel>
+          <p className="mt-0.5 text-xs text-neutral-400">{alignment.targetRole}</p>
+        </div>
+      </div>
+
+      <div className="mt-5 rounded-[var(--radius-button)] bg-surface-2 px-4 py-3">
+        <p className="stat-value text-3xl font-medium font-mono tabular-nums">
+          {pct}%
+        </p>
+      </div>
+      <ProgressBar value={pct} className="mt-2" />
+
+      {alignment.topGaps.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-neutral-500">
+            Top Gaps
+          </p>
+          <div className="mt-2 space-y-2">
+            {alignment.topGaps.map((gap) => (
+              <div key={gap.skill}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-neutral-700 truncate max-w-[180px]">
+                    {gap.skill}
+                  </span>
+                  <span className="font-mono tabular-nums text-neutral-400 ml-2 shrink-0">
+                    {gap.demand}% of postings
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-[var(--radius-badge)] bg-neutral-100">
+                  <div
+                    className="h-full rounded-[var(--radius-badge)] bg-accent-400 transition-all duration-700 ease-out"
+                    style={{ width: `${gap.demand}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {alignment.topStrengths.length > 0 && (
+        <div className="mt-5">
+          <p className="text-[11px] font-medium uppercase tracking-widest text-neutral-500">
+            Strengths
+          </p>
+          <div className="mt-2 space-y-2">
+            {alignment.topStrengths.map((s) => (
+              <div key={s.skill}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-medium text-neutral-700 truncate max-w-[180px]">
+                    {s.skill}
+                  </span>
+                  <span className="font-mono tabular-nums text-neutral-400 ml-2 shrink-0">
+                    {Math.round(s.userScore * 100)}%
+                  </span>
+                </div>
+                <div className="mt-1 h-1.5 w-full overflow-hidden rounded-[var(--radius-badge)] bg-neutral-100">
+                  <div
+                    className="h-full rounded-[var(--radius-badge)] bg-success-400 transition-all duration-700 ease-out"
+                    style={{ width: `${Math.round(s.userScore * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      <p className="mt-4 text-[10px] text-neutral-400">
+        Calculated {new Date(alignment.calculatedAt).toLocaleDateString()}
+      </p>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Skill Gaps List
 // ---------------------------------------------------------------------------
 
 function SkillGapsList({ gaps }: { gaps: string[] }) {
   return (
-    <Card className="p-6 animate-fade-in-up" style={{ animationDelay: '240ms' }}>
+    <Card className="p-6 animate-fade-in-up" style={{ animationDelay: '300ms' }}>
       <SectionLabel>Skill Gaps</SectionLabel>
 
       {gaps.length === 0 ? (
@@ -546,11 +652,14 @@ export default function AnalyticsPage() {
       {/* Row 2: Activity Heatmap (full width) */}
       <ActivityHeatmap days={data.activityHeatmap} />
 
-      {/* Row 3: Skill Breakdown + Gaps */}
+      {/* Row 3: Market Alignment + Skill Breakdown */}
       <div className="grid gap-6 md:grid-cols-2">
+        <MarketAlignmentCard alignment={data.marketAlignment} />
         <SkillBarChart skills={data.skillBreakdown} />
-        <SkillGapsList gaps={data.skillSuggestions} />
       </div>
+
+      {/* Row 4: Skill Gaps (full width) */}
+      <SkillGapsList gaps={data.skillSuggestions} />
     </div>
   );
 }

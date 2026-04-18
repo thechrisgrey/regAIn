@@ -331,12 +331,32 @@ export interface CampaignEta {
   confidence: 'high' | 'medium' | 'low';
 }
 
+export interface MarketAlignmentGap {
+  skill: string;
+  gap: number;
+  demand: number;
+}
+
+export interface MarketAlignmentStrength {
+  skill: string;
+  userScore: number;
+}
+
+export interface MarketAlignment {
+  alignmentPct: number;
+  targetRole: string;
+  topGaps: MarketAlignmentGap[];
+  topStrengths: MarketAlignmentStrength[];
+  calculatedAt: string;
+}
+
 export interface AnalyticsResponse {
   skillBreakdown: SkillBreakdownItem[];
   activityHeatmap: ActivityHeatmapDay[];
   velocityTrend: { weeks: VelocityWeek[] };
   campaignEta: CampaignEta | null;
   skillSuggestions: string[];
+  marketAlignment: MarketAlignment | null;
 }
 
 export interface SkillSuggestionsResponse {

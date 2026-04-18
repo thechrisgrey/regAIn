@@ -29,7 +29,7 @@ ALLOWED_TABLES: dict[str, set[str]] = {
     "Missions": {"MissionHistory", "EvidenceVault", "Campaigns", "UserProfiles", "MarketData", "IdempotencyKeys"},
     "Evidence": {"EvidenceVault"},
     "Coaching": {"UserProfiles"},
-    "Dashboard": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault"},
+    "Dashboard": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "MarketData"},
     "Profile": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions", "CalendarEntries"},
     "Cleanup": {"UserProfiles", "Campaigns", "MissionHistory", "EvidenceVault", "VoiceSessions"},
     "Onet": set(),

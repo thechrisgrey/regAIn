@@ -11,6 +11,8 @@ from typing import Any, Dict, List
 
 from boto3.dynamodb.conditions import Attr as boto3_attr, Key
 
+from backend.handlers.market_intel.alignment import calculate_alignment
+
 from backend.handlers.shared.dynamodb import DynamoDBClient
 
 logger = logging.getLogger(__name__)
@@ -27,12 +29,12 @@ class AnalyticsService:
     def get_analytics(self, user_id: str) -> Dict[str, Any]:
         """Aggregate analytics data for a user.
 
-        Runs 3 parallel DynamoDB queries (missions, evidence, campaigns)
-        and computes derived analytics from the results.
+        Runs 4 parallel DynamoDB queries (missions, evidence, campaigns,
+        market alignment) and computes derived analytics from the results.
         """
         key_condition = Key("userId").eq(user_id)
 
-        with ThreadPoolExecutor(max_workers=3) as executor:
+        with ThreadPoolExecutor(max_workers=4) as executor:
             missions_future = executor.submit(
                 self.db.query_all, "mission_history", key_condition
             )
@@ -42,6 +44,9 @@ class AnalyticsService:
             campaigns_future = executor.submit(
                 self.db.query_all, "campaigns", key_condition
             )
+            alignment_future = executor.submit(
+                self._compute_market_alignment, user_id
+            )
 
             try:
                 missions = missions_future.result(timeout=_QUERY_TIMEOUT_SECONDS)
@@ -50,6 +55,13 @@ class AnalyticsService:
             except FuturesTimeoutError:
                 logger.error("Analytics query timed out after %ds", _QUERY_TIMEOUT_SECONDS)
                 raise
+
+            # Alignment failure is non-fatal — returns None on error
+            try:
+                market_alignment = alignment_future.result(timeout=_QUERY_TIMEOUT_SECONDS)
+            except Exception:
+                logger.warning("Market alignment timed out or failed", exc_info=True)
+                market_alignment = None
 
         active_campaign = next(
             (c for c in campaigns if c.get("status") == "active"), None
@@ -62,6 +74,7 @@ class AnalyticsService:
             "velocityTrend": self._compute_velocity_trend(completed_missions),
             "campaignEta": self._compute_campaign_eta(completed_missions, active_campaign),
             "skillSuggestions": self._compute_unevidenced_skills(evidence, active_campaign),
+            "marketAlignment": market_alignment,
         }
 
     @staticmethod
@@ -246,3 +259,47 @@ class AnalyticsService:
             if s.lower() not in evidenced_skills
         ]
         return sorted(unevidenced)
+
+    def _compute_market_alignment(self, user_id: str) -> dict | None:
+        """Compute market alignment for the user's target role.
+
+        Fetches the user's targetRole from UserProfiles, then calls
+        calculate_alignment() to produce alignment %, top gaps, and
+        top strengths.
+
+        Returns None if targetRole is not set or alignment fails.
+        """
+        try:
+            profile = self.db.get_item("user_profiles", {"userId": user_id})
+        except Exception:
+            logger.warning("Failed to fetch profile for alignment", exc_info=True)
+            return None
+
+        if not profile:
+            return None
+
+        target_role = profile.get("targetRole")
+        if not target_role or not isinstance(target_role, str) or not target_role.strip():
+            return None
+
+        target_role = target_role.strip()
+
+        try:
+            result = calculate_alignment(user_id, target_role)
+        except Exception:
+            logger.warning("Alignment calculation failed for %s", user_id, exc_info=True)
+            return None
+
+        return {
+            "alignmentPct": round(result.alignment_pct, 1),
+            "targetRole": target_role,
+            "topGaps": [
+                {"skill": g["skill"], "gap": round(g["gap"], 2), "demand": round(g["market_weight"] * 100)}
+                for g in result.top_gaps
+            ],
+            "topStrengths": [
+                {"skill": s["skill"], "userScore": round(s["user_score"], 2)}
+                for s in result.top_strengths
+            ],
+            "calculatedAt": result.calculated_at,
+        }

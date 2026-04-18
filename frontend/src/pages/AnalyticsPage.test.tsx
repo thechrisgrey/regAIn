@@ -46,6 +46,7 @@ const MOCK_ANALYTICS = {
     { skill: 'Data Analysis', count: 3, ratio: 0.15 },
   ],
   skillSuggestions: ['Docker', 'Kubernetes'],
+  marketAlignment: null,
 };
 
 beforeEach(() => {

@@ -22,10 +22,13 @@ logger = logging.getLogger(__name__)
 
 _PENDING = "pending-agentcore-deploy"
 
-# Beyond ~30 text-only turns, Nova Pro pattern-matches prior assistant
-# narrative and skips tool invocation. Only applies to the fallback
-# path — AgentCoreMemorySessionManager replays full tool_use/tool_result.
-MAX_REPLAYED_TURNS = 15
+# Nova Lite/Pro pattern-match prior assistant narrative and skip tool
+# invocation when the replayed history is all text-only (no tool_use /
+# tool_result blocks). Keep small so the model follows the system prompt
+# rather than in-context text-only examples. Only applies to the
+# fallback path — AgentCoreMemorySessionManager replays full
+# tool_use/tool_result blocks and is not affected.
+MAX_REPLAYED_TURNS = 6
 
 _MAX_CACHE_SIZE = 50
 _component_cache: OrderedDict[str, Dict[str, Any]] = OrderedDict()
@@ -278,6 +281,14 @@ def create_coaching_agent(
     # SessionManager restored an existing session, agent.messages is already
     # populated and appending thread turns would duplicate context.
     session_restored = session_manager is not None and agent.messages
+    logger.info(
+        "AGENT_INIT session_restored=%s session_manager=%s pre_messages=%d history_turns=%d",
+        session_restored,
+        "active" if session_manager is not None else "none",
+        len(agent.messages),
+        len(conversation_history) if conversation_history else 0,
+    )
+
     if conversation_history and not session_restored:
         filtered = [t for t in conversation_history if not _is_noise_turn(t)]
         recent_turns = filtered[-MAX_REPLAYED_TURNS:]
@@ -295,5 +306,10 @@ def create_coaching_agent(
                 agent.messages.append({"role": "user", "content": [{"text": content}]})
             elif role == "assistant" and first_user_seen:
                 agent.messages.append({"role": "assistant", "content": [{"text": content}]})
+
+        logger.info(
+            "AGENT_INIT replayed %d text-only turns (from %d filtered, %d total)",
+            len(agent.messages), len(filtered), len(conversation_history),
+        )
 
     return agent

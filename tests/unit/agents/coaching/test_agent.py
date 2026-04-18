@@ -76,6 +76,19 @@ def mock_bedrock_model():
         yield mock_cls
 
 
+@pytest.fixture()
+def mock_tools_db():
+    """Mock the tools DB calls made inside create_coaching_agent.
+
+    Needed by tests that go past the tool-loading stage into the
+    get_valid_skill_tags / targetRole lookup code.
+    """
+    with patch("backend.agents.coaching.tools.get_valid_skill_tags", return_value=None), \
+         patch("backend.agents.coaching.tools.db") as _mock_db:
+        _mock_db.get_item.return_value = None
+        yield _mock_db
+
+
 class TestDirectTools:
     """Tests for direct @tool function loading (always used)."""
 
@@ -396,33 +409,32 @@ class TestSessionManagerRetrievalConfig:
         )
 
 
+@pytest.mark.usefixtures("_pending_env")
 class TestConversationHistoryCap:
     """When session_manager is None, conversation_history must be
     truncated to the last N turns before appending to agent.messages.
-    Long text-only replays contaminate Nova Pro's tool-calling."""
+    Long text-only replays contaminate Nova Lite's tool-calling."""
 
-    @pytest.mark.usefixtures("_pending_env")
-    def test_long_history_is_truncated_to_last_15(
-        self, mock_direct_tools, mock_bedrock_model
+    def test_long_history_is_truncated_to_cap(
+        self, mock_direct_tools, mock_bedrock_model, mock_tools_db
     ):
-        """Long conversation should be truncated to last 15 turns."""
+        """Long conversation should be truncated to last MAX_REPLAYED_TURNS turns."""
         from backend.agents.coaching.agent import (
             MAX_REPLAYED_TURNS,
             create_coaching_agent,
         )
 
-        assert MAX_REPLAYED_TURNS == 15, (
-            "Cap constant must be 15 (empirically safe for Nova Pro)"
+        assert MAX_REPLAYED_TURNS == 6, (
+            "Cap constant must be 6 (empirically safe for Nova Lite text-only replay)"
         )
 
-        # Build 55 turns so that turns[-15] lands on a user turn
-        # (index 40, even = user). This avoids the first-user-seen
-        # guard dropping one turn and lets us assert exactly 15.
+        # Build enough turns so truncation kicks in. 54 total turns
+        # means turns[-6] lands on index 48 (even = user), so the
+        # first-user-seen guard doesn't drop a turn.
         turns = []
         for i in range(27):
             turns.append({"role": "user", "content": f"user msg {i}"})
             turns.append({"role": "assistant", "content": f"assistant msg {i}"})
-        turns.append({"role": "user", "content": "user msg 27"})
 
         # Use a plain list for agent.messages so append() works.
         with patch("backend.agents.coaching.agent.Agent") as mock_agent_cls:
@@ -441,15 +453,14 @@ class TestConversationHistoryCap:
             f"Expected {MAX_REPLAYED_TURNS} messages replayed, got {len(replayed)}"
         )
         # Content of first replayed message should be one of the LAST
-        # 15 turns from the input.
+        # MAX_REPLAYED_TURNS turns from the input.
         first_replayed_text = replayed[0]["content"][0]["text"]
         assert first_replayed_text in [
             t["content"] for t in turns[-MAX_REPLAYED_TURNS:]
         ]
 
-    @pytest.mark.usefixtures("_pending_env")
     def test_short_history_is_unchanged(
-        self, mock_direct_tools, mock_bedrock_model
+        self, mock_direct_tools, mock_bedrock_model, mock_tools_db
     ):
         """Histories at or below the cap should replay fully."""
         from backend.agents.coaching.agent import create_coaching_agent
@@ -473,15 +484,14 @@ class TestConversationHistoryCap:
 
         assert len(agent_instance.messages) == 3
 
-    @pytest.mark.usefixtures("_pending_env")
     def test_cap_preserves_first_user_turn_rule(
-        self, mock_direct_tools, mock_bedrock_model
+        self, mock_direct_tools, mock_bedrock_model, mock_tools_db
     ):
         """Bedrock requires the first message to be role=user. After
         truncation, if the first kept turn is assistant, drop it."""
         from backend.agents.coaching.agent import create_coaching_agent
 
-        # Build 20 turns; turn[-15] happens to be assistant (even index).
+        # Build 20 turns; turn[-6] happens to be assistant (odd index).
         turns = []
         for i in range(10):
             turns.append({"role": "user", "content": f"u{i}"})
@@ -505,13 +515,13 @@ class TestConversationHistoryCap:
         )
 
 
+@pytest.mark.usefixtures("_pending_env")
 class TestReplayNoiseFilter:
     """[proactive_check] and bare [page_context:X] turns are noise and
     must be filtered out before replay."""
 
-    @pytest.mark.usefixtures("_pending_env")
     def test_proactive_check_turns_are_filtered(
-        self, mock_direct_tools, mock_bedrock_model
+        self, mock_direct_tools, mock_bedrock_model, mock_tools_db
     ):
         from backend.agents.coaching.agent import create_coaching_agent
 
@@ -545,9 +555,8 @@ class TestReplayNoiseFilter:
             "no_suggestion assistant responses must be filtered"
         )
 
-    @pytest.mark.usefixtures("_pending_env")
     def test_bare_page_context_turns_are_filtered(
-        self, mock_direct_tools, mock_bedrock_model
+        self, mock_direct_tools, mock_bedrock_model, mock_tools_db
     ):
         """A turn that's ONLY a [page_context:X] prefix with no user
         text after it adds no signal."""
@@ -579,19 +588,19 @@ class TestReplayNoiseFilter:
             "bare [page_context: dashboard] turn must be filtered"
         )
 
-    @pytest.mark.usefixtures("_pending_env")
     def test_filter_applied_before_cap(
-        self, mock_direct_tools, mock_bedrock_model
+        self, mock_direct_tools, mock_bedrock_model, mock_tools_db
     ):
-        """Filter happens first, THEN cap to last 15. So noisy
-        histories don't waste cap budget on filtered turns."""
+        """Filter happens first, THEN cap. So noisy histories don't
+        waste cap budget on filtered turns."""
         from backend.agents.coaching.agent import (
             MAX_REPLAYED_TURNS,
             create_coaching_agent,
         )
 
         # 20 noise turns followed by 5 real turns. After filtering,
-        # only 5 turns remain and all should be replayed.
+        # only 10 real messages remain (below the cap), so all should
+        # be replayed.
         turns = []
         for i in range(20):
             turns.append({
@@ -614,5 +623,5 @@ class TestReplayNoiseFilter:
                 conversation_history=turns,
             )
 
-        # 10 real turns (less than 15 cap), so all 10 should be replayed.
-        assert len(agent_instance.messages) == 10
+        # 10 real turns. Cap is 6 so only last 6 should be replayed.
+        assert len(agent_instance.messages) == MAX_REPLAYED_TURNS

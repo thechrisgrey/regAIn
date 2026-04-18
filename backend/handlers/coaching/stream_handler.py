@@ -103,6 +103,7 @@ class _StreamingToolHooks:
 
         registry.add_callback(BeforeToolCallEvent, self._on_before_tool)
         registry.add_callback(AfterToolCallEvent, self._on_after_tool)
+        logger.info("HOOKS_REGISTERED BeforeToolCallEvent + AfterToolCallEvent")
 
     def _on_before_tool(self, event: Any) -> None:
         tool_name = event.tool_use.get("name", "")
@@ -649,8 +650,24 @@ def _handle_default(event: Dict[str, Any]) -> Dict[str, Any]:
             except Exception as dbg_exc:
                 slog.warning("Debug tool list failed: %s", dbg_exc)
 
+            slog.info(
+                "AGENT_INVOKE user=%s messages_before=%d",
+                user_id, len(agent.messages),
+            )
             result = agent(
                 f"[session_type={session_type}] [user_id={user_id}] {message}"
+            )
+
+            # Diagnostic: count tool_use blocks in the conversation to confirm
+            # whether the model actually invoked tools in this turn.
+            tool_calls_in_turn = 0
+            for msg in agent.messages:
+                for block in msg.get("content", []):
+                    if isinstance(block, dict) and "toolUse" in block:
+                        tool_calls_in_turn += 1
+            slog.info(
+                "AGENT_RESULT user=%s tool_calls_total=%d messages_after=%d result_len=%d",
+                user_id, tool_calls_in_turn, len(agent.messages), len(str(result)),
             )
 
         # Flush any buffered partial link in the URL filter.

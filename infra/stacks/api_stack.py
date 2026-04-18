@@ -195,11 +195,12 @@ class ApiStack(cdk.Stack):
         if "ConversationThreads" in self.tables:
             self.tables["ConversationThreads"].grant_read_write_data(lambdas["Coaching"])
 
-        # Dashboard: read UserProfiles, Campaigns, MissionHistory, EvidenceVault
+        # Dashboard: read UserProfiles, Campaigns, MissionHistory, EvidenceVault, MarketData
         self.tables["UserProfiles"].grant_read_data(lambdas["Dashboard"])
         self.tables["Campaigns"].grant_read_data(lambdas["Dashboard"])
         self.tables["MissionHistory"].grant_read_data(lambdas["Dashboard"])
         self.tables["EvidenceVault"].grant_read_data(lambdas["Dashboard"])
+        self.tables["MarketData"].grant_read_data(lambdas["Dashboard"])
 
         # Onet: no DynamoDB access — proxies external O*NET API only
 

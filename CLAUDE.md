@@ -149,7 +149,7 @@ bash scripts/deploy.sh <StackName> --exclusively   # skip dependency stacks
 - **Attention modes**: `dnd` (silent), `focus` (significant events), `explore` (proactive insights). Stored on thread row
 - **Token budget compaction**: ~27k budget. Auto-compacts at 100%. Archives to S3, summary replaces thread + goes to AgentCore Memory
 - **Lambda concurrency**: Account limit is 10 (not default 1000). Reserved concurrency NOT set — all Lambdas share unreserved pool
-- **Bedrock IAM scoped to models**: `bedrock:InvokeModel*` scoped to `amazon.nova-lite-v1:0` and `amazon.nova-2-sonic-v1:0` ARNs. Resume stack scoped to `nova-lite-v1:0` only
+- **Bedrock IAM scoped to models**: `bedrock:InvokeModel*` scoped to `amazon.nova-pro-v1:0` and `amazon.nova-2-sonic-v1:0` ARNs. Resume stack scoped to `nova-pro-v1:0` only
 - **Agent tools always use direct @tool functions**: `_get_direct_tools()` from `tools.py`. Gateway tool discovery disabled — Strands layer rejects `ModuleType` tool objects
 - **Strands tool introspection**: Use `agent.tool_names` (property). Tools live in `agent.tool_registry` — `agent.tools`/`agent._tools` don't exist
 - **AgentCore Gateway wiring**: `agentcore_stack.py` exposes `gateway_id` + `gateway_endpoint`. All three agent Lambdas get `bedrock:InvokeAgent` + `bedrock:InvokeAgentCore` on `gateway/*`. CDK stack order: AgentCoreStack → AgentStack → ApiStack
@@ -162,7 +162,7 @@ bash scripts/deploy.sh <StackName> --exclusively   # skip dependency stacks
 - **Skill tag normalization**: `log_evidence` normalizes via `taxonomy.normalize_skill()` (e.g. "python" → "Python Programming"). Unknown tags pass through
 - **Prescribed skill tags**: `get_system_prompt()` accepts `valid_skill_tags` from user's campaign `skillsFocus`. When present, agent restricted to those tags
 - **Day-change detection**: `Missions.tsx` uses `visibilitychange` listener + 60s interval for UTC date rollover
-- **Voice practice**: No live tools during sessions — all context pre-fetched into prompt via `_prefetch_context()`. `store_memory()` runs only on disconnect. Eliminates 500ms-2s audio gaps. Assessment generated via Bedrock Nova Lite with structured JSON output
+- **Voice practice**: No live tools during sessions — all context pre-fetched into prompt via `_prefetch_context()`. `store_memory()` runs only on disconnect. Eliminates 500ms-2s audio gaps. Assessment generated via Bedrock Nova Pro with structured JSON output
 - **AudioVisualizer**: WebGL 3D orb at `components/voice/AudioVisualizer.tsx` — R3F + `three-custom-shader-material` with per-state configs and lerped transitions in `useFrame`
 - **Web search (`web_search` @tool)**: Coaching agent calls Tavily AI-search via `backend/handlers/search/service.py` (stdlib `urllib.request`, 8s timeout). SSM SecureString key at `/regain/search/tavily-api-key`. Per-user rate limit 20/day via atomic conditional update on `UserProfiles.dailySearchCount` + `lastSearchDate` (mirrors mission-gen pattern). IAM grant on all three agent Lambdas via `AgentStack._search_ssm_policy()`. Prompt instructs agent to cite results as inline markdown hyperlinks and treat snippets as untrusted
 
@@ -228,7 +228,7 @@ bash scripts/deploy.sh <StackName> --exclusively   # skip dependency stacks
 
 - **Cognito authorizer** expects **idToken** (not accessToken) when no OAuth scopes configured
 - **DynamoDB composite keys**: `get_item`/`update_item` on Campaigns requires `{userId, campaignId}`, MissionHistory requires `{userId, missionId}` — moto mocks dispatch by table name only, so key bugs invisible in tests
-- **Nova Lite model ID**: `amazon.nova-lite-v1:0` (NOT `us.amazon.nova-lite-v2:0` which doesn't exist)
+- **Nova Pro model ID**: `amazon.nova-pro-v1:0` — set via `BEDROCK_MODEL_ID` env var on all agent Lambdas (code defaults to `nova-lite` but prod overrides to Pro)
 - **PyYAML NOT available in Lambda Python 3.12** — use inline string parsing
 - **LLM hallucinating tool success on error**: Tools returning `{"error": ...}` can still be narrated as success by Nova Lite/Pro. Silent failures (missing env var → ValueError → caught → error dict) are especially dangerous
 - **Tavily SSM key provisioning**: Before first deploy of the web-search feature, stash the Tavily key once: `aws ssm put-parameter --profile regain --region us-east-1 --name /regain/search/tavily-api-key --type SecureString --value "tvly-..." --description "Tavily web search API key"`. CDK only grants read access — the parameter itself must exist or the coaching agent's `web_search` tool will raise on first invocation

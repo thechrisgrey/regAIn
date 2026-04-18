@@ -428,7 +428,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
         );
         reconnectAttempt.current += 1;
         reconnectTimer.current = setTimeout(() => {
-          void connectRef.current?.();
+          connectRef.current?.().catch(() => {});
         }, delay);
       };
 
@@ -453,7 +453,7 @@ export function CoachingProvider({ children }: { children: ReactNode }) {
   // Connect on mount — subscribes to the external WebSocket system.
   // setState calls within connect() execute in async event handlers, not synchronously.
   useEffect(() => {
-    void connect();
+    connect().catch(() => {});
     return () => {
       clearTimeout(reconnectTimer.current);
       clearStreamTimeout();

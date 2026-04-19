@@ -221,7 +221,7 @@ class ResumeStack(cdk.Stack):
 
         # CORS OPTIONS methods for L1 resources (not covered by default_cors_preflight_options)
         cors_response_params = {
-            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization'",
+            "method.response.header.Access-Control-Allow-Headers": "'Content-Type,Authorization,Idempotency-Key'",
             "method.response.header.Access-Control-Allow-Methods": "'GET,POST,PUT,DELETE,OPTIONS'",
             "method.response.header.Access-Control-Allow-Origin": "'https://regain.altivum.ai'",
         }
@@ -262,7 +262,7 @@ class ResumeStack(cdk.Stack):
         # Force API Gateway redeployment when L1 routes change.
         # L1 (Cfn) resources aren't tracked by the L2 RestApi deployment,
         # so without this the prod stage would stay pinned to a stale deployment.
-        api.latest_deployment.add_to_logical_id("resume-routes-v1")
+        api.latest_deployment.add_to_logical_id("resume-routes-v2-idempotency-key")
 
     def _create_monitoring(self) -> None:
         """Add CloudWatch alarms for the Resume Lambda."""

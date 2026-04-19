@@ -27,16 +27,35 @@ def _is_api_gateway_event(event: Dict[str, Any]) -> bool:
     return "httpMethod" in event and "requestContext" in event
 
 
+def _parse_scalar(value: str) -> Any:
+    v = value.strip()
+    if not v:
+        return ""
+    if (v.startswith('"') and v.endswith('"')) or (v.startswith("'") and v.endswith("'")):
+        return v[1:-1]
+    if v == "true":
+        return True
+    if v == "false":
+        return False
+    if v in ("null", "~"):
+        return None
+    try:
+        return int(v)
+    except ValueError:
+        pass
+    try:
+        return float(v)
+    except ValueError:
+        pass
+    return v
+
+
 def _parse_frontmatter(content: str) -> Dict[str, Any] | None:
     """Parse YAML-style frontmatter from resume markdown content.
 
-    Handles simple ``key: value`` pairs (no nested structures).
-
-    Args:
-        content: Full resume markdown with YAML frontmatter.
-
-    Returns:
-        Parsed frontmatter dict, or None if parsing fails.
+    Handles the subset we emit: top-level scalars, arrays of strings, and
+    arrays of flat objects (used for skills and top_accomplishments).
+    PyYAML is not available in the Lambda Python 3.12 runtime.
     """
     if not content.startswith("---"):
         return None
@@ -44,15 +63,49 @@ def _parse_frontmatter(content: str) -> Dict[str, Any] | None:
     if len(parts) < 3:
         return None
     try:
+        lines = parts[1].strip().splitlines()
         result: Dict[str, Any] = {}
-        for line in parts[1].strip().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#"):
+        i = 0
+        while i < len(lines):
+            line = lines[i]
+            stripped = line.strip()
+            indent = len(line) - len(line.lstrip(" "))
+            if not stripped or stripped.startswith("#") or indent > 0 or ":" not in line:
+                i += 1
                 continue
             key, _, value = line.partition(":")
-            if not _:
+            key = key.strip()
+            value = value.strip()
+            if value:
+                result[key] = _parse_scalar(value)
+                i += 1
                 continue
-            result[key.strip()] = value.strip()
+            items: list[Any] = []
+            current_obj: Dict[str, Any] | None = None
+            i += 1
+            while i < len(lines):
+                sub = lines[i]
+                sub_indent = len(sub) - len(sub.lstrip(" "))
+                sub_stripped = sub.strip()
+                if sub_stripped and sub_indent == 0:
+                    break
+                if not sub_stripped:
+                    i += 1
+                    continue
+                if sub_stripped.startswith("- "):
+                    after_dash = sub_stripped[2:].strip()
+                    if ":" in after_dash:
+                        k, _, v = after_dash.partition(":")
+                        current_obj = {k.strip(): _parse_scalar(v)}
+                        items.append(current_obj)
+                    else:
+                        items.append(_parse_scalar(after_dash))
+                        current_obj = None
+                elif current_obj is not None and ":" in sub_stripped:
+                    k, _, v = sub_stripped.partition(":")
+                    current_obj[k.strip()] = _parse_scalar(v)
+                i += 1
+            result[key] = items
         return result if result else None
     except Exception:
         return None

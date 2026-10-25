@@ -12,6 +12,7 @@ This script:
 - Does NOT touch existing pending/active missions
 """
 
+import os
 import uuid
 import json
 import boto3
@@ -160,7 +161,11 @@ SEED_MISSIONS = [
 
 
 def main():
-    ddb = boto3.resource("dynamodb", region_name=REGION)
+    # Pinned to the regain profile (account 563170906428). An explicit profile also
+    # ignores exported AWS_* keys, so a shell-wide AWS_PROFILE cannot redirect these
+    # writes. Override only via REGAIN_AWS_PROFILE.
+    session = boto3.Session(profile_name=os.environ.get("REGAIN_AWS_PROFILE", "regain"))
+    ddb = session.resource("dynamodb", region_name=REGION)
     campaigns_table = ddb.Table(CAMPAIGNS_TABLE)
     missions_table = ddb.Table(MISSIONS_TABLE)
     evidence_table = ddb.Table(EVIDENCE_TABLE)

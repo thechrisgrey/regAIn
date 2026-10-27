@@ -14,6 +14,7 @@ The user and campaign must already exist (created via onboarding).
 This script adds missions and evidence to make the scorecard compelling.
 """
 
+import os
 import sys
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -62,7 +63,11 @@ MISSIONS = [
 
 def seed(user_id: str, campaign_id: str) -> None:
     """Seed missions and evidence for a demo account."""
-    dynamodb = boto3.resource("dynamodb", region_name=REGION)
+    # Pinned to the regain profile (account 563170906428). An explicit profile also
+    # ignores exported AWS_* keys, so a shell-wide AWS_PROFILE cannot redirect these
+    # writes. Override only via REGAIN_AWS_PROFILE.
+    session = boto3.Session(profile_name=os.environ.get("REGAIN_AWS_PROFILE", "regain"))
+    dynamodb = session.resource("dynamodb", region_name=REGION)
     missions_table = dynamodb.Table("RegainMissionHistory")
     evidence_table = dynamodb.Table("RegainEvidenceVault")
 

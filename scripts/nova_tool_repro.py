@@ -47,6 +47,11 @@ os.environ.setdefault("MARKET_DATA_TABLE", "RegainMarketData")
 os.environ.setdefault("CALENDAR_TABLE", "RegainCalendar")
 os.environ.setdefault("BEDROCK_MODEL_ID", "amazon.nova-pro-v1:0")
 os.environ.setdefault("AWS_REGION", "us-east-1")
+# Pin the regain account (563170906428). The backend tools build their own boto3
+# clients from the environment, so a shell-wide AWS_PROFILE would otherwise send
+# these live DynamoDB reads and writes to another account. Override only via
+# REGAIN_AWS_PROFILE.
+os.environ["AWS_PROFILE"] = os.environ.get("REGAIN_AWS_PROFILE", "regain")
 
 
 def build_tools(count: int):
